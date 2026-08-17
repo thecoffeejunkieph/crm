@@ -1,6 +1,5 @@
 package ph.thecoffeejunkie.crm.util;
 
-import ph.thecoffeejunkie.crm.dto.request.QuotationItemRequest;
 import ph.thecoffeejunkie.crm.dto.response.CustomerResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
@@ -47,7 +46,8 @@ public final class CustomMapper {
                 customer.getLastName(),
                 customer.getEmail(),
                 customer.getAddress(),
-                customer.getPhoneNumber()
+                customer.getPhoneNumber(),
+                customer.getPreferredShippingMethod()
         );
     }
 

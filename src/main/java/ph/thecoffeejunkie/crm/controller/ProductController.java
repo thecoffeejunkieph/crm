@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,7 +29,7 @@ public class ProductController {
 
         PageRequest pageRequest = PageRequest.of(pageNumber - 1, pageSize);
 
-        if (productName != null && !productName.isBlank()) {
+        if (Strings.isNotEmpty(productName)) {
             return productService.searchProductsByName(productName, pageRequest);
         }
 

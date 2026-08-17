@@ -9,5 +9,6 @@ public record CustomerResponse (
         String lastName,
         String email,
         String address,
-        String phoneNumber
+        String phoneNumber,
+        String preferredShippingMethod
 ){}

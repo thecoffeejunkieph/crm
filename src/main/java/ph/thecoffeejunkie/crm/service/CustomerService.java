@@ -29,6 +29,7 @@ public class CustomerService {
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setAddress(request.getAddress());
+        customer.setPreferredShippingMethod(request.getPreferredShippingMethod());
 
         return CustomMapper.toCustomerResponse(repository.save(customer));
     }
@@ -64,6 +65,7 @@ public class CustomerService {
         customer.setLastName(request.getLastName());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setAddress(request.getAddress());
+        customer.setPreferredShippingMethod(request.getPreferredShippingMethod());
 
         return CustomMapper.toCustomerResponse(repository.save(customer));
     }

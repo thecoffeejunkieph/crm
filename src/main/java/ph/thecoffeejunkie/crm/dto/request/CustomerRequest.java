@@ -26,4 +26,7 @@ public class CustomerRequest {
 
     @Size(max = 500, message = "Address must not exceed 500 characters")
     private String address;
+
+    @Size(max = 100, message = "Preferred shipping method must not exceed 100 characters")
+    private String preferredShippingMethod;
 }
