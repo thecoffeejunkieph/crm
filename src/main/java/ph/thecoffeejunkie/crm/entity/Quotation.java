@@ -25,6 +25,10 @@ public class Quotation extends BaseEntity {
     @JsonBackReference
     private Customer customer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sales_rep_email")
+    private CRMUser salesRep;
+
     @OneToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "quotation_item_details",
@@ -42,4 +46,6 @@ public class Quotation extends BaseEntity {
     private BigDecimal shippingCharges;
     private String notes;
     private String termsAndConditions;
+
+    private String pdfPath;
 }

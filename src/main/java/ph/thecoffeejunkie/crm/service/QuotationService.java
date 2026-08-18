@@ -4,14 +4,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import ph.thecoffeejunkie.crm.dto.request.QuotationCreateRequest;
 import ph.thecoffeejunkie.crm.dto.request.QuotationItemRequest;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
+import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.entity.QuotationItem;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
+import ph.thecoffeejunkie.crm.repository.CRMUserRepository;
 import ph.thecoffeejunkie.crm.repository.CustomerRepository;
 import ph.thecoffeejunkie.crm.repository.ProductRepository;
 import ph.thecoffeejunkie.crm.repository.QuotationItemRepository;
@@ -31,6 +35,7 @@ public class QuotationService {
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final QuotationItemRepository quotationItemRepository;
+    private final CRMUserRepository crmUserRepository;
 
     public QuotationResponse create(QuotationCreateRequest request) {
         log.info("Creating quotation...");
@@ -107,8 +112,19 @@ public class QuotationService {
         quotation.setShippingCharges(request.shippingCharges());
         quotation.setTermsAndConditions(request.termsAndConditions());
         quotation.setNotes(request.notes());
+        quotation.setSalesRep(resolveCurrentSalesRep());
 
         return quotation;
+    }
+
+    private CRMUser resolveCurrentSalesRep() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+
+        return crmUserRepository.findByEmail(authentication.getName()).orElse(null);
     }
 
     private QuotationItem toQuotationItem(QuotationItemRequest request){

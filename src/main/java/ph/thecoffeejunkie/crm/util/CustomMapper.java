@@ -5,7 +5,9 @@ import ph.thecoffeejunkie.crm.dto.response.CustomerResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
+import ph.thecoffeejunkie.crm.dto.response.SalesRepResponse;
 import ph.thecoffeejunkie.crm.entity.BusinessInformation;
+import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Customer;
 import ph.thecoffeejunkie.crm.entity.Product;
 import ph.thecoffeejunkie.crm.entity.Quotation;
@@ -28,8 +30,17 @@ public final class CustomMapper {
                 quotation.getQuoteDate(),
                 quotation.getExpiryDate(),
                 quotation.getNotes(),
-                quotation.getTermsAndConditions()
+                quotation.getTermsAndConditions(),
+                quotation.getPdfPath(),
+                toSalesRepResponse(quotation.getSalesRep())
                 );
+    }
+
+    public static SalesRepResponse toSalesRepResponse(CRMUser salesRep) {
+        if (salesRep == null) {
+            return null;
+        }
+        return new SalesRepResponse(salesRep.getEmail(), salesRep.getFirstName(), salesRep.getLastName());
     }
 
     public static ProductResponse toProductResponse(Product product) {

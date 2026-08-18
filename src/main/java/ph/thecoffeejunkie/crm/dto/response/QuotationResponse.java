@@ -17,5 +17,7 @@ public record QuotationResponse(
         LocalDate quoteDate,
         LocalDate expiryDate,
         String notes,
-        String termsAndConditions
+        String termsAndConditions,
+        String pdfPath,
+        SalesRepResponse salesRep
 ) {}
