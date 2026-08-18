@@ -3,7 +3,9 @@ package ph.thecoffeejunkie.crm.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,5 +37,15 @@ public class QuotationController {
     @PostMapping
     public QuotationResponse save(@RequestBody QuotationCreateRequest request) {
         return quotationService.create(request);
+    }
+
+    @GetMapping("/{id}")
+    public QuotationResponse findById(@PathVariable Long id) {
+        return quotationService.findById(id);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        quotationService.delete(id);
     }
 }

@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
@@ -22,17 +23,22 @@ public class CustomerController {
     }
 
     @PostMapping
-    public CustomerResponse save(@RequestBody CustomerRequest request) {
+    public CustomerResponse save(@RequestBody @Valid CustomerRequest request) {
         return customerService.create(request);
     }
 
     @PutMapping("/{id}")
-    public CustomerResponse update(@PathVariable Long id, @RequestBody CustomerRequest request) {
+    public CustomerResponse update(@PathVariable Long id, @RequestBody @Valid CustomerRequest request) {
         return customerService.update(id, request);
     }
 
-    @GetMapping("/find/{id}")
+    @GetMapping("/{id}")
     public CustomerResponse findById(@PathVariable Long id) {
         return customerService.findById(id);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        customerService.delete(id);
     }
 }

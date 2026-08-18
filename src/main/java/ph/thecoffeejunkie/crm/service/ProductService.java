@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import ph.thecoffeejunkie.crm.dto.request.ProductCreateRequest;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.entity.Product;
+import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.ProductRepository;
 
 import java.util.List;
@@ -34,6 +35,26 @@ public class ProductService {
         return productRepository.findByProductNameContainingIgnoreCase(productName, pageRequest).stream()
                 .map(this::toProductResponse)
                 .toList();
+    }
+
+    public ProductResponse findById(Long id) {
+        return productRepository.findById(id)
+                .map(this::toProductResponse)
+                .orElseThrow(() -> {
+                    log.warn("Product not found with id: {}", id);
+                    return ResourceNotFoundException.of("Product", id);
+                });
+    }
+
+    public void delete(Long id) {
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("Product not found with id: {}", id);
+                    return ResourceNotFoundException.of("Product", id);
+                });
+
+        productRepository.delete(product);
     }
 
     private Product toProduct(ProductCreateRequest request) {

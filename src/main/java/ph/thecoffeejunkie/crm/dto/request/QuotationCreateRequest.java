@@ -1,7 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.request;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 public record QuotationCreateRequest(
@@ -9,8 +9,8 @@ public record QuotationCreateRequest(
         Long customerId,
         String status,
         BigDecimal totalAmount,
-        LocalDateTime quoteDate,
-        LocalDateTime expiryDate,
+        LocalDate quoteDate,
+        LocalDate expiryDate,
         BigDecimal shippingCharges,
         String notes,
         String termsAndConditions

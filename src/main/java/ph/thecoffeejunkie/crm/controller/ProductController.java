@@ -1,14 +1,10 @@
 package ph.thecoffeejunkie.crm.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ph.thecoffeejunkie.crm.dto.request.ProductCreateRequest;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.service.ProductService;
@@ -37,8 +33,18 @@ public class ProductController {
     }
 
     @PostMapping
-    public ProductResponse addProduct(@RequestBody ProductCreateRequest request){
+    public ProductResponse addProduct(@RequestBody @Valid ProductCreateRequest request){
         return productService.save(request);
     }
-    
+
+    @GetMapping("/{id}")
+    public ProductResponse getProductById(@PathVariable Long id) {
+        return productService.findById(id);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteProduct(@PathVariable Long id) {
+        productService.delete(id);
+    }
+
 }

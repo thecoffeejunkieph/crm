@@ -1,9 +1,11 @@
 package ph.thecoffeejunkie.crm.util;
 
+import ph.thecoffeejunkie.crm.dto.response.BusinessInformationResponse;
 import ph.thecoffeejunkie.crm.dto.response.CustomerResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
+import ph.thecoffeejunkie.crm.entity.BusinessInformation;
 import ph.thecoffeejunkie.crm.entity.Customer;
 import ph.thecoffeejunkie.crm.entity.Product;
 import ph.thecoffeejunkie.crm.entity.Quotation;
@@ -17,6 +19,7 @@ public final class CustomMapper {
 
     public static QuotationResponse toQuotationResponse(Quotation quotation) {
         return new QuotationResponse(
+                quotation.getId(),
                 quotation.getQuotationNumber(),
                 quotation.getQuotationItems().stream().map(CustomMapper::toQuotationItemResponse).toList(),
                 toCustomerResponse(quotation.getCustomer()),
@@ -47,7 +50,21 @@ public final class CustomMapper {
                 customer.getEmail(),
                 customer.getAddress(),
                 customer.getPhoneNumber(),
-                customer.getPreferredShippingMethod()
+                customer.getPreferredShippingMethod(),
+                customer.getSource(),
+                customer.getCustomerType(),
+                toBusinessInformationResponse(customer.getBusinessInformation())
+        );
+    }
+
+    public static BusinessInformationResponse toBusinessInformationResponse(BusinessInformation businessInformation) {
+        if (businessInformation == null) {
+            return null;
+        }
+        return new BusinessInformationResponse(
+                businessInformation.getBusinessName(),
+                businessInformation.getTin(),
+                businessInformation.getBusinessType()
         );
     }
 
