@@ -3,6 +3,7 @@ package ph.thecoffeejunkie.crm.entity;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 import ph.thecoffeejunkie.crm.constant.CustomerType;
 
 import java.util.List;
@@ -41,6 +42,14 @@ public class Customer extends BaseEntity {
 
     @Embedded
     private BusinessInformation businessInformation;
+
+    @Column(nullable = false)
+    @ColumnDefault("true")
+    private boolean active = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_rep_email")
+    private CRMUser assignedRep;
 
     @OneToMany
     @JoinTable(

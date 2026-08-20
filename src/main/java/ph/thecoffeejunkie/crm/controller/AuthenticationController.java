@@ -44,6 +44,12 @@ public class AuthenticationController {
         return ResponseEntity.ok(authenticationService.isTokenValid(token));
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout() {
+        authenticationService.clearJwtCookie();
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/register")
     public String register(@RequestBody AuthenticationRequest authenticationRequest) {
         registrationService.register(authenticationRequest);

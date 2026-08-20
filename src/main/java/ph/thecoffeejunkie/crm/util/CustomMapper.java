@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.util;
 
 import ph.thecoffeejunkie.crm.dto.response.BusinessInformationResponse;
+import ph.thecoffeejunkie.crm.dto.response.CustomerActivityResponse;
 import ph.thecoffeejunkie.crm.dto.response.CustomerResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
@@ -9,6 +10,7 @@ import ph.thecoffeejunkie.crm.dto.response.SalesRepResponse;
 import ph.thecoffeejunkie.crm.entity.BusinessInformation;
 import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Customer;
+import ph.thecoffeejunkie.crm.entity.CustomerActivity;
 import ph.thecoffeejunkie.crm.entity.Product;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.entity.QuotationItem;
@@ -64,7 +66,18 @@ public final class CustomMapper {
                 customer.getPreferredShippingMethod(),
                 customer.getSource(),
                 customer.getCustomerType(),
-                toBusinessInformationResponse(customer.getBusinessInformation())
+                toBusinessInformationResponse(customer.getBusinessInformation()),
+                toSalesRepResponse(customer.getAssignedRep())
+        );
+    }
+
+    public static CustomerActivityResponse toCustomerActivityResponse(CustomerActivity activity) {
+        return new CustomerActivityResponse(
+                activity.getId(),
+                activity.getType(),
+                activity.getNotes(),
+                activity.getCreatedAt(),
+                toSalesRepResponse(activity.getCreatedBy())
         );
     }
 

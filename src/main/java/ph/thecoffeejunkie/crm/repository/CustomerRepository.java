@@ -14,7 +14,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     Optional<Customer> findByEmail(String email);
 
-    Page<Customer> findAll(Pageable pageable);
+    Page<Customer> findByActiveTrue(Pageable pageable);
 
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }

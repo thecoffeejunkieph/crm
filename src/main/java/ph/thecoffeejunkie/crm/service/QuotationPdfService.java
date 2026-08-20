@@ -162,12 +162,11 @@ public class QuotationPdfService {
         Font labelFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9);
         Font valueFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
 
-        PdfPTable meta = new PdfPTable(4);
+        PdfPTable meta = new PdfPTable(3);
         meta.setWidthPercentage(100);
         meta.setSpacingBefore(10);
 
         addMetaCell(meta, "Quotation #", response.quotationNumber(), labelFont, valueFont);
-        addMetaCell(meta, "Status", nullToDash(response.status()), labelFont, valueFont);
         addMetaCell(meta, "Quote Date", FormatUtils.formatDate(response.quoteDate()), labelFont, valueFont);
         addMetaCell(meta, "Expiry Date", FormatUtils.formatDate(response.expiryDate()), labelFont, valueFont);
 
@@ -290,7 +289,4 @@ public class QuotationPdfService {
         }
     }
 
-    private String nullToDash(String value) {
-        return value == null || value.isBlank() ? "-" : value;
-    }
 }

@@ -26,13 +26,13 @@ public class ProductService {
     }
 
     public List<ProductResponse> getAllProducts(PageRequest pageRequest) {
-        return productRepository.findAll(pageRequest).stream()
+        return productRepository.findByActiveTrue(pageRequest).stream()
                 .map(this::toProductResponse)
                 .toList();
     }
 
     public List<ProductResponse> searchProductsByName(String productName, PageRequest pageRequest) {
-        return productRepository.findByProductNameContainingIgnoreCase(productName, pageRequest).stream()
+        return productRepository.findByActiveTrueAndProductNameContainingIgnoreCase(productName, pageRequest).stream()
                 .map(this::toProductResponse)
                 .toList();
     }
@@ -54,7 +54,8 @@ public class ProductService {
                     return ResourceNotFoundException.of("Product", id);
                 });
 
-        productRepository.delete(product);
+        product.setActive(false);
+        productRepository.save(product);
     }
 
     private Product toProduct(ProductCreateRequest request) {

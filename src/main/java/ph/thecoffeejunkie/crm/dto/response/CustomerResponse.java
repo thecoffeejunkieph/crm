@@ -14,5 +14,6 @@ public record CustomerResponse (
         String preferredShippingMethod,
         String source,
         CustomerType customerType,
-        BusinessInformationResponse businessInformation
+        BusinessInformationResponse businessInformation,
+        SalesRepResponse assignedRep
 ){}

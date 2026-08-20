@@ -162,19 +162,19 @@ public class QuotationEmailService {
         StringBuilder items = new StringBuilder();
         for (QuotationItemResponse item : response.quotationItems()) {
             items.append("<tr>")
-                    .append("<td style=\"padding:8px;border-bottom:1px solid #eee;\">")
+                    .append("<td>")
                     .append(HtmlUtils.htmlEscape(item.product().productName()))
                     .append("</td>")
-                    .append("<td style=\"padding:8px;border-bottom:1px solid #eee;text-align:center;\">")
+                    .append("<td style=\"text-align:center;\">")
                     .append(item.quantity())
                     .append("</td>")
-                    .append("<td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;\">")
+                    .append("<td style=\"text-align:right;\">")
                     .append(FormatUtils.formatCurrency(item.price()))
                     .append("</td>")
-                    .append("<td style=\"padding:8px;border-bottom:1px solid #eee;text-align:center;\">")
+                    .append("<td style=\"text-align:center;\">")
                     .append(item.discount() == null ? 0 : item.discount())
                     .append("%</td>")
-                    .append("<td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;\">")
+                    .append("<td style=\"text-align:right;\">")
                     .append(FormatUtils.formatCurrency(item.total()))
                     .append("</td>")
                     .append("</tr>");
@@ -197,46 +197,78 @@ public class QuotationEmailService {
                 : "";
 
         return """
+                <!doctype html>
                 <html>
-                <body style="font-family:Arial,sans-serif;color:#2b2b2b;background:#f5f2ef;padding:24px;margin:0;">
-                  <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e0da;">
-                    <div style="background:#3c281e;padding:20px 24px;">
-                      <img src="cid:%s" alt="%s" height="40"/>
-                    </div>
-                    <div style="padding:24px;">
-                      <p>Hi %s,</p>
-                      <p>Please find attached your quotation <strong>%s</strong>, valid until <strong>%s</strong>. A summary is below.</p>
-
-                      <table style="width:100%%;border-collapse:collapse;margin:16px 0;">
-                        <thead>
-                          <tr style="background:#3c281e;color:#ffffff;">
-                            <th style="padding:8px;text-align:left;">Product</th>
-                            <th style="padding:8px;">Qty</th>
-                            <th style="padding:8px;text-align:right;">Unit Price</th>
-                            <th style="padding:8px;">Disc.</th>
-                            <th style="padding:8px;text-align:right;">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          %s
-                        </tbody>
-                      </table>
-
-                      <p style="text-align:right;">Subtotal: %s</p>
-                      <p style="text-align:right;font-size:16px;"><strong>Total Amount: %s</strong></p>
-
-                      %s
-                      %s
-
-                      <div style="text-align:center;margin:32px 0;">
-                        <a href="%s" style="background:#2e7d32;color:#ffffff;padding:12px 28px;border-radius:4px;text-decoration:none;font-weight:bold;margin-right:12px;display:inline-block;">Accept Quotation</a>
-                        <a href="%s" style="background:#c62828;color:#ffffff;padding:12px 28px;border-radius:4px;text-decoration:none;font-weight:bold;display:inline-block;">Reject Quotation</a>
+                <head>
+                <meta charset="UTF-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+                <style>
+                  body { margin:0; padding:0; background:#f2f1ee; }
+                  .email-wrapper { width:100%%; background:#f2f1ee; padding:32px 16px; }
+                  .email-card { max-width:600px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06); border:1px solid #ebe8e3; }
+                  .email-header { background:#f4f4f2; padding:28px 24px; text-align:center; border-bottom:1px solid #ebe8e3; }
+                  .email-body { padding:28px 24px; font-family:'Segoe UI',Arial,sans-serif; color:#2b2b2b; line-height:1.6; }
+                  .items-table { width:100%%; border-collapse:collapse; margin:20px 0; font-family:'Segoe UI',Arial,sans-serif; }
+                  .items-table thead tr { background:#3c281e; color:#ffffff; }
+                  .items-table th { padding:10px 8px; font-size:13px; text-transform:uppercase; letter-spacing:0.03em; }
+                  .items-table td { padding:10px 8px; font-size:14px; border-bottom:1px solid #f0eee9; }
+                  .items-table tbody tr:nth-child(even) { background:#faf9f7; }
+                  .totals p { margin:4px 0; font-family:'Segoe UI',Arial,sans-serif; }
+                  .cta { text-align:center; margin:32px 0; }
+                  .btn { display:inline-block; padding:13px 30px; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px; margin:6px; }
+                  .btn-accept { background:#2e7d32; color:#ffffff; }
+                  .btn-reject { background:#c62828; color:#ffffff; }
+                  .footer-brand { font-size:12px; color:#8a8a8a; text-align:center; margin-top:24px; }
+                  @media only screen and (max-width:480px) {
+                    .email-body { padding:20px 16px; }
+                    .btn { display:block; width:100%%; box-sizing:border-box; margin:8px 0; }
+                    .items-table th, .items-table td { padding:8px 4px; font-size:12px; }
+                  }
+                </style>
+                </head>
+                <body>
+                  <div class="email-wrapper">
+                    <div class="email-card">
+                      <div class="email-header">
+                        <img src="cid:%s" alt="%s" height="42" style="display:inline-block;"/>
                       </div>
+                      <div class="email-body">
+                        <p>Hi %s,</p>
+                        <p>Please find attached your quotation <strong>%s</strong>, valid until <strong>%s</strong>. A summary is below.</p>
 
-                      <p style="font-size:12px;color:#777;">If the buttons don't work, copy and paste these links into your browser:<br/>
-                      Accept: %s<br/>Reject: %s</p>
+                        <table class="items-table">
+                          <thead>
+                            <tr>
+                              <th style="text-align:left;">Product</th>
+                              <th>Qty</th>
+                              <th style="text-align:right;">Unit Price</th>
+                              <th>Disc.</th>
+                              <th style="text-align:right;">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            %s
+                          </tbody>
+                        </table>
 
-                      <p style="font-size:12px;color:#777;margin-top:24px;">%s | %s | %s</p>
+                        <div class="totals">
+                          <p style="text-align:right;">Subtotal: %s</p>
+                          <p style="text-align:right;font-size:17px;"><strong>Total Amount: %s</strong></p>
+                        </div>
+
+                        %s
+                        %s
+
+                        <div class="cta">
+                          <a href="%s" class="btn btn-accept">Accept Quotation</a>
+                          <a href="%s" class="btn btn-reject">Reject Quotation</a>
+                        </div>
+
+                        <p style="font-size:12px;color:#8a8a8a;">If the buttons don't work, copy and paste these links into your browser:<br/>
+                        Accept: %s<br/>Reject: %s</p>
+
+                        <p class="footer-brand">%s | %s | %s</p>
+                      </div>
                     </div>
                   </div>
                 </body>
