@@ -38,3 +38,8 @@ out/
 
 ### Generated files ###
 /storage/
+
+### Environment variables ###
+.env
+.env.*
+!.env.*.example

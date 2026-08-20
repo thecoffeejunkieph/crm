@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.dto.request.QuotationCreateRequest;
+import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
+import ph.thecoffeejunkie.crm.service.QuotationAcceptanceService;
 import ph.thecoffeejunkie.crm.service.QuotationEmailService;
 import ph.thecoffeejunkie.crm.service.QuotationPdfService;
 import ph.thecoffeejunkie.crm.service.QuotationService;
@@ -29,6 +31,7 @@ public class QuotationController {
     private final QuotationService quotationService;
     private final QuotationPdfService quotationPdfService;
     private final QuotationEmailService quotationEmailService;
+    private final QuotationAcceptanceService quotationAcceptanceService;
 
     @GetMapping
     public PageResponse<QuotationResponse> getAll(@RequestParam(defaultValue = "0") int pageNumber,
@@ -67,6 +70,11 @@ public class QuotationController {
     @PostMapping("/{id}/send-email")
     public QuotationResponse sendEmail(@PathVariable Long id) {
         return quotationEmailService.send(id);
+    }
+
+    @PostMapping("/{id}/accept")
+    public InvoiceResponse accept(@PathVariable Long id) {
+        return quotationAcceptanceService.acceptById(id);
     }
 
     @GetMapping(value = "/{id}/respond", produces = MediaType.TEXT_HTML_VALUE)

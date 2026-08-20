@@ -3,6 +3,8 @@ package ph.thecoffeejunkie.crm.util;
 import ph.thecoffeejunkie.crm.dto.response.BusinessInformationResponse;
 import ph.thecoffeejunkie.crm.dto.response.CustomerActivityResponse;
 import ph.thecoffeejunkie.crm.dto.response.CustomerResponse;
+import ph.thecoffeejunkie.crm.dto.response.InvoiceItemResponse;
+import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
@@ -11,9 +13,16 @@ import ph.thecoffeejunkie.crm.entity.BusinessInformation;
 import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Customer;
 import ph.thecoffeejunkie.crm.entity.CustomerActivity;
+import ph.thecoffeejunkie.crm.entity.Invoice;
+import ph.thecoffeejunkie.crm.entity.InvoiceItem;
 import ph.thecoffeejunkie.crm.entity.Product;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.entity.QuotationItem;
+import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
+import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 public final class CustomMapper {
 
@@ -34,7 +43,68 @@ public final class CustomMapper {
                 quotation.getNotes(),
                 quotation.getTermsAndConditions(),
                 quotation.getPdfPath(),
-                toSalesRepResponse(quotation.getSalesRep())
+                toSalesRepResponse(quotation.getSalesRep()),
+                quotation.getPaymentTerms(),
+                quotation.getPaymentTerms() != null ? quotation.getPaymentTerms().getLabel() : null
+                );
+    }
+
+    public static InvoiceResponse toInvoiceResponse(Invoice invoice) {
+        return new InvoiceResponse(
+                invoice.getId(),
+                invoice.getInvoiceNumber(),
+                invoice.getQuotation() != null ? invoice.getQuotation().getId() : null,
+                invoice.getQuotation() != null ? invoice.getQuotation().getQuotationNumber() : null,
+                invoice.getInvoiceItems().stream().map(CustomMapper::toInvoiceItemResponse).toList(),
+                toCustomerResponse(invoice.getCustomer()),
+                toSalesRepResponse(invoice.getSalesRep()),
+                invoice.getStatus(),
+                resolveInvoiceStatusLabel(invoice),
+                invoice.getTotalAmount(),
+                invoice.getShippingCharges(),
+                invoice.getInvoiceDate(),
+                invoice.getDueDate(),
+                invoice.getPaymentTerms(),
+                invoice.getPaymentTerms() != null ? invoice.getPaymentTerms().getLabel() : null,
+                invoice.getNotes(),
+                invoice.getTermsAndConditions(),
+                invoice.getPdfPath(),
+                invoice.getProofOfPaymentPath(),
+                invoice.getPaidAt()
+                );
+    }
+
+    /**
+     * The "Awaiting Payment" stage renders as fixed text for Due-on-Receipt invoices, but as a
+     * live day-countdown (or overdue count) for Net-terms invoices, recomputed from today's date
+     * rather than stored, so it never goes stale.
+     */
+    public static String resolveInvoiceStatusLabel(Invoice invoice) {
+        InvoiceStatus status = invoice.getStatus();
+        if (status == InvoiceStatus.PAID) {
+            return "Paid";
+        }
+        if (status == InvoiceStatus.FOR_PAYMENT_VERIFICATION) {
+            return "For Payment Verification";
+        }
+
+        if (invoice.getPaymentTerms() == null || invoice.getPaymentTerms() == PaymentTerms.DUE_ON_RECEIPT) {
+            return "Awaiting Payment";
+        }
+
+        long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), invoice.getDueDate());
+        return daysLeft >= 0
+                ? "Due on " + daysLeft + " days"
+                : "Overdue by " + Math.abs(daysLeft) + " days";
+    }
+
+    public static InvoiceItemResponse toInvoiceItemResponse(InvoiceItem invoiceItem) {
+        return new InvoiceItemResponse(
+                invoiceItem.getQuantity(),
+                invoiceItem.getPrice(),
+                invoiceItem.getDiscount(),
+                invoiceItem.getTotal(),
+                toProductResponse(invoiceItem.getProduct())
                 );
     }
 

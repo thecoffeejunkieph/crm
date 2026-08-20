@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.request;
 
+import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,5 +15,6 @@ public record QuotationCreateRequest(
         LocalDate expiryDate,
         BigDecimal shippingCharges,
         String notes,
-        String termsAndConditions
+        String termsAndConditions,
+        PaymentTerms paymentTerms
 ) {}

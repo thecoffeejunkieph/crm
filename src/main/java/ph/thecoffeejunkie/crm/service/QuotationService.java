@@ -113,6 +113,7 @@ public class QuotationService {
         quotation.setTermsAndConditions(request.termsAndConditions());
         quotation.setNotes(request.notes());
         quotation.setSalesRep(resolveCurrentSalesRep());
+        quotation.setPaymentTerms(request.paymentTerms());
 
         return quotation;
     }

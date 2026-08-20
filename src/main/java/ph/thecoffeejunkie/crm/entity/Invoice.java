@@ -7,10 +7,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -18,9 +20,13 @@ import java.util.List;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Quotation extends BaseEntity {
+public class Invoice extends BaseEntity {
 
-    private String quotationNumber;
+    private String invoiceNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "quotation_id")
+    private Quotation quotation;
 
     @ManyToOne
     @JsonBackReference
@@ -32,24 +38,29 @@ public class Quotation extends BaseEntity {
 
     @OneToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "quotation_item_details",
-            joinColumns = @JoinColumn(name = "quotation_id"),
-            inverseJoinColumns = @JoinColumn(name = "quotation_item_id")
+            name = "invoice_item_details",
+            joinColumns = @JoinColumn(name = "invoice_id"),
+            inverseJoinColumns = @JoinColumn(name = "invoice_item_id")
     )
     @JsonManagedReference
-    private List<QuotationItem> quotationItems;
+    private List<InvoiceItem> invoiceItems;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private InvoiceStatus status;
+
     private BigDecimal totalAmount;
-
-    private LocalDate quoteDate;
-    private LocalDate expiryDate;
     private BigDecimal shippingCharges;
-    private String notes;
-    private String termsAndConditions;
+
+    private LocalDate invoiceDate;
+    private LocalDate dueDate;
 
     @Enumerated(EnumType.STRING)
     private PaymentTerms paymentTerms;
 
+    private String notes;
+    private String termsAndConditions;
+
     private String pdfPath;
+    private String proofOfPaymentPath;
+    private LocalDateTime paidAt;
 }

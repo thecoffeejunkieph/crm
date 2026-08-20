@@ -41,6 +41,7 @@ public class QuotationEmailService {
     private final QuotationRepository repository;
     private final QuotationPdfService quotationPdfService;
     private final QuotationResponseTokenService tokenService;
+    private final QuotationAcceptanceService quotationAcceptanceService;
     private final JavaMailSender mailSender;
 
     @Value("${app.base-url}")
@@ -141,17 +142,19 @@ public class QuotationEmailService {
                     "This quotation has expired. Please contact us for a new one.");
         }
 
-        String newStatus = normalizedDecision.equals("ACCEPT") ? "ACCEPTED" : "REJECTED";
-        quotation.setStatus(newStatus);
+        if (normalizedDecision.equals("ACCEPT")) {
+            quotationAcceptanceService.accept(quotation);
+            log.info("Quotation {} marked as ACCEPTED via customer response link", quotation.getQuotationNumber());
+            return message(HttpStatus.OK, "Quotation Accepted",
+                    "Thank you! Your quotation " + quotation.getQuotationNumber()
+                            + " has been accepted. An invoice has been emailed to you.");
+        }
+
+        quotation.setStatus("REJECTED");
         repository.save(quotation);
-
-        log.info("Quotation {} marked as {} via customer response link", quotation.getQuotationNumber(), newStatus);
-
-        return newStatus.equals("ACCEPTED")
-                ? message(HttpStatus.OK, "Quotation Accepted",
-                    "Thank you! Your quotation " + quotation.getQuotationNumber() + " has been accepted. We will be in touch shortly.")
-                : message(HttpStatus.OK, "Quotation Declined",
-                    "You have declined quotation " + quotation.getQuotationNumber() + ". Thank you for letting us know.");
+        log.info("Quotation {} marked as REJECTED via customer response link", quotation.getQuotationNumber());
+        return message(HttpStatus.OK, "Quotation Declined",
+                "You have declined quotation " + quotation.getQuotationNumber() + ". Thank you for letting us know.");
     }
 
     private String buildResponseUrl(Long quotationId, String token, String decision) {
