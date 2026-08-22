@@ -36,11 +36,11 @@ services:
       - default
       - traefik-proxy
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.crm-api.rule=Host(`api.thecoffeejunkie.ph`)"
-      - "traefik.http.routers.crm-api.entrypoints=websecure"
-      - "traefik.http.routers.crm-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.crm-api.loadbalancer.server.port=8080"
+      - traefik.enable=true
+      - traefik.http.routers.crm-api.rule=Host(`api.thecoffeejunkie.ph`)
+      - traefik.http.routers.crm-api.entrypoints=websecure
+      - traefik.http.routers.crm-api.tls.certresolver=letsencrypt
+      - traefik.http.services.crm-api.loadbalancer.server.port=8080
     # Not published to the host - Traefik (running as its own stack on the VPS,
     # watching the external "traefik-proxy" network) is the only thing that
     # talks to :8080, routed in via the labels above.
