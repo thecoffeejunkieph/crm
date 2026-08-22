@@ -8,22 +8,26 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
+import ph.thecoffeejunkie.crm.constant.PaymentMethod;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.entity.InvoiceItem;
+import ph.thecoffeejunkie.crm.entity.InvoicePayment;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.entity.QuotationItem;
 import ph.thecoffeejunkie.crm.exception.FileStorageException;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.InvoiceItemRepository;
+import ph.thecoffeejunkie.crm.repository.InvoicePaymentRepository;
 import ph.thecoffeejunkie.crm.repository.InvoiceRepository;
 import ph.thecoffeejunkie.crm.util.CustomMapper;
 import ph.thecoffeejunkie.crm.util.InvoiceNumberGenerator;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -45,6 +49,7 @@ public class InvoiceService {
 
     private final InvoiceRepository repository;
     private final InvoiceItemRepository invoiceItemRepository;
+    private final InvoicePaymentRepository invoicePaymentRepository;
     private final InvoiceNumberGenerator generator;
     private final InventoryService inventoryService;
     private final DeliveryOrderService deliveryOrderService;
@@ -160,6 +165,68 @@ public class InvoiceService {
         return response;
     }
 
+    public InvoiceResponse recordPayment(Long id, BigDecimal amount, PaymentMethod method, MultipartFile file) {
+        log.info("Recording {} payment of {} for invoice with id: {}", method, amount, id);
+
+        Invoice invoice = repository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("Invoice not found with id: {}", id);
+                    return ResourceNotFoundException.of("Invoice", id);
+                });
+
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new InvalidRequestException("Cannot record a payment for an invoice that is already paid");
+        }
+        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+            throw new InvalidRequestException("Cannot record a payment for a cancelled invoice");
+        }
+
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidRequestException("Payment amount must be greater than zero");
+        }
+        if (method == null) {
+            throw new InvalidRequestException("Payment method is required");
+        }
+
+        BigDecimal amountPaid = invoice.getPayments().stream()
+                .map(InvoicePayment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal balance = invoice.getTotalAmount().subtract(amountPaid);
+
+        if (amount.compareTo(balance) > 0) {
+            throw new InvalidRequestException("Payment amount exceeds the remaining balance of " + balance);
+        }
+
+        String proofOfPaymentPath = null;
+        if (file != null && !file.isEmpty()) {
+            String extension = ALLOWED_PROOF_CONTENT_TYPES.get(file.getContentType());
+            if (extension == null) {
+                throw new InvalidRequestException("Unsupported file type. Allowed types: JPEG, PNG, WEBP, PDF");
+            }
+            int index = invoice.getPayments().size() + 1;
+            proofOfPaymentPath = writePaymentProof(invoice.getInvoiceNumber(), index, extension, file);
+        }
+
+        InvoicePayment payment = new InvoicePayment();
+        payment.setInvoice(invoice);
+        payment.setAmount(amount);
+        payment.setMethod(method);
+        payment.setProofOfPaymentPath(proofOfPaymentPath);
+        payment.setRecordedAt(LocalDateTime.now());
+        invoicePaymentRepository.save(payment);
+
+        BigDecimal newAmountPaid = amountPaid.add(amount);
+        if (invoice.getStatus() == InvoiceStatus.UNPAID && newAmountPaid.compareTo(invoice.getTotalAmount()) >= 0) {
+            invoice.setStatus(InvoiceStatus.FOR_PAYMENT_VERIFICATION);
+            repository.save(invoice);
+        }
+
+        log.info("Recorded {} payment of {} for invoice {}", method, amount, invoice.getInvoiceNumber());
+        return repository.findById(id)
+                .map(CustomMapper::toInvoiceResponse)
+                .orElseThrow(() -> ResourceNotFoundException.of("Invoice", id));
+    }
+
     public InvoiceResponse markPaid(Long id) {
         log.info("Marking invoice as paid with id: {}", id);
 
@@ -222,6 +289,22 @@ public class InvoiceService {
         } catch (IOException e) {
             log.error("Failed to store proof of payment for invoice {}", invoiceNumber, e);
             throw new FileStorageException("Failed to store proof of payment file", e);
+        }
+    }
+
+    private String writePaymentProof(String invoiceNumber, int index, String extension, MultipartFile file) {
+        try {
+            Path targetDir = Paths.get(storageRootDir, "invoices", "payments");
+            Files.createDirectories(targetDir);
+
+            String fileName = invoiceNumber + "-" + index + extension;
+            Path targetFile = targetDir.resolve(fileName);
+            Files.write(targetFile, file.getBytes());
+
+            return storagePublicPath + "/invoices/payments/" + fileName;
+        } catch (IOException e) {
+            log.error("Failed to store payment proof for invoice {}", invoiceNumber, e);
+            throw new FileStorageException("Failed to store payment proof file", e);
         }
     }
 

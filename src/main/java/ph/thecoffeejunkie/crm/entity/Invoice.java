@@ -13,6 +13,7 @@ import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -47,6 +48,10 @@ public class Invoice extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     private InvoiceStatus status;
+
+    @OneToMany(mappedBy = "invoice", fetch = FetchType.LAZY)
+    @JsonManagedReference
+    private List<InvoicePayment> payments = new ArrayList<>();
 
     private BigDecimal totalAmount;
     private BigDecimal shippingCharges;

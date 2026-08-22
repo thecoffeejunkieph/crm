@@ -30,5 +30,6 @@ public record InvoiceResponse(
         String termsAndConditions,
         String pdfPath,
         String proofOfPaymentPath,
+        List<InvoicePaymentResponse> payments,
         LocalDateTime paidAt
 ) {}

@@ -14,12 +14,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import ph.thecoffeejunkie.crm.constant.PaymentMethod;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
 import ph.thecoffeejunkie.crm.service.InvoiceEmailService;
 import ph.thecoffeejunkie.crm.service.InvoicePaymentPortalService;
 import ph.thecoffeejunkie.crm.service.InvoicePdfService;
 import ph.thecoffeejunkie.crm.service.InvoiceService;
+
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/v1/invoices")
@@ -73,10 +76,12 @@ public class InvoiceController {
         return ResponseEntity.status(result.status()).body(result.html());
     }
 
-    @PostMapping(value = "/{id}/staff-proof-of-payment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public InvoiceResponse uploadProofOfPaymentByStaff(@PathVariable Long id,
-                                                         @RequestParam("file") MultipartFile file) {
-        return invoiceService.uploadProofOfPayment(id, file);
+    @PostMapping(value = "/{id}/payments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public InvoiceResponse recordPayment(@PathVariable Long id,
+                                          @RequestParam BigDecimal amount,
+                                          @RequestParam PaymentMethod method,
+                                          @RequestParam(value = "file", required = false) MultipartFile file) {
+        return invoiceService.recordPayment(id, amount, method, file);
     }
 
     @PreAuthorize("hasAuthority('ADMIN')")

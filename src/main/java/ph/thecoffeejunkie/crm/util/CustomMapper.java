@@ -7,6 +7,7 @@ import ph.thecoffeejunkie.crm.dto.response.DeliveryOrderItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.DeliveryOrderResponse;
 import ph.thecoffeejunkie.crm.dto.response.InventoryItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceItemResponse;
+import ph.thecoffeejunkie.crm.dto.response.InvoicePaymentResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
@@ -21,6 +22,7 @@ import ph.thecoffeejunkie.crm.entity.CustomerActivity;
 import ph.thecoffeejunkie.crm.entity.DeliveryOrder;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.entity.InvoiceItem;
+import ph.thecoffeejunkie.crm.entity.InvoicePayment;
 import ph.thecoffeejunkie.crm.entity.InventoryItem;
 import ph.thecoffeejunkie.crm.entity.Product;
 import ph.thecoffeejunkie.crm.entity.Quotation;
@@ -80,6 +82,7 @@ public final class CustomMapper {
                 invoice.getTermsAndConditions(),
                 invoice.getPdfPath(),
                 invoice.getProofOfPaymentPath(),
+                invoice.getPayments().stream().map(CustomMapper::toInvoicePaymentResponse).toList(),
                 invoice.getPaidAt()
                 );
     }
@@ -115,6 +118,17 @@ public final class CustomMapper {
                 invoiceItem.getDiscount(),
                 invoiceItem.getTotal(),
                 toProductResponse(invoiceItem.getProduct())
+                );
+    }
+
+    public static InvoicePaymentResponse toInvoicePaymentResponse(InvoicePayment payment) {
+        return new InvoicePaymentResponse(
+                payment.getId(),
+                payment.getAmount(),
+                payment.getMethod(),
+                payment.getMethod() != null ? payment.getMethod().getLabel() : null,
+                payment.getProofOfPaymentPath(),
+                payment.getRecordedAt()
                 );
     }
 
