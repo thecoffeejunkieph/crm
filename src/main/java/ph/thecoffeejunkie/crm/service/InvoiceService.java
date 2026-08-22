@@ -46,6 +46,8 @@ public class InvoiceService {
     private final InvoiceRepository repository;
     private final InvoiceItemRepository invoiceItemRepository;
     private final InvoiceNumberGenerator generator;
+    private final InventoryService inventoryService;
+    private final DeliveryOrderService deliveryOrderService;
 
     @Value("${app.storage.root-dir}")
     private String storageRootDir;
@@ -173,9 +175,38 @@ public class InvoiceService {
 
         invoice.setStatus(InvoiceStatus.PAID);
         invoice.setPaidAt(LocalDateTime.now());
-        InvoiceResponse response = CustomMapper.toInvoiceResponse(repository.save(invoice));
+        Invoice saved = repository.save(invoice);
+        InvoiceResponse response = CustomMapper.toInvoiceResponse(saved);
+
+        deliveryOrderService.createForInvoice(saved);
 
         log.info("Marked invoice {} as paid", invoice.getInvoiceNumber());
+        return response;
+    }
+
+    public InvoiceResponse cancel(Long id) {
+        log.info("Cancelling invoice with id: {}", id);
+
+        Invoice invoice = repository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("Invoice not found with id: {}", id);
+                    return ResourceNotFoundException.of("Invoice", id);
+                });
+
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new InvalidRequestException("Cannot cancel an invoice that has already been paid");
+        }
+
+        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+            throw new InvalidRequestException("Invoice is already cancelled");
+        }
+
+        inventoryService.releaseForInvoice(invoice);
+
+        invoice.setStatus(InvoiceStatus.CANCELLED);
+        InvoiceResponse response = CustomMapper.toInvoiceResponse(repository.save(invoice));
+
+        log.info("Cancelled invoice {}", invoice.getInvoiceNumber());
         return response;
     }
 

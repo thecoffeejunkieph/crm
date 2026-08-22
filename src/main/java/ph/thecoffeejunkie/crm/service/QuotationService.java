@@ -36,9 +36,14 @@ public class QuotationService {
     private final ProductRepository productRepository;
     private final QuotationItemRepository quotationItemRepository;
     private final CRMUserRepository crmUserRepository;
+    private final InventoryService inventoryService;
 
     public QuotationResponse create(QuotationCreateRequest request) {
         log.info("Creating quotation...");
+
+        for (QuotationItemRequest item : request.quotationItems()) {
+            inventoryService.assertSufficientStock(item.productId(), item.quantity());
+        }
 
         QuotationResponse response = CustomMapper.toQuotationResponse(repository.save(toQuotation(request)));
 

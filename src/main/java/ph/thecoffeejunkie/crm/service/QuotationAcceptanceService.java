@@ -28,6 +28,7 @@ public class QuotationAcceptanceService {
     private final QuotationRepository quotationRepository;
     private final InvoiceService invoiceService;
     private final InvoiceEmailService invoiceEmailService;
+    private final InventoryService inventoryService;
 
     public InvoiceResponse acceptById(Long quotationId) {
         Quotation quotation = quotationRepository.findById(quotationId)
@@ -49,6 +50,8 @@ public class QuotationAcceptanceService {
     }
 
     public InvoiceResponse accept(Quotation quotation) {
+        inventoryService.reserveForQuotation(quotation);
+
         InvoiceResponse invoice = invoiceService.createFromQuotation(quotation);
         InvoiceResponse sent = invoiceEmailService.send(invoice.id());
 

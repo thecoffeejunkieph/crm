@@ -84,4 +84,10 @@ public class InvoiceController {
     public InvoiceResponse markPaid(@PathVariable Long id) {
         return invoiceService.markPaid(id);
     }
+
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @PostMapping("/{id}/cancel")
+    public InvoiceResponse cancel(@PathVariable Long id) {
+        return invoiceService.cancel(id);
+    }
 }

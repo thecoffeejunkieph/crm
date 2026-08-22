@@ -220,7 +220,7 @@ public class QuotationEmailService {
                   .cta { text-align:center; margin:32px 0; }
                   .btn { display:inline-block; padding:13px 30px; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px; margin:6px; }
                   .btn-accept { background:#2e7d32; color:#ffffff; }
-                  .btn-reject { background:#c62828; color:#ffffff; }
+                  .btn-reject { background:#c628as28; color:#ffffff; }
                   .footer-brand { font-size:12px; color:#8a8a8a; text-align:center; margin-top:24px; }
                   @media only screen and (max-width:480px) {
                     .email-body { padding:20px 16px; }

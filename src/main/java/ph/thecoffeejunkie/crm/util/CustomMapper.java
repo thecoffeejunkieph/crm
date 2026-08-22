@@ -3,26 +3,36 @@ package ph.thecoffeejunkie.crm.util;
 import ph.thecoffeejunkie.crm.dto.response.BusinessInformationResponse;
 import ph.thecoffeejunkie.crm.dto.response.CustomerActivityResponse;
 import ph.thecoffeejunkie.crm.dto.response.CustomerResponse;
+import ph.thecoffeejunkie.crm.dto.response.DeliveryOrderItemResponse;
+import ph.thecoffeejunkie.crm.dto.response.DeliveryOrderResponse;
+import ph.thecoffeejunkie.crm.dto.response.InventoryItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
 import ph.thecoffeejunkie.crm.dto.response.SalesRepResponse;
+import ph.thecoffeejunkie.crm.dto.response.StockMovementResponse;
+import ph.thecoffeejunkie.crm.dto.response.WarehouseResponse;
 import ph.thecoffeejunkie.crm.entity.BusinessInformation;
 import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Customer;
 import ph.thecoffeejunkie.crm.entity.CustomerActivity;
+import ph.thecoffeejunkie.crm.entity.DeliveryOrder;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.entity.InvoiceItem;
+import ph.thecoffeejunkie.crm.entity.InventoryItem;
 import ph.thecoffeejunkie.crm.entity.Product;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.entity.QuotationItem;
+import ph.thecoffeejunkie.crm.entity.StockMovement;
+import ph.thecoffeejunkie.crm.entity.Warehouse;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 public final class CustomMapper {
 
@@ -170,5 +180,73 @@ public final class CustomMapper {
                 quotationItem.getTotal(),
                 toProductResponse(quotationItem.getProduct())
                 );
+    }
+
+    public static WarehouseResponse toWarehouseResponse(Warehouse warehouse) {
+        return new WarehouseResponse(
+                warehouse.getId(),
+                warehouse.getName(),
+                warehouse.getCode(),
+                warehouse.getAddress(),
+                warehouse.isActive(),
+                warehouse.isDefaultWarehouse()
+        );
+    }
+
+    public static InventoryItemResponse toInventoryItemResponse(InventoryItem inventoryItem) {
+        return new InventoryItemResponse(
+                inventoryItem.getId(),
+                inventoryItem.getProduct().getId(),
+                inventoryItem.getProduct().getProductName(),
+                inventoryItem.getWarehouse().getId(),
+                inventoryItem.getWarehouse().getName(),
+                inventoryItem.getQuantityOnHand(),
+                inventoryItem.getQuantityReserved(),
+                inventoryItem.getQuantityAvailable()
+        );
+    }
+
+    public static StockMovementResponse toStockMovementResponse(StockMovement movement) {
+        return new StockMovementResponse(
+                movement.getId(),
+                movement.getProduct().getId(),
+                movement.getProduct().getProductName(),
+                movement.getWarehouse().getId(),
+                movement.getWarehouse().getName(),
+                movement.getType(),
+                movement.getQuantity(),
+                movement.getQuantityOnHandAfter(),
+                movement.getQuantityReservedAfter(),
+                movement.getReferenceType(),
+                movement.getReferenceId(),
+                movement.getNotes(),
+                toSalesRepResponse(movement.getPerformedBy()),
+                movement.getCreatedAt()
+        );
+    }
+
+    public static DeliveryOrderResponse toDeliveryOrderResponse(DeliveryOrder deliveryOrder) {
+        return new DeliveryOrderResponse(
+                deliveryOrder.getId(),
+                deliveryOrder.getDeliveryOrderNumber(),
+                toInvoiceResponse(deliveryOrder.getInvoice()),
+                deliveryOrder.getStatus(),
+                deliveryOrder.getDeliveryAddress(),
+                deliveryOrder.getDeliveryInstructions(),
+                deliveryOrder.getTargetDeliveryDate(),
+                toDeliveryOrderItemResponses(deliveryOrder.getInvoice()),
+                deliveryOrder.getPdfPath(),
+                deliveryOrder.getProofOfPickupPaths(),
+                deliveryOrder.getPickedUpAt(),
+                deliveryOrder.getProofOfDeliveryPaths(),
+                deliveryOrder.getDeliveredAt(),
+                deliveryOrder.getCreatedAt()
+        );
+    }
+
+    private static List<DeliveryOrderItemResponse> toDeliveryOrderItemResponses(Invoice invoice) {
+        return invoice.getInvoiceItems().stream()
+                .map(item -> new DeliveryOrderItemResponse(item.getProduct().getProductName(), item.getQuantity()))
+                .toList();
     }
 }

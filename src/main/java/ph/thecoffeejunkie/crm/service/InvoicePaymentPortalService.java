@@ -49,6 +49,8 @@ public class InvoicePaymentPortalService {
                     "We've already received your proof of payment for invoice " + invoice.getInvoiceNumber()
                             + " and it's being verified. We'll be in touch shortly.");
             case UNPAID -> uploadForm(id, token, invoice);
+            case CANCELLED -> message(HttpStatus.GONE, "Invoice Cancelled",
+                    "Invoice " + invoice.getInvoiceNumber() + " has been cancelled.");
         };
     }
 
