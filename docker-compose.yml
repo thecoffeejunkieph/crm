@@ -18,8 +18,13 @@ services:
 
   api:
     build: .
-    env_file: .env.dev
+    # .env.dev is optional (gitignored, local-only) - every value it can set already
+    # has a safe dev fallback in application.properties/application-dev.properties.
+    env_file:
+      - path: .env.dev
+        required: false
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       # Overrides .env.dev's DB_URL: inside the compose network the api container
       # reaches MySQL via the service name "mysql", not localhost.
       DB_URL: jdbc:mysql://mysql:3306/crm_db
@@ -30,3 +35,7 @@ services:
 
 volumes:
   mysql_data:
+
+networks:
+  default:
+    name: crm-network
