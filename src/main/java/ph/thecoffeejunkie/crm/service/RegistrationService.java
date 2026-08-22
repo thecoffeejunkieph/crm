@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import ph.thecoffeejunkie.crm.constant.Role;
 import ph.thecoffeejunkie.crm.dto.request.AuthenticationRequest;
 import ph.thecoffeejunkie.crm.entity.CRMUser;
+import ph.thecoffeejunkie.crm.exception.DuplicateResourceException;
 import ph.thecoffeejunkie.crm.repository.CRMUserRepository;
 
 @Slf4j
@@ -18,11 +19,11 @@ public class RegistrationService {
     private final PasswordEncoder passwordEncoder;
     private final CRMUserRepository crmUserRepository;
 
-    public void register(AuthenticationRequest request) throws Exception {
+    public void register(AuthenticationRequest request) {
 
         if (crmUserRepository.findByEmail(request.getEmail()).isPresent()) {
-            log.error("Email already exists: {}", request.getEmail());
-            throw new IllegalArgumentException("Email already exists");
+            log.warn("Registration rejected, email already exists: {}", request.getEmail());
+            throw new DuplicateResourceException("Email already exists");
         }
 
         String encodedPassword = passwordEncoder.encode(request.getPassword());

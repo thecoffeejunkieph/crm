@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +14,7 @@ import ph.thecoffeejunkie.crm.service.AuthenticationService;
 import ph.thecoffeejunkie.crm.service.RegistrationService;
 import ph.thecoffeejunkie.crm.util.JwtUtil;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -27,7 +29,6 @@ public class AuthenticationController {
         var jwt = authenticationService.authenticate(authenticationRequest);
 
         authenticationService.addJwtToCookie(jwt);
-
         return ResponseEntity.ok(jwt);
     }
 
@@ -39,11 +40,18 @@ public class AuthenticationController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
+        log.info("Checking token: {}", token);
         return ResponseEntity.ok(authenticationService.isTokenValid(token));
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout() {
+        authenticationService.clearJwtCookie();
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/register")
-    public String register(@RequestBody AuthenticationRequest authenticationRequest) throws Exception {
+    public String register(@RequestBody AuthenticationRequest authenticationRequest) {
         registrationService.register(authenticationRequest);
         return "User registered successfully";
     }

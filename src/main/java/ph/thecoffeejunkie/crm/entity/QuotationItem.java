@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.ManyToOne;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -22,11 +23,11 @@ public class QuotationItem extends BaseEntity {
     private Integer discount;
     private BigDecimal total;
 
-    @ManyToOne
+    @ManyToOne (fetch = FetchType.LAZY)
     @JsonBackReference
     private Quotation quotation;
 
-    @ManyToOne
+    @ManyToOne (fetch = FetchType.LAZY)
     @JsonBackReference
     private Product product;
 }

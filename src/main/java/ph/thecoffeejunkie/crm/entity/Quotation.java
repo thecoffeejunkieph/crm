@@ -2,19 +2,15 @@ package ph.thecoffeejunkie.crm.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
-import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -30,7 +26,11 @@ public class Quotation extends BaseEntity {
     @JsonBackReference
     private Customer customer;
 
-    @OneToMany
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sales_rep_email")
+    private CRMUser salesRep;
+
+    @OneToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "quotation_item_details",
             joinColumns = @JoinColumn(name = "quotation_id"),
@@ -42,9 +42,14 @@ public class Quotation extends BaseEntity {
     private String status;
     private BigDecimal totalAmount;
 
-    private LocalDateTime quoteDate;
-    private LocalDateTime expiryDate;
+    private LocalDate quoteDate;
+    private LocalDate expiryDate;
     private BigDecimal shippingCharges;
     private String notes;
     private String termsAndConditions;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentTerms paymentTerms;
+
+    private String pdfPath;
 }

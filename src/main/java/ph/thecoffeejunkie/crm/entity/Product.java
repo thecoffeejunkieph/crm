@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -11,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import ph.thecoffeejunkie.crm.constant.Unit;
 
 import java.math.BigDecimal;
@@ -33,6 +35,10 @@ public class Product extends BaseEntity {
     @NotNull
     @Positive
     private BigDecimal price;
+
+    @Column(nullable = false)
+    @ColumnDefault("true")
+    private boolean active = true;
 
     @ManyToOne
     @JsonBackReference

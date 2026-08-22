@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import ph.thecoffeejunkie.crm.dto.request.ProductCreateRequest;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.entity.Product;
+import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.ProductRepository;
 
 import java.util.List;
@@ -25,15 +26,36 @@ public class ProductService {
     }
 
     public List<ProductResponse> getAllProducts(PageRequest pageRequest) {
-        return productRepository.findAll(pageRequest).stream()
+        return productRepository.findByActiveTrue(pageRequest).stream()
                 .map(this::toProductResponse)
                 .toList();
     }
 
     public List<ProductResponse> searchProductsByName(String productName, PageRequest pageRequest) {
-        return productRepository.findByProductNameContainingIgnoreCase(productName, pageRequest).stream()
+        return productRepository.findByActiveTrueAndProductNameContainingIgnoreCase(productName, pageRequest).stream()
                 .map(this::toProductResponse)
                 .toList();
+    }
+
+    public ProductResponse findById(Long id) {
+        return productRepository.findById(id)
+                .map(this::toProductResponse)
+                .orElseThrow(() -> {
+                    log.warn("Product not found with id: {}", id);
+                    return ResourceNotFoundException.of("Product", id);
+                });
+    }
+
+    public void delete(Long id) {
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("Product not found with id: {}", id);
+                    return ResourceNotFoundException.of("Product", id);
+                });
+
+        product.setActive(false);
+        productRepository.save(product);
     }
 
     private Product toProduct(ProductCreateRequest request) {

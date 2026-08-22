@@ -3,18 +3,39 @@ services:
   mysql:
     image: mysql:8
     environment:
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: admin
-      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_USER: ${DB_USERNAME:-admin}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-admin}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-admin}
       MYSQL_DATABASE: crm_db
     ports: ["3306:3306"]
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-#  api:
-#    build: .
-#    ports: ["8080:8080"]
-#    depends_on: [mysql]
+  api:
+    build: .
+    # .env.dev is optional (gitignored, local-only) - every value it can set already
+    # has a safe dev fallback in application.properties/application-dev.properties.
+    env_file:
+      - path: .env.dev
+        required: false
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # Overrides .env.dev's DB_URL: inside the compose network the api container
+      # reaches MySQL via the service name "mysql", not localhost.
+      DB_URL: jdbc:mysql://mysql:3306/crm_db
+    ports: ["8080:8080"] # exposed for the frontend (dev server on :5173) to call
+    depends_on:
+      mysql:
+        condition: service_healthy
 
 volumes:
   mysql_data:
+
+networks:
+  default:
+    name: crm-network

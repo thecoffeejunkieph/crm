@@ -1,8 +1,10 @@
 package ph.thecoffeejunkie.crm.service;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,6 +22,11 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final UserDetailsServiceImpl userDetailsService;
+
+    // Browsers drop Secure cookies on plain HTTP, so keep this off for local dev
+    // (http://localhost:5173 -> http://localhost:8080) and turn it on in prod via env var.
+    @Value("${auth.cookie.secure:false}")
+    private boolean cookieSecure;
 
     public String authenticate(AuthenticationRequest request) {
         try {
@@ -48,12 +55,27 @@ public class AuthenticationService {
     public void addJwtToCookie(String jwtToken) {
         HttpServletResponse response = getCurrentHttpResponse();
 
-        Cookie cookie = new Cookie("jwt", jwtToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true); // Use only if you're on HTTPS
-        cookie.setPath("/");
-        cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
-        response.addCookie(cookie);
+        ResponseCookie cookie = ResponseCookie.from("jwt", jwtToken)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSecure ? "None" : "Lax")
+                .path("/")
+                .maxAge(7 * 24 * 60 * 60) // 7 days
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    public void clearJwtCookie() {
+        HttpServletResponse response = getCurrentHttpResponse();
+
+        ResponseCookie cookie = ResponseCookie.from("jwt", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSecure ? "None" : "Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     public static HttpServletResponse getCurrentHttpResponse() {

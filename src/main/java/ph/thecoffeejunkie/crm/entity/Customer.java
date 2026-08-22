@@ -3,6 +3,8 @@ package ph.thecoffeejunkie.crm.entity;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
+import ph.thecoffeejunkie.crm.constant.CustomerType;
 
 import java.util.List;
 
@@ -12,7 +14,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Customer extends BaseEntity{
+public class Customer extends BaseEntity {
 
     @Column(nullable = false, length = 100)
     private String firstName;
@@ -28,6 +30,26 @@ public class Customer extends BaseEntity{
 
     @Column(length = 500)
     private String address;
+
+    @Column(length = 100)
+    private String preferredShippingMethod;
+
+    @Column(length = 100)
+    private String source;
+
+    @Enumerated(EnumType.STRING)
+    private CustomerType customerType;
+
+    @Embedded
+    private BusinessInformation businessInformation;
+
+    @Column(nullable = false)
+    @ColumnDefault("true")
+    private boolean active = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_rep_email")
+    private CRMUser assignedRep;
 
     @OneToMany
     @JoinTable(
