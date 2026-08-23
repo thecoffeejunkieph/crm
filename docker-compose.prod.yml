@@ -29,19 +29,20 @@ services:
       - "8081:80"
 
   api:
-    image: ghcr.io/thecoffeejunkieph/crm/crm-api:latest
+    image: ghcr.io/thecoffeejunkieph/crm:latest
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
       # Overrides .env.prod's DB_URL: inside the compose network the api container
       # reaches MySQL via the service name "mysql", not a public host.
-      DB_URL: jdbc:mysql://api.thecoffeejunkie.ph:3306/crm_db
+      DB_URL: jdbc:mysql://mysql:3306/crm_db
     volumes:
       - api_storage:/data/storage
     depends_on:
       mysql:
         condition: service_healthy
     networks:
+      - default
       - traefik-proxy
     labels:
       - traefik.enable=true
