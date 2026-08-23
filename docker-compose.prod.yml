@@ -1,0 +1,54 @@
+services:
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: crm_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not published to the host - only the api container talks to this, over the
+    # compose network. Keep the DB off the public internet.
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Overrides .env.prod's DB_URL: inside the compose network the api container
+      # reaches MySQL via the service name "mysql", not a public host.
+      DB_URL: jdbc:mysql://mysql:3306/crm_db
+    volumes:
+      - api_storage:/data/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - default
+      - traefik-proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.crm-api.rule=Host(`api.thecoffeejunkie.ph`)
+      - traefik.http.routers.crm-api.entrypoints=websecure
+      - traefik.http.routers.crm-api.tls.certresolver=letsencrypt
+      - traefik.http.services.crm-api.loadbalancer.server.port=8080
+    # Not published to the host - Traefik (running as its own stack on the VPS,
+    # watching the external "traefik-proxy" network) is the only thing that
+    # talks to :8080, routed in via the labels above.
+
+volumes:
+  mysql_data:
+  api_storage:
+
+networks:
+  traefik-proxy:
+    external: true
