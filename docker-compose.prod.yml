@@ -1,39 +1,47 @@
 services:
   mysql:
     image: mysql:8
-    restart: unless-stopped
     environment:
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      MYSQL_ROOT_PASSWORD: admin
       MYSQL_DATABASE: crm_db
+    ports: [ "3306:3306" ]
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-padmin" ]
       interval: 5s
       timeout: 5s
       retries: 10
     # Not published to the host - only the api container talks to this, over the
     # compose network. Keep the DB off the public internet.
 
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: pma_web
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+    ports:
+      - "8081:80"
+
   api:
-    build: .
+    image: ghcr.io/thecoffeejunkieph/crm/crm-api:latest
     restart: unless-stopped
-    env_file:
-      - .env.prod
     environment:
       SPRING_PROFILES_ACTIVE: prod
       # Overrides .env.prod's DB_URL: inside the compose network the api container
       # reaches MySQL via the service name "mysql", not a public host.
-      DB_URL: jdbc:mysql://mysql:3306/crm_db
+      DB_URL: jdbc:mysql://api.thecoffeejunkie.ph:3306/crm_db
     volumes:
       - api_storage:/data/storage
     depends_on:
       mysql:
         condition: service_healthy
     networks:
-      - default
       - traefik-proxy
     labels:
       - traefik.enable=true
