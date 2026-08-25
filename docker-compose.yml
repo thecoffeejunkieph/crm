@@ -6,7 +6,6 @@ services:
       MYSQL_PASSWORD: admin
       MYSQL_ROOT_PASSWORD: admin
       MYSQL_DATABASE: crm_db
-    ports: [ "3306:3306" ]
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -17,19 +16,7 @@ services:
     # Not published to the host - only the api container talks to this, over the
     # compose network. Keep the DB off the public internet.
 
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: pma_web
-    restart: always
-    depends_on:
-      - mysql
-    environment:
-      PMA_HOST: mysql
-    ports:
-      - "8081:80"
-
   api:
-    image: ghcr.io/thecoffeejunkieph/crm:latest
     build: .
     restart: unless-stopped
     env_file:
@@ -45,8 +32,7 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - default
-      - traefik-proxy
+      - doklploy-network
     labels:
       - traefik.enable=true
       - traefik.http.routers.crm-api.rule=Host(`api.thecoffeejunkie.ph`)
@@ -62,5 +48,5 @@ volumes:
   api_storage:
 
 networks:
-  traefik-proxy:
+  doklploy-network:
     external: true
