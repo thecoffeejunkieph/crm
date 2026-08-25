@@ -40,7 +40,8 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - doklploy-network
+      - default
+      - dokploy-network
     labels:
       - traefik.enable=true
       - traefik.http.routers.crm-api.rule=Host(`api.thecoffeejunkie.ph`)
@@ -56,5 +57,5 @@ volumes:
   api_storage:
 
 networks:
-  doklploy-network:
+  dokploy-network:
     external: true
