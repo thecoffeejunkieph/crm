@@ -44,17 +44,11 @@ services:
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.crm-api.rule=Host(`api.thecoffeejunkie.ph`)
-      - traefik.http.routers.crm-api.entrypoints=websecure
-      - traefik.http.routers.crm-api.tls.certresolver=letsencrypt
-      - traefik.http.services.crm-api.loadbalancer.server.port=8080
-      - traefik.docker.network=dokploy-network
-      - traefik.http.middlewares.cors-headers.headers.accesscontrolalloworiginlist=*
-      - traefik.http.middlewares.cors-headers.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE
-      - traefik.http.middlewares.cors-headers.headers.accesscontrolallowheaders=Content-Type,Authorization
-      - traefik.http.middlewares.cors-headers.headers.accesscontrolmaxage=100
-      - traefik.http.middlewares.cors-headers.headers.addvaryheader=true
-      - traefik.http.routers.myapi.middlewares=cors-headers
+      - traefik.http.routers.api.rule=Host(`api.thecoffeejunkie.ph`)
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.tls=true
+      - traefik.http.routers.api.service=api
+      - traefik.http.services.api.loadbalancer.server.port=8080
     # Not published to the host - Traefik (running as its own stack on the VPS,
     # watching the external "traefik-proxy" network) is the only thing that
     # talks to :8080, routed in via the labels above.
