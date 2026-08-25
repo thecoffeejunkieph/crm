@@ -19,13 +19,21 @@ services:
   api:
     build: .
     restart: unless-stopped
-    env_file:
-      - .env.prod
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      # Overrides .env.prod's DB_URL: inside the compose network the api container
-      # reaches MySQL via the service name "mysql", not a public host.
-      DB_URL: jdbc:mysql://mysql:3306/crm_db
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT}
+      COOKIE_SECURE: true
+      PDF_STORAGE_DIR: /data/storage
+      APP_BASE_URL: ${APP_BASE_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      QUOTATION_RESPONSE_SECRET: ${QUOTATION_RESPONSE_SECRET}
+      INVOICE_PAYMENT_SECRET: ${INVOICE_PAYMENT_SECRET}
     volumes:
       - api_storage:/data/storage
     depends_on:
