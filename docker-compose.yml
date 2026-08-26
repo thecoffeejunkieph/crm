@@ -8,6 +8,8 @@ services:
       MYSQL_DATABASE: crm_db
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - dokploy-network
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-padmin" ]
       interval: 5s
