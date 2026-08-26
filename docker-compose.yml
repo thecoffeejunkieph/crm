@@ -40,7 +40,6 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - default
       - dokploy-network
     labels:
       - traefik.enable=true
