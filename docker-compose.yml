@@ -48,6 +48,7 @@ services:
       - traefik.http.routers.api.entrypoints=websecure
       - traefik.http.routers.api.tls.certresolver=letsencrypt
       - traefik.http.services.api.loadbalancer.server.port=8080
+      - traefik.http.routers.api.tls=true
     # Not published to the host - Traefik (running as its own stack on the VPS,
     # watching the external "traefik-proxy" network) is the only thing that
     # talks to :8080, routed in via the labels above.
