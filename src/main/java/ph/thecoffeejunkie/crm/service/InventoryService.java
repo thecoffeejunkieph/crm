@@ -94,6 +94,18 @@ public class InventoryService {
     }
 
     @Transactional
+    public void reserveForInvoice(Invoice invoice) {
+        log.info("Reserving stock for invoice {}...", invoice.getInvoiceNumber());
+
+        Warehouse warehouse = warehouseService.resolveDefaultWarehouse();
+        for (InvoiceItem item : invoice.getInvoiceItems()) {
+            reserve(item.getProduct().getId(), warehouse, item.getQuantity(), "INVOICE", invoice.getId());
+        }
+
+        log.info("Reserved stock for invoice {}", invoice.getInvoiceNumber());
+    }
+
+    @Transactional
     public void releaseForInvoice(Invoice invoice) {
         log.info("Releasing reserved stock for cancelled invoice {}...", invoice.getInvoiceNumber());
 

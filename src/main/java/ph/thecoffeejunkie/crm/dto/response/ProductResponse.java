@@ -10,5 +10,6 @@ public record ProductResponse(
         String productName,
         String description,
         Unit unit,
-        BigDecimal price
+        BigDecimal price,
+        String pictureUrl
 ) {}

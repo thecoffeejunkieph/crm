@@ -40,6 +40,8 @@ public class Product extends BaseEntity {
     @ColumnDefault("true")
     private boolean active = true;
 
+    private String picturePath;
+
     @ManyToOne
     @JsonBackReference
     private Quotation quotation;
