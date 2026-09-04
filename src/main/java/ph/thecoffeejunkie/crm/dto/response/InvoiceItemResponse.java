@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import ph.thecoffeejunkie.crm.constant.DiscountType;
 
 import java.math.BigDecimal;
 
@@ -9,6 +10,7 @@ public record InvoiceItemResponse (
         Integer quantity,
         BigDecimal price,
         Integer discount,
+        DiscountType discountType,
         BigDecimal total,
         ProductResponse product
 ) {}

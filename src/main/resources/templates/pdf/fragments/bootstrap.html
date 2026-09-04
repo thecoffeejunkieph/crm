@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <!--
+      A curated subset of Bootstrap 5's compiled CSS - just the parts these PDFs use
+      (typography, spacing utilities, tables, buttons). Flying Saucer only understands
+      CSS 2.1 plus a little CSS3: no grid/flexbox (.row/.col-*), and no CSS custom
+      properties (var(--x)) either - a var() falls back to nothing rather than the
+      Bootstrap default, silently dropping the whole declaration. So this file spells
+      out every color as a literal instead of referencing a --bs-* variable.
+    -->
+    <style th:fragment="styles" type="text/css">
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            color: #212529;
+            font-size: 10pt;
+            line-height: 1.2;
+        }
+
+        h1, h4, h6 {
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: .5rem;
+        }
+
+        h1 { font-size: 22pt; }
+        h4 { font-size: 13pt; }
+        h6 {
+            font-size: 9pt;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: #6c757d;
+        }
+
+        .small { font-size: .8em; }
+        .text-muted { color: #6c757d; }
+        .text-white { color: #ffffff; }
+        .text-start { text-align: left; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: 700; }
+        .fw-normal { font-weight: 400; }
+        .d-block { display: block; }
+        .align-top { vertical-align: top; }
+        .align-middle { vertical-align: middle; }
+
+        /* Vertical rhythm between the major blocks of the document. Flying Saucer does not
+           collapse margins between adjacent block siblings the way browsers do, so a
+           trailing mb-* on one element and a leading mt-* on the next both add in full -
+           keep this scale modest and avoid stacking mt-*/mb-* on both sides of a gap. */
+        .mt-0 { margin-top: 0; }
+        .mt-1 { margin-top: 4pt; }
+        .mt-2 { margin-top: 8pt; }
+        .mt-3 { margin-top: 14pt; }
+        .mt-4 { margin-top: 18pt; }
+        .mt-5 { margin-top: 24pt; }
+        .mb-0 { margin-bottom: 0; }
+        .mb-1 { margin-bottom: 4pt; }
+        .mb-2 { margin-bottom: 8pt; }
+        .mb-3 { margin-bottom: 14pt; }
+        .mb-4 { margin-bottom: 18pt; }
+        .mb-5 { margin-bottom: 24pt; }
+        .p-1 { padding: 6pt; }
+        .p-2 { padding: 10pt; }
+        .p-3 { padding: 16pt; }
+
+        /* No default margin here on purpose: it would out-specificity the .mt-*/.mb-*
+           utility classes below (an element+class selector beats a bare class selector),
+           silently overriding whatever spacing a template asked for. Every table gets its
+           vertical spacing from an explicit mt-*/mb-* class in the markup instead. */
+        table.table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.table th, table.table td {
+            padding: 6pt 8pt;
+            vertical-align: top;
+        }
+
+        /* Only the line-items table gets a visible grid, a dark header band and zebra
+           striping - every other table (the meta grid, the totals) stays borderless so
+           it reads as plain text, not another data grid. */
+        table.items-table {
+            border: 1px solid #dee2e6;
+        }
+
+        table.items-table th, table.items-table td {
+            border: 1px solid #dee2e6;
+        }
+
+        table.items-table thead.table-dark th {
+            background-color: #212529;
+            color: #ffffff;
+            border-color: #454d55;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            font-size: 8.5pt;
+        }
+
+        table.items-table tbody tr:nth-child(even) td {
+            background-color: #f2f2f2;
+        }
+
+        table.items-table tbody tr:nth-child(odd) td {
+            background-color: #ffffff;
+        }
+
+        .btn {
+            display: inline-block;
+            font-weight: 400;
+            text-align: center;
+            vertical-align: middle;
+            text-decoration: none;
+            padding: .5rem 1rem;
+            font-size: 1rem;
+            border-radius: .375rem;
+            border: 1px solid transparent;
+        }
+
+        .btn-primary { color: #ffffff; background-color: #0d6efd; border-color: #0d6efd; }
+        .btn-danger { color: #ffffff; background-color: #dc3545; border-color: #dc3545; }
+        .btn-dark { color: #ffffff; background-color: #212529; border-color: #212529; }
+
+        .bg-dark { background-color: #212529; }
+        .bg-light { background-color: #f8f9fa; }
+        .border { border: 1px solid #dee2e6; }
+        .border-top { border-top: 1px solid #dee2e6; }
+        .border-bottom { border-bottom: 1px solid #dee2e6; }
+        .rounded { border-radius: .375rem; }
+    </style>
+</head>
+<body></body>
+</html>

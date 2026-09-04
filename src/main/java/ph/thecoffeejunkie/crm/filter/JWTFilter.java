@@ -34,7 +34,13 @@ public class JWTFilter extends OncePerRequestFilter {
 
         return path.equals("/api/v1/auth/login")
                 || path.equals("/api/v1/auth/register")
-                || path.equals("/api/v1/auth/check-token");
+                || path.equals("/api/v1/auth/check-token")
+                // Browsers fetch this automatically for any tab pointed at this origin (e.g.
+                // someone opening an invoice PDF URL directly) - it's not a real client of the
+                // API, so it shouldn't go through JWT parsing at all. Without this, an anonymous
+                // request here throws on parsing an empty token and logs a WARN that reads like
+                // a security event for what is completely routine browser behavior.
+                || path.equals("/favicon.ico");
     }
 
     @Override

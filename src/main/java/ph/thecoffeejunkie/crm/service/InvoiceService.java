@@ -165,6 +165,8 @@ public class InvoiceService {
         invoice.setStatus(InvoiceStatus.UNPAID);
         invoice.setTotalAmount(request.totalAmount());
         invoice.setShippingCharges(request.shippingCharges());
+        invoice.setDiscount(request.discount());
+        invoice.setDiscountType(request.discountType());
         invoice.setInvoiceDate(invoiceDate);
         invoice.setDueDate(invoiceDate.plusDays(paymentTerms.getDays()));
         invoice.setPaymentTerms(paymentTerms);
@@ -179,6 +181,7 @@ public class InvoiceService {
         invoiceItem.setQuantity(request.quantity());
         invoiceItem.setPrice(request.price());
         invoiceItem.setDiscount(request.discount());
+        invoiceItem.setDiscountType(request.discountType());
         invoiceItem.setTotal(request.total());
         invoiceItem.setProduct(productRepository.findById(request.productId())
                 .orElseThrow(() -> {
@@ -217,6 +220,8 @@ public class InvoiceService {
         invoice.setStatus(InvoiceStatus.UNPAID);
         invoice.setTotalAmount(quotation.getTotalAmount());
         invoice.setShippingCharges(quotation.getShippingCharges());
+        invoice.setDiscount(quotation.getDiscount());
+        invoice.setDiscountType(quotation.getDiscountType());
         invoice.setInvoiceDate(invoiceDate);
         invoice.setDueDate(invoiceDate.plusDays(paymentTerms.getDays()));
         invoice.setPaymentTerms(paymentTerms);
@@ -407,6 +412,7 @@ public class InvoiceService {
         invoiceItem.setQuantity(quotationItem.getQuantity());
         invoiceItem.setPrice(quotationItem.getPrice());
         invoiceItem.setDiscount(quotationItem.getDiscount());
+        invoiceItem.setDiscountType(quotationItem.getDiscountType());
         invoiceItem.setTotal(quotationItem.getTotal());
         invoiceItem.setProduct(quotationItem.getProduct());
 

@@ -50,11 +50,13 @@ public final class CustomMapper {
                 toCustomerResponse(quotation.getCustomer()),
                 quotation.getStatus(),
                 quotation.getTotalAmount(),
+                quotation.getShippingCharges(),
+                quotation.getDiscount(),
+                quotation.getDiscountType(),
                 quotation.getQuoteDate(),
                 quotation.getExpiryDate(),
                 quotation.getNotes(),
                 quotation.getTermsAndConditions(),
-                quotation.getPdfPath(),
                 toSalesRepResponse(quotation.getSalesRep()),
                 quotation.getPaymentTerms(),
                 quotation.getPaymentTerms() != null ? quotation.getPaymentTerms().getLabel() : null
@@ -74,13 +76,14 @@ public final class CustomMapper {
                 resolveInvoiceStatusLabel(invoice),
                 invoice.getTotalAmount(),
                 invoice.getShippingCharges(),
+                invoice.getDiscount(),
+                invoice.getDiscountType(),
                 invoice.getInvoiceDate(),
                 invoice.getDueDate(),
                 invoice.getPaymentTerms(),
                 invoice.getPaymentTerms() != null ? invoice.getPaymentTerms().getLabel() : null,
                 invoice.getNotes(),
                 invoice.getTermsAndConditions(),
-                invoice.getPdfPath(),
                 invoice.getProofOfPaymentPath(),
                 invoice.getPayments().stream().map(CustomMapper::toInvoicePaymentResponse).toList(),
                 invoice.getPaidAt()
@@ -116,6 +119,7 @@ public final class CustomMapper {
                 invoiceItem.getQuantity(),
                 invoiceItem.getPrice(),
                 invoiceItem.getDiscount(),
+                invoiceItem.getDiscountType(),
                 invoiceItem.getTotal(),
                 toProductResponse(invoiceItem.getProduct())
                 );
@@ -192,6 +196,7 @@ public final class CustomMapper {
                 quotationItem.getQuantity(),
                 quotationItem.getPrice(),
                 quotationItem.getDiscount(),
+                quotationItem.getDiscountType(),
                 quotationItem.getTotal(),
                 toProductResponse(quotationItem.getProduct())
                 );
@@ -250,7 +255,6 @@ public final class CustomMapper {
                 deliveryOrder.getDeliveryInstructions(),
                 deliveryOrder.getTargetDeliveryDate(),
                 toDeliveryOrderItemResponses(deliveryOrder.getInvoice()),
-                deliveryOrder.getPdfPath(),
                 deliveryOrder.getProofOfPickupPaths(),
                 deliveryOrder.getPickedUpAt(),
                 deliveryOrder.getProofOfDeliveryPaths(),

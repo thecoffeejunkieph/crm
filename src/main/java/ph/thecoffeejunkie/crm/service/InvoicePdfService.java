@@ -3,7 +3,6 @@ package ph.thecoffeejunkie.crm.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
@@ -19,15 +18,11 @@ import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.InvoiceRepository;
 import ph.thecoffeejunkie.crm.util.CustomMapper;
 import ph.thecoffeejunkie.crm.util.FormatUtils;
+import ph.thecoffeejunkie.crm.util.LogoAsset;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,18 +31,12 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class InvoicePdfService {
 
-    private static final String LOGO_CLASSPATH = "static/tcj-logo.png";
     private static final String TEMPLATE_NAME = "invoice";
 
     private static final TemplateEngine TEMPLATE_ENGINE = buildTemplateEngine();
 
     private final InvoiceRepository repository;
-
-    @Value("${app.storage.root-dir}")
-    private String storageRootDir;
-
-    @Value("${app.storage.public-path}")
-    private String storagePublicPath;
+    private final LogoAsset logoAsset;
 
     @Value("${app.company.name}")
     private String companyName;
@@ -83,31 +72,12 @@ public class InvoicePdfService {
                 });
 
         byte[] pdf = render(invoice);
-        String publicPath = write(invoice.getInvoiceNumber(), pdf);
 
-        invoice.setPdfPath(publicPath);
-        repository.save(invoice);
-
-        log.info("Generated PDF for invoice {} at {}", invoice.getInvoiceNumber(), publicPath);
+        log.info("Generated PDF for invoice {}", invoice.getInvoiceNumber());
         return new InvoicePdf(invoice.getInvoiceNumber() + ".pdf", pdf);
     }
 
     public record InvoicePdf(String fileName, byte[] content) {}
-
-    private String write(String invoiceNumber, byte[] pdf) {
-        try {
-            Path targetDir = Paths.get(storageRootDir, "invoices");
-            Files.createDirectories(targetDir);
-
-            Path targetFile = targetDir.resolve(invoiceNumber + ".pdf");
-            Files.write(targetFile, pdf);
-
-            return storagePublicPath + "/invoices/" + invoiceNumber + ".pdf";
-        } catch (IOException e) {
-            log.error("Failed to write PDF file for invoice {}", invoiceNumber, e);
-            throw new PdfGenerationException("Failed to store generated PDF", e);
-        }
-    }
 
     private byte[] render(Invoice invoice) {
         InvoiceResponse response = CustomMapper.toInvoiceResponse(invoice);
@@ -141,7 +111,7 @@ public class InvoicePdfService {
     private Context buildContext(InvoiceResponse response) {
         Context context = new Context();
 
-        context.setVariable("logoDataUri", loadLogoDataUri());
+        context.setVariable("logoDataUri", logoAsset.dataUri());
         context.setVariable("companyName", companyName);
         context.setVariable("companyAddressLines", companyAddress.split("\n"));
         context.setVariable("companyEmail", companyEmail);
@@ -165,6 +135,8 @@ public class InvoicePdfService {
         context.setVariable("subtotal", FormatUtils.formatCurrency(subtotal));
         context.setVariable("shippingCharges", response.shippingCharges() == null
                 ? null : FormatUtils.formatCurrency(response.shippingCharges()));
+        context.setVariable("discount", response.discount() == null || response.discount() == 0
+                ? null : FormatUtils.formatDiscount(response.discount(), response.discountType()));
         context.setVariable("totalAmount", FormatUtils.formatCurrency(response.totalAmount()));
 
         context.setVariable("bankName", bankName);
@@ -176,16 +148,6 @@ public class InvoicePdfService {
         context.setVariable("termsLines", splitLines(response.termsAndConditions()));
 
         return context;
-    }
-
-    private String loadLogoDataUri() {
-        try {
-            byte[] bytes = new ClassPathResource(LOGO_CLASSPATH).getContentAsByteArray();
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
-        } catch (IOException e) {
-            log.error("Failed to load invoice logo", e);
-            throw new PdfGenerationException("Failed to load invoice logo", e);
-        }
     }
 
     private String formatSalesRep(InvoiceResponse response) {
@@ -218,7 +180,7 @@ public class InvoicePdfService {
                         item.product().productName(),
                         String.valueOf(item.quantity()),
                         FormatUtils.formatCurrency(item.price()),
-                        item.discount() == null ? "0%" : item.discount() + "%",
+                        FormatUtils.formatDiscount(item.discount(), item.discountType()),
                         FormatUtils.formatCurrency(item.total())
                 ))
                 .toList();

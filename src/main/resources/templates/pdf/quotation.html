@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8"/>
-    <title>Invoice</title>
+    <title>Quotation</title>
     <th:block th:replace="~{fragments/bootstrap :: styles}"></th:block>
     <style type="text/css">
         @page {
@@ -25,7 +25,7 @@
 
         .meta-table td {
             width: 33.33%;
-            padding-bottom: 3pt;
+            padding-bottom: 6pt;
         }
 
         .meta-label {
@@ -37,7 +37,7 @@
 </head>
 <body>
 
-<table class="header-table mb-2">
+<table class="header-table mb-3">
     <tr>
         <td style="width:50%;">
             <img th:src="${logoDataUri}" class="logo" alt="Logo"/>
@@ -50,40 +50,27 @@
     </tr>
 </table>
 
-<h1>INVOICE</h1>
-<div class="text-muted mb-2" th:text="'#' + ${invoiceNumber}">#INV-0001</div>
+<h1>QUOTATION</h1>
+<div class="text-muted mb-3" th:text="'#' + ${quotationNumber}">#QUO-0001</div>
 
-<table class="table meta-table mb-2">
+<table class="table meta-table mb-3">
     <tr>
         <td>
-            <span class="small meta-label d-block">Quotation #</span>
-            <span th:text="${quotationNumber}">-</span>
+            <span class="small meta-label d-block">Quote Date</span>
+            <span th:text="${quoteDate}">-</span>
         </td>
         <td>
-            <span class="small meta-label d-block">Sales Person</span>
-            <span th:text="${salesRepName}">-</span>
+            <span class="small meta-label d-block">Expiry Date</span>
+            <span th:text="${expiryDate}">-</span>
         </td>
-    </tr>
-    <tr>
-        <td>
-            <span class="small meta-label d-block">Invoice Date</span>
-            <span th:text="${invoiceDate}">-</span>
-        </td>
-        <td>
-            <span class="small meta-label d-block">Due Date</span>
-            <span th:text="${dueDate}">-</span>
-        </td>
-        <td>
-            <span class="small meta-label d-block">Payment Terms</span>
-            <span th:text="${paymentTermsLabel}">-</span>
-        </td>
+        <td></td>
     </tr>
 </table>
 
 <h6>Bill To</h6>
 <div th:each="line : ${billToLines}" th:text="${line}">Bill to line</div>
 
-<table class="table items-table mb-2 mt-2">
+<table class="table items-table mb-3 mt-3">
     <thead class="table-dark">
     <tr>
         <th style="width:35%;">Product</th>
@@ -104,7 +91,7 @@
     </tbody>
 </table>
 
-<table class="table mb-2" style="width:45%; margin-left:auto;">
+<table class="table mb-3" style="width:45%; margin-left:auto;">
     <tr>
         <td class="text-muted">Subtotal</td>
         <td class="text-end" th:text="${subtotal}">0.00</td>
@@ -118,20 +105,12 @@
         <td class="text-end" th:text="${discount}">0.00</td>
     </tr>
     <tr>
-        <td class="fw-bold border-top" style="padding-top:6pt;">Total Amount Due</td>
-        <td class="text-end fw-bold border-top" style="padding-top:6pt;" th:text="${totalAmount}">0.00</td>
+        <td class="fw-bold border-top" style="padding-top:10pt;">Total Amount</td>
+        <td class="text-end fw-bold border-top" style="padding-top:10pt;" th:text="${totalAmount}">0.00</td>
     </tr>
 </table>
 
-<div class="bg-light rounded mb-2" style="padding:3pt 10pt;">
-    <h6>Bank Details for Payment</h6>
-    <div>Bank Name: <span th:text="${bankName}">-</span></div>
-    <div>Account Name: <span th:text="${bankAccountName}">-</span></div>
-    <div>Account Number: <span th:text="${bankAccountNumber}">-</span></div>
-    <div>SWIFT Code: <span th:text="${bankSwiftCode}">-</span></div>
-</div>
-
-<div class="mb-2" th:if="${not #lists.isEmpty(notesLines)}">
+<div class="mb-4" th:if="${not #lists.isEmpty(notesLines)}">
     <h6>Notes</h6>
     <div th:each="line : ${notesLines}" th:text="${line}">Notes line</div>
 </div>

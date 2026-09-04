@@ -17,7 +17,6 @@ public record DeliveryOrderResponse(
         String deliveryInstructions,
         LocalDate targetDeliveryDate,
         List<DeliveryOrderItemResponse> invoiceItems,
-        String pdfPath,
         List<String> proofOfPickupPaths,
         LocalDateTime pickedUpAt,
         List<String> proofOfDeliveryPaths,

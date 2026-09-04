@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
 import java.math.BigDecimal;
@@ -45,11 +46,15 @@ public class Quotation extends BaseEntity {
     private LocalDate quoteDate;
     private LocalDate expiryDate;
     private BigDecimal shippingCharges;
+
+    private Integer discount;
+
+    @Enumerated(EnumType.STRING)
+    private DiscountType discountType;
+
     private String notes;
     private String termsAndConditions;
 
     @Enumerated(EnumType.STRING)
     private PaymentTerms paymentTerms;
-
-    private String pdfPath;
 }

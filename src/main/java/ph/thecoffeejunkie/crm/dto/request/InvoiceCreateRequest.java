@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.dto.request;
 
+import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
 import java.math.BigDecimal;
@@ -10,6 +11,8 @@ public record InvoiceCreateRequest(
         Long customerId,
         BigDecimal totalAmount,
         BigDecimal shippingCharges,
+        Integer discount,
+        DiscountType discountType,
         String notes,
         String termsAndConditions,
         PaymentTerms paymentTerms

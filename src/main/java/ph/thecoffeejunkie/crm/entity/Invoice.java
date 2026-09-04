@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
@@ -56,6 +57,11 @@ public class Invoice extends BaseEntity {
     private BigDecimal totalAmount;
     private BigDecimal shippingCharges;
 
+    private Integer discount;
+
+    @Enumerated(EnumType.STRING)
+    private DiscountType discountType;
+
     private LocalDate invoiceDate;
     private LocalDate dueDate;
 
@@ -65,7 +71,6 @@ public class Invoice extends BaseEntity {
     private String notes;
     private String termsAndConditions;
 
-    private String pdfPath;
     private String proofOfPaymentPath;
     private LocalDateTime paidAt;
 }

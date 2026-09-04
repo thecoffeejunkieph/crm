@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
@@ -22,13 +23,14 @@ public record InvoiceResponse(
         String statusLabel,
         BigDecimal totalAmount,
         BigDecimal shippingCharges,
+        Integer discount,
+        DiscountType discountType,
         LocalDate invoiceDate,
         LocalDate dueDate,
         PaymentTerms paymentTerms,
         String paymentTermsLabel,
         String notes,
         String termsAndConditions,
-        String pdfPath,
         String proofOfPaymentPath,
         List<InvoicePaymentResponse> payments,
         LocalDateTime paidAt
