@@ -120,6 +120,19 @@ public class InvoiceService {
         Page<Invoice> invoicePage = repository.findAll(pageRequest);
 
         log.info("Found {} invoices", invoicePage.getTotalElements());
+        return toPageResponse(invoicePage);
+    }
+
+    public PageResponse<InvoiceResponse> findAllByCustomer(Long customerId, PageRequest pageRequest) {
+        log.info("Getting invoices for customer with id: {}", customerId);
+
+        Page<Invoice> invoicePage = repository.findByCustomerId(customerId, pageRequest);
+
+        log.info("Found {} invoices for customer {}", invoicePage.getTotalElements(), customerId);
+        return toPageResponse(invoicePage);
+    }
+
+    private PageResponse<InvoiceResponse> toPageResponse(Page<Invoice> invoicePage) {
         return new PageResponse<>(
                 invoicePage.getPageable().getPageNumber() + 1,
                 invoicePage.getPageable().getPageSize(),

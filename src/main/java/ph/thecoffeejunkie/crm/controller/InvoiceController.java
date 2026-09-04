@@ -40,9 +40,15 @@ public class InvoiceController {
     public PageResponse<InvoiceResponse> getAll(@RequestParam(defaultValue = "0") int pageNumber,
                                @RequestParam(defaultValue = "10") int pageSize,
                                @RequestParam(defaultValue = "invoiceNumber") String sortBy,
-                               @RequestParam(defaultValue = "ASC") String sortDirection) {
-        return invoiceService.findAll(PageRequest.of(pageNumber - 1,
-                pageSize, Sort.Direction.valueOf(sortDirection.toUpperCase()), sortBy));
+                               @RequestParam(defaultValue = "ASC") String sortDirection,
+                               @RequestParam(required = false) Long customerId) {
+        PageRequest pageRequest = PageRequest.of(pageNumber - 1,
+                pageSize, Sort.Direction.valueOf(sortDirection.toUpperCase()), sortBy);
+
+        if (customerId != null) {
+            return invoiceService.findAllByCustomer(customerId, pageRequest);
+        }
+        return invoiceService.findAll(pageRequest);
     }
 
     @PostMapping
