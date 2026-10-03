@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.service;
 
+import org.apache.logging.log4j.util.Strings;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,10 +59,12 @@ public class CustomerService {
         return crmUserRepository.findByEmail(authentication.getName()).orElse(null);
     }
 
-    public PageResponse<CustomerResponse> findAll(PageRequest pageRequest) {
+    public PageResponse<CustomerResponse> findAll(PageRequest pageRequest, String name) {
         log.info("Getting all customers...");
 
-        Page<Customer> customersPage = repository.findByActiveTrue(pageRequest);
+        Page<Customer> customersPage = Strings.isNotEmpty(name)
+                ? repository.searchActiveByName(name, pageRequest)
+                : repository.findByActiveTrue(pageRequest);
 
         log.info("Found {} customers", customersPage.getTotalElements());
         return new PageResponse<>

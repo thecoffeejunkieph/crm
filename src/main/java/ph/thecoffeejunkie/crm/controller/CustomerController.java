@@ -18,8 +18,9 @@ public class CustomerController {
 
     @GetMapping
     public PageResponse<CustomerResponse> getAll(@RequestParam (defaultValue = "0") int pageNumber,
-                                                 @RequestParam (defaultValue = "10") int pageSize) {
-        return customerService.findAll(PageRequest.of(pageNumber - 1, pageSize));
+                                                 @RequestParam (defaultValue = "10") int pageSize,
+                                                 @RequestParam(required = false) String name) {
+        return customerService.findAll(PageRequest.of(pageNumber - 1, pageSize), name);
     }
 
     @PostMapping
