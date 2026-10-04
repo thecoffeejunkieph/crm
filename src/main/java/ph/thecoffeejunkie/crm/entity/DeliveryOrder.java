@@ -41,8 +41,6 @@ public class DeliveryOrder extends BaseEntity {
     private String deliveryInstructions;
     private LocalDate targetDeliveryDate;
 
-    private String pdfPath;
-
     @ElementCollection
     @CollectionTable(name = "delivery_order_proof_of_pickup", joinColumns = @JoinColumn(name = "delivery_order_id"))
     @Column(name = "file_path")

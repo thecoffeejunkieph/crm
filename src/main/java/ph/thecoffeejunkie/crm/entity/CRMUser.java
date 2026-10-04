@@ -36,4 +36,6 @@ public class CRMUser {
     private int rewardPoints;
 
     private String qrCodePath;
+
+    private String picturePath;
 }

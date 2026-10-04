@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -21,7 +20,9 @@ import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.QuotationRepository;
 import ph.thecoffeejunkie.crm.util.CustomMapper;
+import ph.thecoffeejunkie.crm.util.EmailStyles;
 import ph.thecoffeejunkie.crm.util.FormatUtils;
+import ph.thecoffeejunkie.crm.util.LogoAsset;
 import ph.thecoffeejunkie.crm.util.QuotationResponseTokenService;
 
 import java.math.BigDecimal;
@@ -34,7 +35,6 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class QuotationEmailService {
 
-    private static final String LOGO_CLASSPATH = "static/tcj-logo.png";
     private static final String LOGO_CONTENT_ID = "logo";
     private static final List<String> RESOLVED_STATUSES = List.of("ACCEPTED", "REJECTED");
 
@@ -43,6 +43,7 @@ public class QuotationEmailService {
     private final QuotationResponseTokenService tokenService;
     private final QuotationAcceptanceService quotationAcceptanceService;
     private final JavaMailSender mailSender;
+    private final LogoAsset logoAsset;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -96,7 +97,7 @@ public class QuotationEmailService {
             helper.setTo(quotation.getCustomer().getEmail());
             helper.setSubject("Quotation " + quotation.getQuotationNumber() + " from " + companyName);
             helper.setText(buildHtmlBody(CustomMapper.toQuotationResponse(quotation), acceptUrl, rejectUrl), true);
-            helper.addInline(LOGO_CONTENT_ID, new ClassPathResource(LOGO_CLASSPATH));
+            helper.addInline(LOGO_CONTENT_ID, new ByteArrayResource(logoAsset.pngBytes()), "image/png");
             helper.addAttachment(pdf.fileName(), new ByteArrayResource(pdf.content()), MediaType.APPLICATION_PDF_VALUE);
 
             mailSender.send(message);
@@ -174,9 +175,9 @@ public class QuotationEmailService {
                     .append("<td style=\"text-align:right;\">")
                     .append(FormatUtils.formatCurrency(item.price()))
                     .append("</td>")
-                    .append("<td style=\"text-align:center;\">")
-                    .append(item.discount() == null ? 0 : item.discount())
-                    .append("%</td>")
+                    .append("<td style=\"text-align:right;\">")
+                    .append(FormatUtils.formatDiscount(item.discount(), item.discountType()))
+                    .append("</td>")
                     .append("<td style=\"text-align:right;\">")
                     .append(FormatUtils.formatCurrency(item.total()))
                     .append("</td>")
@@ -199,6 +200,14 @@ public class QuotationEmailService {
                 ? "<p><strong>Terms and Conditions</strong><br/>" + HtmlUtils.htmlEscape(response.termsAndConditions()) + "</p>"
                 : "";
 
+        String shippingRow = response.shippingCharges() != null
+                ? "<p style=\"text-align:right;\">Shipping: " + FormatUtils.formatCurrency(response.shippingCharges()) + "</p>"
+                : "";
+
+        String discountRow = response.discount() != null && response.discount() != 0
+                ? "<p style=\"text-align:right;\">Discount: " + FormatUtils.formatDiscount(response.discount(), response.discountType()) + "</p>"
+                : "";
+
         return """
                 <!doctype html>
                 <html>
@@ -206,26 +215,19 @@ public class QuotationEmailService {
                 <meta charset="UTF-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
                 <style>
-                  body { margin:0; padding:0; background:#f2f1ee; }
+                  body { margin:0; padding:0; background:#f2f1ee; font-family:'Segoe UI',Arial,sans-serif; }
+                  %s
                   .email-wrapper { width:100%%; background:#f2f1ee; padding:32px 16px; }
                   .email-card { max-width:600px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06); border:1px solid #ebe8e3; }
                   .email-header { background:#f4f4f2; padding:28px 24px; text-align:center; border-bottom:1px solid #ebe8e3; }
-                  .email-body { padding:28px 24px; font-family:'Segoe UI',Arial,sans-serif; color:#2b2b2b; line-height:1.6; }
-                  .items-table { width:100%%; border-collapse:collapse; margin:20px 0; font-family:'Segoe UI',Arial,sans-serif; }
-                  .items-table thead tr { background:#3c281e; color:#ffffff; }
-                  .items-table th { padding:10px 8px; font-size:13px; text-transform:uppercase; letter-spacing:0.03em; }
-                  .items-table td { padding:10px 8px; font-size:14px; border-bottom:1px solid #f0eee9; }
-                  .items-table tbody tr:nth-child(even) { background:#faf9f7; }
-                  .totals p { margin:4px 0; font-family:'Segoe UI',Arial,sans-serif; }
+                  .email-body { padding:28px 24px; color:#2b2b2b; line-height:1.6; }
+                  .totals p { margin:4px 0; }
                   .cta { text-align:center; margin:32px 0; }
-                  .btn { display:inline-block; padding:13px 30px; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px; margin:6px; }
-                  .btn-accept { background:#2e7d32; color:#ffffff; }
-                  .btn-reject { background:#c628as28; color:#ffffff; }
                   .footer-brand { font-size:12px; color:#8a8a8a; text-align:center; margin-top:24px; }
                   @media only screen and (max-width:480px) {
                     .email-body { padding:20px 16px; }
                     .btn { display:block; width:100%%; box-sizing:border-box; margin:8px 0; }
-                    .items-table th, .items-table td { padding:8px 4px; font-size:12px; }
+                    table.table th, table.table td { padding:8px 4px; font-size:12px; }
                   }
                 </style>
                 </head>
@@ -239,13 +241,13 @@ public class QuotationEmailService {
                         <p>Hi %s,</p>
                         <p>Please find attached your quotation <strong>%s</strong>, valid until <strong>%s</strong>. A summary is below.</p>
 
-                        <table class="items-table">
-                          <thead>
+                        <table class="table">
+                          <thead class="table-dark">
                             <tr>
                               <th style="text-align:left;">Product</th>
                               <th>Qty</th>
                               <th style="text-align:right;">Unit Price</th>
-                              <th>Disc.</th>
+                              <th style="text-align:right;">Discount</th>
                               <th style="text-align:right;">Total</th>
                             </tr>
                           </thead>
@@ -256,6 +258,8 @@ public class QuotationEmailService {
 
                         <div class="totals">
                           <p style="text-align:right;">Subtotal: %s</p>
+                          %s
+                          %s
                           <p style="text-align:right;font-size:17px;"><strong>Total Amount: %s</strong></p>
                         </div>
 
@@ -263,8 +267,8 @@ public class QuotationEmailService {
                         %s
 
                         <div class="cta">
-                          <a href="%s" class="btn btn-accept">Accept Quotation</a>
-                          <a href="%s" class="btn btn-reject">Reject Quotation</a>
+                          <a href="%s" class="btn btn-primary">Accept Quotation</a>
+                          <a href="%s" class="btn btn-danger">Reject Quotation</a>
                         </div>
 
                         <p style="font-size:12px;color:#8a8a8a;">If the buttons don't work, copy and paste these links into your browser:<br/>
@@ -277,10 +281,11 @@ public class QuotationEmailService {
                 </body>
                 </html>
                 """.formatted(
+                EmailStyles.BOOTSTRAP_CSS,
                 LOGO_CONTENT_ID, HtmlUtils.htmlEscape(companyName),
                 customerName, response.quotationNumber(), FormatUtils.formatDate(response.expiryDate()),
                 items,
-                FormatUtils.formatCurrency(subtotal), FormatUtils.formatCurrency(response.totalAmount()),
+                FormatUtils.formatCurrency(subtotal), shippingRow, discountRow, FormatUtils.formatCurrency(response.totalAmount()),
                 notesSection, termsSection,
                 acceptUrl, rejectUrl,
                 acceptUrl, rejectUrl,

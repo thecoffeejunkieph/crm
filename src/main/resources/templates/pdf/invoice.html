@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Invoice</title>
+    <th:block th:replace="~{fragments/bootstrap :: styles}"></th:block>
+    <style type="text/css">
+        @page {
+            size: A4;
+            margin: 28pt 36pt;
+        }
+
+        .header-table {
+            width: 100%;
+        }
+
+        .logo {
+            width: 1.5in;
+            height: auto;
+        }
+
+        .company-info {
+            width: 50%;
+        }
+
+        .meta-table td {
+            width: 33.33%;
+            padding-bottom: 3pt;
+        }
+
+        .meta-label {
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+
+<table class="header-table mb-2">
+    <tr>
+        <td style="width:50%;">
+            <img th:src="${logoDataUri}" class="logo" alt="Logo"/>
+        </td>
+        <td style="width:50%" class="company-info text-end align-top">
+            <div class="fw-bold" th:text="${companyName}">Company Name</div>
+            <div class="small text-muted" th:each="line : ${companyAddressLines}" th:text="${line}">Address line</div>
+            <div class="small text-muted" th:text="${companyEmail} + ' | ' + ${companyPhone}">email | phone</div>
+        </td>
+    </tr>
+</table>
+
+<h1>INVOICE</h1>
+<div class="text-muted mb-2" th:text="'#' + ${invoiceNumber}">#INV-0001</div>
+
+<table class="table meta-table mb-2">
+    <tr>
+        <td>
+            <span class="small meta-label d-block">Quotation #</span>
+            <span th:text="${quotationNumber}">-</span>
+        </td>
+        <td>
+            <span class="small meta-label d-block">Sales Person</span>
+            <span th:text="${salesRepName}">-</span>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <span class="small meta-label d-block">Invoice Date</span>
+            <span th:text="${invoiceDate}">-</span>
+        </td>
+        <td>
+            <span class="small meta-label d-block">Due Date</span>
+            <span th:text="${dueDate}">-</span>
+        </td>
+        <td>
+            <span class="small meta-label d-block">Payment Terms</span>
+            <span th:text="${paymentTermsLabel}">-</span>
+        </td>
+    </tr>
+</table>
+
+<h6>Bill To</h6>
+<div th:each="line : ${billToLines}" th:text="${line}">Bill to line</div>
+
+<table class="table items-table mb-2 mt-2">
+    <thead class="table-dark">
+    <tr>
+        <th style="width:35%;">Product</th>
+        <th style="width:10%;">Qty</th>
+        <th style="width:15%;">Unit Price</th>
+        <th style="width:15%;">Discount</th>
+        <th style="width:15%;">Total</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="item : ${items}">
+        <td th:text="${item.product}">Product</td>
+        <td class="text-center" th:text="${item.quantity}">0</td>
+        <td class="text-end" th:text="${item.unitPrice}">0.00</td>
+        <td class="text-end" th:text="${item.discount}">0.00</td>
+        <td class="text-end" th:text="${item.total}">0.00</td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="table mb-2" style="width:45%; margin-left:auto;">
+    <tr>
+        <td class="text-muted">Subtotal</td>
+        <td class="text-end" th:text="${subtotal}">0.00</td>
+    </tr>
+    <tr th:if="${shippingCharges != null}">
+        <td class="text-muted">Shipping</td>
+        <td class="text-end" th:text="${shippingCharges}">0.00</td>
+    </tr>
+    <tr th:if="${discount != null}">
+        <td class="text-muted">Discount</td>
+        <td class="text-end" th:text="${discount}">0.00</td>
+    </tr>
+    <tr>
+        <td class="fw-bold border-top" style="padding-top:6pt;">Total Amount Due</td>
+        <td class="text-end fw-bold border-top" style="padding-top:6pt;" th:text="${totalAmount}">0.00</td>
+    </tr>
+</table>
+
+<div class="bg-light rounded mb-2" style="padding:3pt 10pt;">
+    <h6>Bank Details for Payment</h6>
+    <div>Bank Name: <span th:text="${bankName}">-</span></div>
+    <div>Account Name: <span th:text="${bankAccountName}">-</span></div>
+    <div>Account Number: <span th:text="${bankAccountNumber}">-</span></div>
+    <div>SWIFT Code: <span th:text="${bankSwiftCode}">-</span></div>
+</div>
+
+<div class="mb-2" th:if="${not #lists.isEmpty(notesLines)}">
+    <h6>Notes</h6>
+    <div th:each="line : ${notesLines}" th:text="${line}">Notes line</div>
+</div>
+
+<div th:if="${not #lists.isEmpty(termsLines)}">
+    <h6>Terms and Conditions</h6>
+    <div th:each="line : ${termsLines}" th:text="${line}">Terms line</div>
+</div>
+
+</body>
+</html>

@@ -45,7 +45,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/check-token",
                                 "/api/v1/quotations/*/respond",
-                                "/api/v1/invoices/*/proof-of-payment"
+                                "/api/v1/invoices/*/proof-of-payment",
+                                "/favicon.ico"
                         ).permitAll()
                         .anyRequest().authenticated()).
                 httpBasic(Customizer.withDefaults()).

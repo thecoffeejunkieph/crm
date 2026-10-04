@@ -10,11 +10,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.constant.PaymentMethod;
+import ph.thecoffeejunkie.crm.dto.request.InvoiceCreateRequest;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
 import ph.thecoffeejunkie.crm.service.InvoiceEmailService;
@@ -38,9 +40,20 @@ public class InvoiceController {
     public PageResponse<InvoiceResponse> getAll(@RequestParam(defaultValue = "0") int pageNumber,
                                @RequestParam(defaultValue = "10") int pageSize,
                                @RequestParam(defaultValue = "invoiceNumber") String sortBy,
-                               @RequestParam(defaultValue = "ASC") String sortDirection) {
-        return invoiceService.findAll(PageRequest.of(pageNumber - 1,
-                pageSize, Sort.Direction.valueOf(sortDirection.toUpperCase()), sortBy));
+                               @RequestParam(defaultValue = "ASC") String sortDirection,
+                               @RequestParam(required = false) Long customerId) {
+        PageRequest pageRequest = PageRequest.of(pageNumber - 1,
+                pageSize, Sort.Direction.valueOf(sortDirection.toUpperCase()), sortBy);
+
+        if (customerId != null) {
+            return invoiceService.findAllByCustomer(customerId, pageRequest);
+        }
+        return invoiceService.findAll(pageRequest);
+    }
+
+    @PostMapping
+    public InvoiceResponse save(@RequestBody InvoiceCreateRequest request) {
+        return invoiceService.create(request);
     }
 
     @GetMapping("/{id}")

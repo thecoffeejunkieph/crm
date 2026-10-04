@@ -115,6 +115,8 @@ public class QuotationService {
         quotation.setQuoteDate(request.quoteDate());
         quotation.setExpiryDate(request.expiryDate());
         quotation.setShippingCharges(request.shippingCharges());
+        quotation.setDiscount(request.discount());
+        quotation.setDiscountType(request.discountType());
         quotation.setTermsAndConditions(request.termsAndConditions());
         quotation.setNotes(request.notes());
         quotation.setSalesRep(resolveCurrentSalesRep());
@@ -139,6 +141,7 @@ public class QuotationService {
        quotationItem.setQuantity(request.quantity());
        quotationItem.setPrice(request.price());
        quotationItem.setDiscount(request.discount());
+       quotationItem.setDiscountType(request.discountType());
        quotationItem.setTotal(request.total());
        quotationItem.setProduct(productRepository.findById(request.productId())
                .orElseThrow(() -> {

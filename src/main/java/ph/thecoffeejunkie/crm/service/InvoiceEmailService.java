@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -22,7 +21,9 @@ import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.InvoiceRepository;
 import ph.thecoffeejunkie.crm.util.CustomMapper;
+import ph.thecoffeejunkie.crm.util.EmailStyles;
 import ph.thecoffeejunkie.crm.util.FormatUtils;
+import ph.thecoffeejunkie.crm.util.LogoAsset;
 
 import java.math.BigDecimal;
 
@@ -31,7 +32,6 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class InvoiceEmailService {
 
-    private static final String LOGO_CLASSPATH = "static/tcj-logo.png";
     private static final String LOGO_CONTENT_ID = "logo";
 
     private final InvoiceRepository repository;
@@ -39,6 +39,7 @@ public class InvoiceEmailService {
     private final InvoicePaymentPortalService invoicePaymentPortalService;
     private final JavaMailSender mailSender;
     private final CustomerActivityService customerActivityService;
+    private final LogoAsset logoAsset;
 
     @Value("${app.company.name}")
     private String companyName;
@@ -103,7 +104,7 @@ public class InvoiceEmailService {
             helper.setTo(invoice.getCustomer().getEmail());
             helper.setSubject("Invoice " + invoice.getInvoiceNumber() + " from " + companyName);
             helper.setText(buildHtmlBody(CustomMapper.toInvoiceResponse(invoice)), true);
-            helper.addInline(LOGO_CONTENT_ID, new ClassPathResource(LOGO_CLASSPATH));
+            helper.addInline(LOGO_CONTENT_ID, new ByteArrayResource(logoAsset.pngBytes()), "image/png");
             helper.addAttachment(pdf.fileName(), new ByteArrayResource(pdf.content()), MediaType.APPLICATION_PDF_VALUE);
 
             mailSender.send(message);
@@ -126,9 +127,9 @@ public class InvoiceEmailService {
                     .append("<td style=\"text-align:right;\">")
                     .append(FormatUtils.formatCurrency(item.price()))
                     .append("</td>")
-                    .append("<td style=\"text-align:center;\">")
-                    .append(item.discount() == null ? 0 : item.discount())
-                    .append("%</td>")
+                    .append("<td style=\"text-align:right;\">")
+                    .append(FormatUtils.formatDiscount(item.discount(), item.discountType()))
+                    .append("</td>")
                     .append("<td style=\"text-align:right;\">")
                     .append(FormatUtils.formatCurrency(item.total()))
                     .append("</td>")
@@ -151,12 +152,14 @@ public class InvoiceEmailService {
                 ? "<p style=\"text-align:right;\">Shipping: " + FormatUtils.formatCurrency(response.shippingCharges()) + "</p>"
                 : "";
 
+        String discountRow = response.discount() != null && response.discount() != 0
+                ? "<p style=\"text-align:right;\">Discount: " + FormatUtils.formatDiscount(response.discount(), response.discountType()) + "</p>"
+                : "";
+
         String uploadCta = response.status() == InvoiceStatus.UNPAID
                 ? """
                   <div style="text-align:center;margin:28px 0;">
-                    <a href="%s" style="display:inline-block;background:#3c281e;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:13px 30px;border-radius:6px;">
-                      Upload Proof of Payment
-                    </a>
+                    <a href="%s" class="btn btn-dark">Upload Proof of Payment</a>
                   </div>
                   """.formatted(invoicePaymentPortalService.buildUploadUrl(response.id()))
                 : "";
@@ -176,23 +179,19 @@ public class InvoiceEmailService {
                 <meta charset="UTF-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
                 <style>
-                  body { margin:0; padding:0; background:#f2f1ee; }
+                  body { margin:0; padding:0; background:#f2f1ee; font-family:'Segoe UI',Arial,sans-serif; }
+                  %s
                   .email-wrapper { width:100%%; background:#f2f1ee; padding:32px 16px; }
                   .email-card { max-width:600px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06); border:1px solid #ebe8e3; }
                   .email-header { background:#f4f4f2; padding:28px 24px; text-align:center; border-bottom:1px solid #ebe8e3; }
-                  .email-body { padding:28px 24px; font-family:'Segoe UI',Arial,sans-serif; color:#2b2b2b; line-height:1.6; }
-                  .items-table { width:100%%; border-collapse:collapse; margin:20px 0; font-family:'Segoe UI',Arial,sans-serif; }
-                  .items-table thead tr { background:#3c281e; color:#ffffff; }
-                  .items-table th { padding:10px 8px; font-size:13px; text-transform:uppercase; letter-spacing:0.03em; }
-                  .items-table td { padding:10px 8px; font-size:14px; border-bottom:1px solid #f0eee9; }
-                  .items-table tbody tr:nth-child(even) { background:#faf9f7; }
-                  .totals p { margin:4px 0; font-family:'Segoe UI',Arial,sans-serif; }
-                  .meta p { margin:2px 0; font-family:'Segoe UI',Arial,sans-serif; font-size:14px; }
-                  .bank-box { background:#faf9f7; border:1px solid #ebe8e3; border-radius:8px; padding:16px; margin:20px 0; font-family:'Segoe UI',Arial,sans-serif; font-size:14px; }
+                  .email-body { padding:28px 24px; color:#2b2b2b; line-height:1.6; }
+                  .totals p { margin:4px 0; }
+                  .meta p { margin:2px 0; font-size:14px; }
+                  .bank-box { background:#faf9f7; border:1px solid #ebe8e3; border-radius:8px; padding:16px; margin:20px 0; font-size:14px; }
                   .footer-brand { font-size:12px; color:#8a8a8a; text-align:center; margin-top:24px; }
                   @media only screen and (max-width:480px) {
                     .email-body { padding:20px 16px; }
-                    .items-table th, .items-table td { padding:8px 4px; font-size:12px; }
+                    table.table th, table.table td { padding:8px 4px; font-size:12px; }
                   }
                 </style>
                 </head>
@@ -214,13 +213,13 @@ public class InvoiceEmailService {
                           <p><strong>Status:</strong> %s</p>
                         </div>
 
-                        <table class="items-table">
-                          <thead>
+                        <table class="table">
+                          <thead class="table-dark">
                             <tr>
                               <th style="text-align:left;">Product</th>
                               <th>Qty</th>
                               <th style="text-align:right;">Unit Price</th>
-                              <th>Disc.</th>
+                              <th style="text-align:right;">Discount</th>
                               <th style="text-align:right;">Total</th>
                             </tr>
                           </thead>
@@ -231,6 +230,7 @@ public class InvoiceEmailService {
 
                         <div class="totals">
                           <p style="text-align:right;">Subtotal: %s</p>
+                          %s
                           %s
                           <p style="text-align:right;font-size:17px;"><strong>Total Amount Due: %s</strong></p>
                         </div>
@@ -255,13 +255,14 @@ public class InvoiceEmailService {
                 </body>
                 </html>
                 """.formatted(
+                EmailStyles.BOOTSTRAP_CSS,
                 LOGO_CONTENT_ID, HtmlUtils.htmlEscape(companyName),
                 customerName, response.invoiceNumber(), response.quotationNumber(),
                 FormatUtils.formatDate(response.invoiceDate()), FormatUtils.formatDate(response.dueDate()),
                 response.paymentTermsLabel() == null ? "-" : response.paymentTermsLabel(), salesRepName,
                 response.statusLabel() == null ? "-" : response.statusLabel(),
                 items,
-                FormatUtils.formatCurrency(subtotal), shippingRow, FormatUtils.formatCurrency(response.totalAmount()),
+                FormatUtils.formatCurrency(subtotal), shippingRow, discountRow, FormatUtils.formatCurrency(response.totalAmount()),
                 bankName, bankAccountName, bankAccountNumber, bankSwiftCode,
                 uploadCta,
                 notesSection, termsSection,

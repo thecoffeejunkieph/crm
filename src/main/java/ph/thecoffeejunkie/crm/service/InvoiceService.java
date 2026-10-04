@@ -10,8 +10,11 @@ import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentMethod;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+import ph.thecoffeejunkie.crm.dto.request.InvoiceCreateRequest;
+import ph.thecoffeejunkie.crm.dto.request.InvoiceItemRequest;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
+import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.entity.InvoiceItem;
 import ph.thecoffeejunkie.crm.entity.InvoicePayment;
@@ -20,11 +23,16 @@ import ph.thecoffeejunkie.crm.entity.QuotationItem;
 import ph.thecoffeejunkie.crm.exception.FileStorageException;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
+import ph.thecoffeejunkie.crm.repository.CRMUserRepository;
+import ph.thecoffeejunkie.crm.repository.CustomerRepository;
 import ph.thecoffeejunkie.crm.repository.InvoiceItemRepository;
 import ph.thecoffeejunkie.crm.repository.InvoicePaymentRepository;
 import ph.thecoffeejunkie.crm.repository.InvoiceRepository;
+import ph.thecoffeejunkie.crm.repository.ProductRepository;
 import ph.thecoffeejunkie.crm.util.CustomMapper;
 import ph.thecoffeejunkie.crm.util.InvoiceNumberGenerator;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -53,12 +61,30 @@ public class InvoiceService {
     private final InvoiceNumberGenerator generator;
     private final InventoryService inventoryService;
     private final DeliveryOrderService deliveryOrderService;
+    private final CustomerRepository customerRepository;
+    private final ProductRepository productRepository;
+    private final CRMUserRepository crmUserRepository;
 
     @Value("${app.storage.root-dir}")
     private String storageRootDir;
 
     @Value("${app.storage.public-path}")
     private String storagePublicPath;
+
+    public InvoiceResponse create(InvoiceCreateRequest request) {
+        log.info("Creating invoice directly...");
+
+        for (InvoiceItemRequest item : request.invoiceItems()) {
+            inventoryService.assertSufficientStock(item.productId(), item.quantity());
+        }
+
+        Invoice invoice = repository.save(toInvoice(request));
+        inventoryService.reserveForInvoice(invoice);
+        InvoiceResponse response = CustomMapper.toInvoiceResponse(invoice);
+
+        log.info("Created invoice {}", response.invoiceNumber());
+        return response;
+    }
 
     public InvoiceResponse createFromQuotation(Quotation quotation) {
         log.info("Creating invoice for quotation {}...", quotation.getQuotationNumber());
@@ -94,6 +120,19 @@ public class InvoiceService {
         Page<Invoice> invoicePage = repository.findAll(pageRequest);
 
         log.info("Found {} invoices", invoicePage.getTotalElements());
+        return toPageResponse(invoicePage);
+    }
+
+    public PageResponse<InvoiceResponse> findAllByCustomer(Long customerId, PageRequest pageRequest) {
+        log.info("Getting invoices for customer with id: {}", customerId);
+
+        Page<Invoice> invoicePage = repository.findByCustomerId(customerId, pageRequest);
+
+        log.info("Found {} invoices for customer {}", invoicePage.getTotalElements(), customerId);
+        return toPageResponse(invoicePage);
+    }
+
+    private PageResponse<InvoiceResponse> toPageResponse(Page<Invoice> invoicePage) {
         return new PageResponse<>(
                 invoicePage.getPageable().getPageNumber() + 1,
                 invoicePage.getPageable().getPageSize(),
@@ -103,6 +142,64 @@ public class InvoiceService {
                         .map(CustomMapper::toInvoiceResponse)
                         .toList()
         );
+    }
+
+    private Invoice toInvoice(InvoiceCreateRequest request) {
+        PaymentTerms paymentTerms = request.paymentTerms() != null
+                ? request.paymentTerms()
+                : PaymentTerms.DUE_ON_RECEIPT;
+        LocalDate invoiceDate = LocalDate.now();
+
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceNumber(generator.generate());
+        invoice.setCustomer(customerRepository.findById(request.customerId())
+                .orElseThrow(() -> {
+                    log.warn("Customer not found with id: {}", request.customerId());
+                    return ResourceNotFoundException.of("Customer", request.customerId());
+                }));
+        invoice.setSalesRep(resolveCurrentSalesRep());
+        invoice.setInvoiceItems(request.invoiceItems().stream()
+                .map(this::toInvoiceItem)
+                .map(invoiceItemRepository::save)
+                .toList());
+        invoice.setStatus(InvoiceStatus.UNPAID);
+        invoice.setTotalAmount(request.totalAmount());
+        invoice.setShippingCharges(request.shippingCharges());
+        invoice.setDiscount(request.discount());
+        invoice.setDiscountType(request.discountType());
+        invoice.setInvoiceDate(invoiceDate);
+        invoice.setDueDate(invoiceDate.plusDays(paymentTerms.getDays()));
+        invoice.setPaymentTerms(paymentTerms);
+        invoice.setNotes(request.notes());
+        invoice.setTermsAndConditions(request.termsAndConditions());
+
+        return invoice;
+    }
+
+    private InvoiceItem toInvoiceItem(InvoiceItemRequest request) {
+        var invoiceItem = new InvoiceItem();
+        invoiceItem.setQuantity(request.quantity());
+        invoiceItem.setPrice(request.price());
+        invoiceItem.setDiscount(request.discount());
+        invoiceItem.setDiscountType(request.discountType());
+        invoiceItem.setTotal(request.total());
+        invoiceItem.setProduct(productRepository.findById(request.productId())
+                .orElseThrow(() -> {
+                    log.warn("Product not found with id: {}", request.productId());
+                    return ResourceNotFoundException.of("Product", request.productId());
+                }));
+
+        return invoiceItem;
+    }
+
+    private CRMUser resolveCurrentSalesRep() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+
+        return crmUserRepository.findByEmail(authentication.getName()).orElse(null);
     }
 
     private Invoice toInvoice(Quotation quotation) {
@@ -123,6 +220,8 @@ public class InvoiceService {
         invoice.setStatus(InvoiceStatus.UNPAID);
         invoice.setTotalAmount(quotation.getTotalAmount());
         invoice.setShippingCharges(quotation.getShippingCharges());
+        invoice.setDiscount(quotation.getDiscount());
+        invoice.setDiscountType(quotation.getDiscountType());
         invoice.setInvoiceDate(invoiceDate);
         invoice.setDueDate(invoiceDate.plusDays(paymentTerms.getDays()));
         invoice.setPaymentTerms(paymentTerms);
@@ -313,6 +412,7 @@ public class InvoiceService {
         invoiceItem.setQuantity(quotationItem.getQuantity());
         invoiceItem.setPrice(quotationItem.getPrice());
         invoiceItem.setDiscount(quotationItem.getDiscount());
+        invoiceItem.setDiscountType(quotationItem.getDiscountType());
         invoiceItem.setTotal(quotationItem.getTotal());
         invoiceItem.setProduct(quotationItem.getProduct());
 

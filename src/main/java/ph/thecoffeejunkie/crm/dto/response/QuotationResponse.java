@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 
 import java.math.BigDecimal;
@@ -15,11 +16,13 @@ public record QuotationResponse(
         CustomerResponse customer,
         String status,
         BigDecimal totalAmount,
+        BigDecimal shippingCharges,
+        Integer discount,
+        DiscountType discountType,
         LocalDate quoteDate,
         LocalDate expiryDate,
         String notes,
         String termsAndConditions,
-        String pdfPath,
         SalesRepResponse salesRep,
         PaymentTerms paymentTerms,
         String paymentTermsLabel

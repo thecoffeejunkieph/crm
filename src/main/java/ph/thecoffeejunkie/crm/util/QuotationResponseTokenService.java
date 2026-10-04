@@ -4,7 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
@@ -13,7 +13,7 @@ import java.util.Date;
  * Signs and verifies the token embedded in the accept/reject links sent in quotation
  * emails, so a customer can act on a quotation without an authenticated CRM session.
  */
-@Component
+@Service
 public class QuotationResponseTokenService {
 
     private static final String QUOTATION_ID_CLAIM = "quotationId";

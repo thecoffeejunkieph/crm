@@ -19,6 +19,8 @@ public interface QuotationRepository extends JpaRepository<Quotation, Long> {
 
     long countByStatusIn(List<String> statuses);
 
+    List<Quotation> findByStatusInAndExpiryDateBefore(List<String> statuses, LocalDate date);
+
     long countByStatusAndQuoteDateBetween(String status, LocalDate start, LocalDate end);
 
     long countByStatusInAndQuoteDateBetween(List<String> statuses, LocalDate start, LocalDate end);

@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import ph.thecoffeejunkie.crm.util.JwtUtil;
 
@@ -25,6 +26,8 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class JWTFilter extends OncePerRequestFilter {
 
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
     private final UserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
 
@@ -34,7 +37,20 @@ public class JWTFilter extends OncePerRequestFilter {
 
         return path.equals("/api/v1/auth/login")
                 || path.equals("/api/v1/auth/register")
-                || path.equals("/api/v1/auth/check-token");
+                || path.equals("/api/v1/auth/check-token")
+                // Browsers fetch this automatically for any tab pointed at this origin (e.g.
+                // someone opening an invoice PDF URL directly) - it's not a real client of the
+                // API, so it shouldn't go through JWT parsing at all. Without this, an anonymous
+                // request here throws on parsing an empty token and logs a WARN that reads like
+                // a security event for what is completely routine browser behavior.
+                || path.equals("/favicon.ico")
+                // Customer-facing links reached from emails without any CRM session (quotation
+                // accept/reject, invoice proof-of-payment upload). They carry their own signed
+                // token as a query param and are permitAll in SecurityConfig; a real customer
+                // never has our session jwt, so leaving these unexcluded meant every visit threw
+                // on an empty token and logged a spurious "invalid JWT" WARN.
+                || PATH_MATCHER.match("/api/v1/quotations/*/respond", path)
+                || PATH_MATCHER.match("/api/v1/invoices/*/proof-of-payment", path);
     }
 
     @Override
