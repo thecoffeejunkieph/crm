@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.repository.QuotationRepository;
@@ -29,8 +28,9 @@ public class QuotationExpiryService {
     private final DistributedLock distributedLock;
     private final NotificationService notificationService;
 
+    // No @Transactional: saveAll is already one transaction, and the notifications below must
+    // go out only after it commits, never for a change a failed commit would undo.
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Manila")
-    @Transactional
     public void expireOverdueQuotations() {
         // Every API instance fires this cron. The lock is never released: holding it for its TTL
         // also stops an instance whose clock fires a few seconds later from running it again.

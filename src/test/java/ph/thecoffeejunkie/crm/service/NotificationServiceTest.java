@@ -47,6 +47,11 @@ class NotificationServiceTest {
 
     @BeforeEach
     void assignIdsOnSave() {
+        when(userRepository.findByEmail(anyString())).thenAnswer(inv -> {
+            CRMUser u = user(inv.getArgument(0));
+            u.setActive(true);
+            return Optional.of(u);
+        });
         AtomicLong ids = new AtomicLong();
         when(repository.saveAll(anyList())).thenAnswer(inv -> {
             List<Notification> rows = new ArrayList<>(inv.getArgument(0));
@@ -91,6 +96,19 @@ class NotificationServiceTest {
 
         verify(streams).publish(eq("a1@x.ph"), any());
         verify(streams).publish(eq("a2@x.ph"), any());
+    }
+
+    @Test
+    void toOwnerFallsBackToAdminsWhenOwnerInactive() {
+        CRMUser former = user("former@x.ph");
+        former.setActive(false);
+        when(userRepository.findByEmail("former@x.ph")).thenReturn(Optional.of(former));
+        when(userRepository.findByActiveTrueAndRolesContaining("ADMIN")).thenReturn(List.of(user("a1@x.ph")));
+
+        service.toOwner(user("former@x.ph"), NotificationType.QUOTATION_ACCEPTED, 1L, "t", "b");
+
+        verify(streams).publish(eq("a1@x.ph"), any());
+        verify(streams, never()).publish(eq("former@x.ph"), any());
     }
 
     @Test

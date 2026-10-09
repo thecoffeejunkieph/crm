@@ -7,8 +7,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.constant.Role;
 import ph.thecoffeejunkie.crm.dto.response.NotificationResponse;
@@ -40,20 +38,16 @@ public class NotificationService {
     private final CRMUserRepository userRepository;
     private final NotificationStreams streams;
 
-    /** The record's owner (e.g. its sales rep), or every admin when it has none. */
-    // NOT_SUPPORTED: run outside the caller's transaction (e.g. the expiry job's). A failed save
-    // inside it would mark that transaction rollback-only even though the exception is caught here.
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    /** The record's owner (e.g. its sales rep), or every admin when it has none or it is inactive. */
     public void toOwner(CRMUser ownerOrNull, NotificationType type, Long entityId, String title, String body) {
         try {
-            List<String> emails = ownerOrNull != null ? List.of(ownerOrNull.getEmail()) : emailsWithRole(Role.ADMIN);
+            List<String> emails = isActive(ownerOrNull) ? List.of(ownerOrNull.getEmail()) : emailsWithRole(Role.ADMIN);
             send(emails, type, entityId, title, body);
         } catch (RuntimeException e) {
             log.warn("Could not send {} notification for {}: {}", type, entityId, e.getMessage());
         }
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void toRole(Role role, NotificationType type, Long entityId, String title, String body) {
         try {
             send(emailsWithRole(role), type, entityId, title, body);
@@ -115,6 +109,14 @@ public class NotificationService {
         }).toList();
 
         repository.saveAll(rows).forEach(n -> streams.publish(n.getRecipientEmail(), toResponse(n)));
+    }
+
+    // A deactivated rep's records fall back to the admins so the event isn't lost. Looked up by
+    // email because the owner is often an uninitialized lazy proxy (only its id is safe to read).
+    private boolean isActive(CRMUser owner) {
+        return owner != null && userRepository.findByEmail(owner.getEmail())
+                .map(u -> Boolean.TRUE.equals(u.getActive()))
+                .orElse(false);
     }
 
     private List<String> emailsWithRole(Role role) {

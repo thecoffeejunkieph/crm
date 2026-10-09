@@ -35,10 +35,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -107,6 +109,24 @@ class NotificationEventsTest {
                 "Ana Cruz did not respond by 2026-10-01.");
         verify(notifications).toOwner(rep, NotificationType.QUOTATION_EXPIRED, 6L, "Quotation Q-2 expired",
                 "Ana Cruz did not respond by 2026-10-01.");
+    }
+
+    @Test
+    void expiryNotifiesAfterItsSaveCommits() throws Exception {
+        // Notifying inside the job's own transaction would push "expired" for quotations a failed
+        // commit leaves unexpired; without @Transactional, saveAll commits before any notify.
+        assertNull(QuotationExpiryService.class.getMethod("expireOverdueQuotations")
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class));
+        var repository = mock(QuotationRepository.class);
+        var lock = mock(DistributedLock.class);
+        when(lock.tryLock(anyString(), any())).thenReturn(true);
+        when(repository.findByStatusInAndExpiryDateBefore(anyList(), any())).thenReturn(List.of(quotation(5L)));
+
+        new QuotationExpiryService(repository, lock, notifications).expireOverdueQuotations();
+
+        var order = inOrder(repository, notifications);
+        order.verify(repository).saveAll(anyList());
+        order.verify(notifications).toOwner(any(), any(), any(), any(), any());
     }
 
     @Test
