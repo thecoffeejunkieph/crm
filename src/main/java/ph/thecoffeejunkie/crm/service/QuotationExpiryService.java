@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.repository.QuotationRepository;
 
@@ -26,6 +27,7 @@ public class QuotationExpiryService {
 
     private final QuotationRepository quotationRepository;
     private final DistributedLock distributedLock;
+    private final NotificationService notificationService;
 
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Manila")
     @Transactional
@@ -46,6 +48,11 @@ public class QuotationExpiryService {
 
         overdue.forEach(quotation -> quotation.setStatus("EXPIRED"));
         quotationRepository.saveAll(overdue);
+        overdue.forEach(quotation -> notificationService.toOwner(quotation.getSalesRep(),
+                NotificationType.QUOTATION_EXPIRED, quotation.getId(),
+                "Quotation " + quotation.getQuotationNumber() + " expired",
+                NotificationService.customerName(quotation.getCustomer()) + " did not respond by "
+                        + quotation.getExpiryDate() + "."));
 
         log.info("Expired {} quotation(s) past their expiry date", overdue.size());
     }

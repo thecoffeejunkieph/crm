@@ -7,6 +7,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.constant.Role;
 import ph.thecoffeejunkie.crm.dto.response.NotificationResponse;
@@ -39,6 +41,9 @@ public class NotificationService {
     private final NotificationStreams streams;
 
     /** The record's owner (e.g. its sales rep), or every admin when it has none. */
+    // NOT_SUPPORTED: run outside the caller's transaction (e.g. the expiry job's). A failed save
+    // inside it would mark that transaction rollback-only even though the exception is caught here.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void toOwner(CRMUser ownerOrNull, NotificationType type, Long entityId, String title, String body) {
         try {
             List<String> emails = ownerOrNull != null ? List.of(ownerOrNull.getEmail()) : emailsWithRole(Role.ADMIN);
@@ -48,6 +53,7 @@ public class NotificationService {
         }
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void toRole(Role role, NotificationType type, Long entityId, String title, String body) {
         try {
             send(emailsWithRole(role), type, entityId, title, body);

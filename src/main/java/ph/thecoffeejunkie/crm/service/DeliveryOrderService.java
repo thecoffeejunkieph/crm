@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.constant.DeliveryOrderStatus;
+import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.dto.request.DeliveryOrderUpdateRequest;
 import ph.thecoffeejunkie.crm.dto.response.DeliveryOrderResponse;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
@@ -31,6 +32,7 @@ public class DeliveryOrderService {
     private final InventoryService inventoryService;
     private final DeliveryOrderNumberGenerator numberGenerator;
     private final StorageService storageService;
+    private final NotificationService notificationService;
 
     public DeliveryOrderResponse createForInvoice(Invoice invoice) {
         log.info("Creating delivery order for invoice {}...", invoice.getInvoiceNumber());
@@ -154,6 +156,11 @@ public class DeliveryOrderService {
         DeliveryOrderResponse response = CustomMapper.toDeliveryOrderResponse(repository.save(order));
 
         log.info("Marked delivery order {} as delivered", id);
+        Invoice invoice = order.getInvoice();
+        notificationService.toOwner(invoice.getSalesRep(), NotificationType.DELIVERY_ORDER_DELIVERED, order.getId(),
+                "Delivered: " + order.getDeliveryOrderNumber(),
+                "Invoice " + invoice.getInvoiceNumber() + " for "
+                        + NotificationService.customerName(invoice.getCustomer()) + " was delivered.");
         return response;
     }
 

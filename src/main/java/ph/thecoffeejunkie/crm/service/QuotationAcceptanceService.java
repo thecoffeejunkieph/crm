@@ -3,6 +3,7 @@ package ph.thecoffeejunkie.crm.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
@@ -31,6 +32,7 @@ public class QuotationAcceptanceService {
     private final InvoiceEmailService invoiceEmailService;
     private final InventoryService inventoryService;
     private final DistributedLock distributedLock;
+    private final NotificationService notificationService;
 
     static final Duration LOCK_TTL = Duration.ofMinutes(2);
 
@@ -77,6 +79,11 @@ public class QuotationAcceptanceService {
 
         quotation.setStatus("ACCEPTED");
         quotationRepository.save(quotation);
+
+        notificationService.toOwner(quotation.getSalesRep(), NotificationType.QUOTATION_ACCEPTED, quotation.getId(),
+                "Quotation " + quotation.getQuotationNumber() + " accepted",
+                NotificationService.customerName(quotation.getCustomer()) + " accepted. Invoice "
+                        + sent.invoiceNumber() + " was created and emailed.");
 
         log.info("Quotation {} accepted; created and emailed invoice {}",
                 quotation.getQuotationNumber(), sent.invoiceNumber());

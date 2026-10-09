@@ -26,7 +26,8 @@ class QuotationExpiryServiceTest {
 
     private final StringRedisTemplate template = RedisTestSupport.template();
     private final QuotationRepository repository = mock(QuotationRepository.class);
-    private final QuotationExpiryService service = new QuotationExpiryService(repository, new DistributedLock(template));
+    private final QuotationExpiryService service = new QuotationExpiryService(repository, new DistributedLock(template),
+            mock(NotificationService.class));
 
     @BeforeEach
     @AfterEach

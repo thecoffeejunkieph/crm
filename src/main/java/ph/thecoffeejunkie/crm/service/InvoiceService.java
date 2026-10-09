@@ -7,10 +7,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
+import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.constant.PaymentMethod;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+import ph.thecoffeejunkie.crm.constant.Role;
 import ph.thecoffeejunkie.crm.dto.request.InvoiceCreateRequest;
 import ph.thecoffeejunkie.crm.dto.request.InvoiceItemRequest;
+import ph.thecoffeejunkie.crm.dto.response.DeliveryOrderResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.PageResponse;
 import ph.thecoffeejunkie.crm.entity.CRMUser;
@@ -51,6 +54,7 @@ public class InvoiceService {
     private final ProductRepository productRepository;
     private final CRMUserRepository crmUserRepository;
     private final StorageService storageService;
+    private final NotificationService notificationService;
 
     public InvoiceResponse create(InvoiceCreateRequest request) {
         log.info("Creating invoice directly...");
@@ -238,6 +242,7 @@ public class InvoiceService {
         InvoiceResponse response = CustomMapper.toInvoiceResponse(repository.save(invoice));
 
         log.info("Received proof of payment for invoice {}", invoice.getInvoiceNumber());
+        notifyPaymentToVerify(invoice);
         return response;
     }
 
@@ -291,6 +296,7 @@ public class InvoiceService {
         if (invoice.getStatus() == InvoiceStatus.UNPAID && newAmountPaid.compareTo(invoice.getTotalAmount()) >= 0) {
             invoice.setStatus(InvoiceStatus.FOR_PAYMENT_VERIFICATION);
             repository.save(invoice);
+            notifyPaymentToVerify(invoice);
         }
 
         log.info("Recorded {} payment of {} for invoice {}", method, amount, invoice.getInvoiceNumber());
@@ -317,10 +323,26 @@ public class InvoiceService {
         Invoice saved = repository.save(invoice);
         InvoiceResponse response = CustomMapper.toInvoiceResponse(saved);
 
-        deliveryOrderService.createForInvoice(saved);
+        DeliveryOrderResponse deliveryOrder = deliveryOrderService.createForInvoice(saved);
+
+        String customer = NotificationService.customerName(invoice.getCustomer());
+        notificationService.toOwner(invoice.getSalesRep(), NotificationType.INVOICE_PAID, invoice.getId(),
+                "Invoice " + invoice.getInvoiceNumber() + " paid",
+                customer + " paid in full. Delivery order " + deliveryOrder.deliveryOrderNumber() + " was created.");
+        notificationService.toRole(Role.WAREHOUSE, NotificationType.DELIVERY_ORDER_CREATED, deliveryOrder.id(),
+                "New delivery order " + deliveryOrder.deliveryOrderNumber(),
+                "For invoice " + invoice.getInvoiceNumber() + ", " + customer + ". Prepare it for pickup.");
 
         log.info("Marked invoice {} as paid", invoice.getInvoiceNumber());
         return response;
+    }
+
+    // Admins verify payments and mark invoices paid.
+    private void notifyPaymentToVerify(Invoice invoice) {
+        notificationService.toRole(Role.ADMIN, NotificationType.PAYMENT_AWAITING_VERIFICATION, invoice.getId(),
+                "Payment to verify: " + invoice.getInvoiceNumber(),
+                NotificationService.customerName(invoice.getCustomer()) + "'s payment for invoice "
+                        + invoice.getInvoiceNumber() + " is waiting for verification.");
     }
 
     public InvoiceResponse cancel(Long id) {

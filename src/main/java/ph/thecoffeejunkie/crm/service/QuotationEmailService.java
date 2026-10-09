@@ -12,6 +12,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
+import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
 import ph.thecoffeejunkie.crm.entity.Quotation;
@@ -45,6 +46,7 @@ public class QuotationEmailService {
     private final JavaMailSender mailSender;
     private final LogoAsset logoAsset;
     private final DistributedLock distributedLock;
+    private final NotificationService notificationService;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -170,6 +172,9 @@ public class QuotationEmailService {
         quotation.setStatus("REJECTED");
         repository.save(quotation);
         log.info("Quotation {} marked as REJECTED via customer response link", quotation.getQuotationNumber());
+        notificationService.toOwner(quotation.getSalesRep(), NotificationType.QUOTATION_REJECTED, quotation.getId(),
+                "Quotation " + quotation.getQuotationNumber() + " declined",
+                NotificationService.customerName(quotation.getCustomer()) + " declined the quotation.");
         return message(HttpStatus.OK, "Quotation Declined",
                 "You have declined quotation " + quotation.getQuotationNumber() + ". Thank you for letting us know.");
     }

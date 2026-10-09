@@ -26,7 +26,7 @@ class QuotationRespondLockTest {
         var acceptance = mock(QuotationAcceptanceService.class);
         var lock = new DistributedLock(RedisTestSupport.template());
         var service = new QuotationEmailService(repository, mock(QuotationPdfService.class), tokenService,
-                acceptance, mock(JavaMailSender.class), mock(LogoAsset.class), lock);
+                acceptance, mock(JavaMailSender.class), mock(LogoAsset.class), lock, mock(NotificationService.class));
 
         long id = System.nanoTime(); // unique lock name per run
         lock.tryLock("quotation-accept:" + id, Duration.ofMinutes(1));
