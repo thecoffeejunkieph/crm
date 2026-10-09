@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.config;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,6 +42,10 @@ public class SecurityConfig {
         return http.csrf(AbstractHttpConfigurer::disable).
                 cors(Customizer.withDefaults()).
                 authorizeHttpRequests(request -> request
+                        // The original request was already authorized. The stateless JWTFilter does not
+                        // run again on the ASYNC dispatch that ends an SSE stream, so without this that
+                        // dispatch is denied on an already-committed response.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/logout",
