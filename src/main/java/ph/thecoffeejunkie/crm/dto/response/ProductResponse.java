@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ph.thecoffeejunkie.crm.constant.Unit;
 import java.math.BigDecimal;
@@ -13,4 +15,4 @@ public record ProductResponse(
         BigDecimal price,
         BigDecimal cost,
         String pictureUrl
-) {}
+) implements Serializable {}

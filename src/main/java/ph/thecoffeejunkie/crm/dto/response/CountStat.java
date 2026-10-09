@@ -1,3 +1,5 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
-public record CountStat(long value, Double deltaPercent) {}
+import java.io.Serializable;
+
+public record CountStat(long value, Double deltaPercent) implements Serializable {}

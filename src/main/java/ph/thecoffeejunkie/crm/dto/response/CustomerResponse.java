@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ph.thecoffeejunkie.crm.constant.CustomerType;
 
@@ -16,4 +18,4 @@ public record CustomerResponse (
         CustomerType customerType,
         BusinessInformationResponse businessInformation,
         SalesRepResponse assignedRep
-){}
+) implements Serializable {}

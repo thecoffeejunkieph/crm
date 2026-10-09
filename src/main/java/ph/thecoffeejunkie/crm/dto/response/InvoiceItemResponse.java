@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ph.thecoffeejunkie.crm.constant.DiscountType;
 
@@ -13,4 +15,4 @@ public record InvoiceItemResponse (
         DiscountType discountType,
         BigDecimal total,
         ProductResponse product
-) {}
+) implements Serializable {}

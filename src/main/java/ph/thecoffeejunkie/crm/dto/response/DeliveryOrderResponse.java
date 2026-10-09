@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ph.thecoffeejunkie.crm.constant.DeliveryOrderStatus;
 
@@ -22,4 +24,4 @@ public record DeliveryOrderResponse(
         List<String> proofOfDeliveryPaths,
         LocalDateTime deliveredAt,
         LocalDateTime createdAt
-) {}
+) implements Serializable {}

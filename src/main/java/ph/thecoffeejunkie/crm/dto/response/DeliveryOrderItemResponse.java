@@ -1,3 +1,5 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
-public record DeliveryOrderItemResponse(String productName, Integer quantity) {}
+import java.io.Serializable;
+
+public record DeliveryOrderItemResponse(String productName, Integer quantity) implements Serializable {}

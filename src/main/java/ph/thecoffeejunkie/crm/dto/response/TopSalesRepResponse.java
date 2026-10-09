@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import java.math.BigDecimal;
 
 public record TopSalesRepResponse(
@@ -8,4 +10,4 @@ public record TopSalesRepResponse(
         String lastName,
         BigDecimal totalSales,
         long dealsWon
-) {}
+) implements Serializable {}

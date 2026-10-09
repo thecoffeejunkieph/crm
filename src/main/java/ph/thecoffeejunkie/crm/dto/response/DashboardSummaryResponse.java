@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import java.util.List;
 
 public record DashboardSummaryResponse(
@@ -12,4 +14,4 @@ public record DashboardSummaryResponse(
         List<TopSalesRepResponse> topSalesReps,
         List<TopCustomerResponse> topCustomers,
         List<ProductSalesResponse> salesByProduct
-) {}
+) implements Serializable {}

@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class WarehouseDashboardService {
     private final DeliveryOrderRepository deliveryOrderRepository;
     private final WarehouseRepository warehouseRepository;
 
+    @Cacheable("warehouse-summary")
     public WarehouseDashboardSummaryResponse getSummary() {
         log.info("Building warehouse dashboard summary...");
 

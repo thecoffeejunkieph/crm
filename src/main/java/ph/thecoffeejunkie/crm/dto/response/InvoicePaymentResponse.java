@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ph.thecoffeejunkie.crm.constant.PaymentMethod;
 
@@ -14,4 +16,4 @@ public record InvoicePaymentResponse(
         String methodLabel,
         String proofOfPaymentPath,
         LocalDateTime recordedAt
-) {}
+) implements Serializable {}

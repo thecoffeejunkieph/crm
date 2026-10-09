@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import ph.thecoffeejunkie.crm.dto.response.CountStat;
@@ -49,6 +50,7 @@ public class DashboardService {
      * Builds the dashboard for [from, to]. Defaults: to = today, from = last 30 days.
      * KPI deltas compare against the equal-length period right before {@code from}.
      */
+    @Cacheable("dashboard-summary")
     public DashboardSummaryResponse getSummary(LocalDate from, LocalDate to) {
         LocalDate end = to != null ? to : LocalDate.now();
         LocalDate start = from != null ? from : end.minusDays(PERIOD_DAYS - 1L);
@@ -87,6 +89,7 @@ public class DashboardService {
      * Gross sales and gross profit from PAID invoices, invoice count from non-cancelled ones, in [from, to]
      * (default last 30 days), bucketed by day for ranges up to 31 days, else by month.
      */
+    @Cacheable("sales-summary")
     public SalesSummaryResponse getSalesSummary(LocalDate from, LocalDate to) {
         LocalDate end = to != null ? to : LocalDate.now();
         LocalDate start = from != null ? from : end.minusDays(PERIOD_DAYS - 1L);

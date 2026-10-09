@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.dto.response;
 
+import java.io.Serializable;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
@@ -34,4 +36,4 @@ public record InvoiceResponse(
         String proofOfPaymentPath,
         List<InvoicePaymentResponse> payments,
         LocalDateTime paidAt
-) {}
+) implements Serializable {}
