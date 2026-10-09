@@ -4,10 +4,12 @@ import java.util.List;
 
 public record DashboardSummaryResponse(
         SalesStat totalSales,
+        SalesStat grossProfit,
         CountStat openDeals,
         CountStat newLeads,
         RateStat conversionRate,
         List<MonthlySalesPoint> salesPerformance,
         List<TopSalesRepResponse> topSalesReps,
-        List<TopCustomerResponse> topCustomers
+        List<TopCustomerResponse> topCustomers,
+        List<ProductSalesResponse> salesByProduct
 ) {}

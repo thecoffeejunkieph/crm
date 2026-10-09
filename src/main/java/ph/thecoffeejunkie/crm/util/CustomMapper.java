@@ -150,6 +150,7 @@ public final class CustomMapper {
                 product.getDescription(),
                 product.getUnit(),
                 product.getPrice(),
+                product.getCost(),
                 product.getPicturePath()
         );
     }
