@@ -2,7 +2,6 @@ package ph.thecoffeejunkie.crm.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,36 +9,19 @@ import ph.thecoffeejunkie.crm.dto.request.ProductCreateRequest;
 import ph.thecoffeejunkie.crm.dto.request.ProductUpdateRequest;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
 import ph.thecoffeejunkie.crm.entity.Product;
-import ph.thecoffeejunkie.crm.exception.FileStorageException;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.ProductRepository;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductService {
 
-    private static final Map<String, String> ALLOWED_IMAGE_CONTENT_TYPES = Map.of(
-            "image/jpeg", ".jpg",
-            "image/png", ".png",
-            "image/webp", ".webp"
-    );
-
     private final ProductRepository productRepository;
-
-    @Value("${app.storage.root-dir}")
-    private String storageRootDir;
-
-    @Value("${app.storage.public-path}")
-    private String storagePublicPath;
+    private final StorageService storageService;
 
     public ProductResponse save(ProductCreateRequest request) {
         Product newProduct = toProduct(request);
@@ -88,15 +70,13 @@ public class ProductService {
             throw new InvalidRequestException("Picture file is required");
         }
 
-        String extension = ALLOWED_IMAGE_CONTENT_TYPES.get(file.getContentType());
-        if (extension == null) {
-            throw new InvalidRequestException("Unsupported file type. Allowed types: JPEG, PNG, WEBP");
-        }
-
-        product.setPicturePath(writeProductPicture(id, extension, file));
+        String oldKey = product.getPicturePath();
+        product.setPicturePath(storageService.store("products/" + id, file, StorageService.IMAGE_TYPES));
+        Product saved = productRepository.save(product);
+        storageService.deleteQuietly(oldKey);
 
         log.info("Updated picture for product with id: {}", id);
-        return toProductResponse(productRepository.save(product));
+        return toProductResponse(saved);
     }
 
     public void delete(Long id) {
@@ -113,21 +93,6 @@ public class ProductService {
                     log.warn("Product not found with id: {}", id);
                     return ResourceNotFoundException.of("Product", id);
                 });
-    }
-
-    private String writeProductPicture(Long productId, String extension, MultipartFile file) {
-        try {
-            Path targetDir = Paths.get(storageRootDir, "products", "pictures");
-            Files.createDirectories(targetDir);
-
-            Path targetFile = targetDir.resolve(productId + extension);
-            Files.write(targetFile, file.getBytes());
-
-            return storagePublicPath + "/products/pictures/" + productId + extension;
-        } catch (IOException e) {
-            log.error("Failed to store picture for product {}", productId, e);
-            throw new FileStorageException("Failed to store product picture", e);
-        }
     }
 
     private Product toProduct(ProductCreateRequest request) {
@@ -149,7 +114,7 @@ public class ProductService {
                 product.getUnit(),
                 product.getPrice(),
                 product.getCost(),
-                product.getPicturePath()
+                StorageService.url(product.getPicturePath())
         );
     }
 }

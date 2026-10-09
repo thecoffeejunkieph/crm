@@ -27,13 +27,36 @@ services:
       # Overrides .env.dev's DB_URL: inside the compose network the api container
       # reaches MySQL via the service name "mysql", not localhost.
       DB_URL: jdbc:mysql://mysql:3306/crm_db
+      # Same idea for MinIO: the api calls it by service name, while presigned links
+      # handed to the browser must point at the host-published port.
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_URL: http://localhost:9000
     ports: ["8080:8080"] # exposed for the frontend (dev server on :5173) to call
     depends_on:
       mysql:
         condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  minio:
+    # MinIO stopped publishing new community images; pinned to the last release we have.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports: ["9000:9000", "9001:9001"] # S3 API (presigned links) and web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   mysql_data:
+  minio_data:
 
 networks:
   default:

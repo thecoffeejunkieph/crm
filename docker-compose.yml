@@ -27,7 +27,10 @@ services:
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY}
       ENCRYPTION_SALT: ${ENCRYPTION_SALT}
       COOKIE_SECURE: true
-      PDF_STORAGE_DIR: /data/storage
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       APP_BASE_URL: ${APP_BASE_URL}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       MAIL_USERNAME: ${MAIL_USERNAME}
@@ -38,10 +41,10 @@ services:
       INVOICE_BANK_ACCOUNT_NAME: ${INVOICE_BANK_ACCOUNT_NAME}
       INVOICE_BANK_ACCOUNT_NUMBER: ${INVOICE_BANK_ACCOUNT_NUMBER}
       INVOICE_BANK_SWIFT_CODE: ${INVOICE_BANK_SWIFT_CODE}
-    volumes:
-      - api_storage:/data/storage
     depends_on:
       mysql:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - default
@@ -57,9 +60,54 @@ services:
     # watching the external "traefik-proxy" network) is the only thing that
     # talks to :8080, routed in via the labels above.
 
+  minio:
+    # MinIO stopped publishing new community images; pinned to the last release we have.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+      - dokploy-network
+    # Only the S3 API is routed, so browsers can follow presigned links. Every object is
+    # private; a link works only while its signature is valid. The console stays unexposed.
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.files.rule=Host(``)
+      - traefik.http.routers.files.entrypoints=websecure
+      - traefik.http.routers.files.tls.certresolver=letsencrypt
+      - traefik.http.routers.files.tls=true
+      - traefik.http.services.files.loadbalancer.server.port=9000
+
+  # One-off copy of the old on-disk uploads into the bucket, keeping their relative paths
+  # (which is what the V4 Flyway migration turns the stored DB paths into):
+  #   docker compose --profile migrate run --rm storage-migrate
+  # Once the files are verified in the bucket, delete this service and the api_storage volume.
+  storage-migrate:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z # ships the mc client
+    profiles: ["migrate"]
+    environment:
+      MC_HOST_crm: http://${MINIO_ACCESS_KEY}:${MINIO_SECRET_KEY}@minio:9000
+    entrypoint: ["sh", "-c", "mc mb --ignore-existing crm/${MINIO_BUCKET:-crm} && mc mirror /old-storage crm/${MINIO_BUCKET:-crm}"]
+    volumes:
+      - api_storage:/old-storage:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+
 volumes:
   mysql_data:
-  api_storage:
+  minio_data:
+  api_storage: # legacy uploads; remove after storage-migrate has run
 
 networks:
   dokploy-network:

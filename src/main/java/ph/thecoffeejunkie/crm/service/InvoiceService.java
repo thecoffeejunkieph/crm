@@ -2,7 +2,6 @@ package ph.thecoffeejunkie.crm.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -20,7 +19,6 @@ import ph.thecoffeejunkie.crm.entity.InvoiceItem;
 import ph.thecoffeejunkie.crm.entity.InvoicePayment;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.entity.QuotationItem;
-import ph.thecoffeejunkie.crm.exception.FileStorageException;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.CRMUserRepository;
@@ -34,26 +32,14 @@ import ph.thecoffeejunkie.crm.util.InvoiceNumberGenerator;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class InvoiceService {
-
-    private static final Map<String, String> ALLOWED_PROOF_CONTENT_TYPES = Map.of(
-            "image/jpeg", ".jpg",
-            "image/png", ".png",
-            "image/webp", ".webp",
-            "application/pdf", ".pdf"
-    );
 
     private final InvoiceRepository repository;
     private final InvoiceItemRepository invoiceItemRepository;
@@ -64,12 +50,7 @@ public class InvoiceService {
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final CRMUserRepository crmUserRepository;
-
-    @Value("${app.storage.root-dir}")
-    private String storageRootDir;
-
-    @Value("${app.storage.public-path}")
-    private String storagePublicPath;
+    private final StorageService storageService;
 
     public InvoiceResponse create(InvoiceCreateRequest request) {
         log.info("Creating invoice directly...");
@@ -249,14 +230,10 @@ public class InvoiceService {
             throw new InvalidRequestException("Proof of payment file is required");
         }
 
-        String extension = ALLOWED_PROOF_CONTENT_TYPES.get(file.getContentType());
-        if (extension == null) {
-            throw new InvalidRequestException("Unsupported file type. Allowed types: JPEG, PNG, WEBP, PDF");
-        }
+        String key = storageService.store("invoices/" + invoice.getInvoiceNumber() + "/proof-of-payment",
+                file, StorageService.PROOF_TYPES);
 
-        String publicPath = writeProofOfPayment(invoice.getInvoiceNumber(), extension, file);
-
-        invoice.setProofOfPaymentPath(publicPath);
+        invoice.setProofOfPaymentPath(key);
         invoice.setStatus(InvoiceStatus.FOR_PAYMENT_VERIFICATION);
         InvoiceResponse response = CustomMapper.toInvoiceResponse(repository.save(invoice));
 
@@ -298,12 +275,8 @@ public class InvoiceService {
 
         String proofOfPaymentPath = null;
         if (file != null && !file.isEmpty()) {
-            String extension = ALLOWED_PROOF_CONTENT_TYPES.get(file.getContentType());
-            if (extension == null) {
-                throw new InvalidRequestException("Unsupported file type. Allowed types: JPEG, PNG, WEBP, PDF");
-            }
-            int index = invoice.getPayments().size() + 1;
-            proofOfPaymentPath = writePaymentProof(invoice.getInvoiceNumber(), index, extension, file);
+            proofOfPaymentPath = storageService.store("invoices/" + invoice.getInvoiceNumber() + "/payments",
+                    file, StorageService.PROOF_TYPES);
         }
 
         InvoicePayment payment = new InvoicePayment();
@@ -374,37 +347,6 @@ public class InvoiceService {
 
         log.info("Cancelled invoice {}", invoice.getInvoiceNumber());
         return response;
-    }
-
-    private String writeProofOfPayment(String invoiceNumber, String extension, MultipartFile file) {
-        try {
-            Path targetDir = Paths.get(storageRootDir, "invoices", "proof-of-payment");
-            Files.createDirectories(targetDir);
-
-            Path targetFile = targetDir.resolve(invoiceNumber + extension);
-            Files.write(targetFile, file.getBytes());
-
-            return storagePublicPath + "/invoices/proof-of-payment/" + invoiceNumber + extension;
-        } catch (IOException e) {
-            log.error("Failed to store proof of payment for invoice {}", invoiceNumber, e);
-            throw new FileStorageException("Failed to store proof of payment file", e);
-        }
-    }
-
-    private String writePaymentProof(String invoiceNumber, int index, String extension, MultipartFile file) {
-        try {
-            Path targetDir = Paths.get(storageRootDir, "invoices", "payments");
-            Files.createDirectories(targetDir);
-
-            String fileName = invoiceNumber + "-" + index + extension;
-            Path targetFile = targetDir.resolve(fileName);
-            Files.write(targetFile, file.getBytes());
-
-            return storagePublicPath + "/invoices/payments/" + fileName;
-        } catch (IOException e) {
-            log.error("Failed to store payment proof for invoice {}", invoiceNumber, e);
-            throw new FileStorageException("Failed to store payment proof file", e);
-        }
     }
 
     private InvoiceItem toInvoiceItem(QuotationItem quotationItem) {

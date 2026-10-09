@@ -2,7 +2,6 @@ package ph.thecoffeejunkie.crm.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -12,40 +11,23 @@ import ph.thecoffeejunkie.crm.dto.request.ChangePasswordRequest;
 import ph.thecoffeejunkie.crm.dto.request.UserProfileUpdateRequest;
 import ph.thecoffeejunkie.crm.dto.response.UserProfileResponse;
 import ph.thecoffeejunkie.crm.entity.CRMUser;
-import ph.thecoffeejunkie.crm.exception.FileStorageException;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.CRMUserRepository;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CrmUserService {
 
-    private static final Map<String, String> ALLOWED_IMAGE_CONTENT_TYPES = Map.of(
-            "image/jpeg", ".jpg",
-            "image/png", ".png",
-            "image/webp", ".webp"
-    );
-
     private static final int MIN_PASSWORD_LENGTH = 8;
 
     private final CRMUserRepository crmUserRepository;
     private final PasswordEncoder passwordEncoder;
-
-    @Value("${app.storage.root-dir}")
-    private String storageRootDir;
-
-    @Value("${app.storage.public-path}")
-    private String storagePublicPath;
+    private final StorageService storageService;
 
     public List<CRMUser> findAll() {
         return crmUserRepository.findAll();
@@ -96,32 +78,13 @@ public class CrmUserService {
             throw new InvalidRequestException("Picture file is required");
         }
 
-        String extension = ALLOWED_IMAGE_CONTENT_TYPES.get(file.getContentType());
-        if (extension == null) {
-            throw new InvalidRequestException("Unsupported file type. Allowed types: JPEG, PNG, WEBP");
-        }
-
-        user.setPicturePath(writeProfilePicture(user.getEmail(), extension, file));
+        String oldKey = user.getPicturePath();
+        user.setPicturePath(storageService.store("users/" + user.getEmail().replaceAll("[^a-zA-Z0-9.-]", "_") + "/avatar", file, StorageService.IMAGE_TYPES));
         CRMUser saved = crmUserRepository.save(user);
+        storageService.deleteQuietly(oldKey);
 
         log.info("Updated profile picture for user {}", saved.getEmail());
         return toUserProfileResponse(saved);
-    }
-
-    private String writeProfilePicture(String email, String extension, MultipartFile file) {
-        try {
-            Path targetDir = Paths.get(storageRootDir, "users", "profile-pictures");
-            Files.createDirectories(targetDir);
-
-            String safeName = email.replaceAll("[^a-zA-Z0-9.-]", "_");
-            Path targetFile = targetDir.resolve(safeName + extension);
-            Files.write(targetFile, file.getBytes());
-
-            return storagePublicPath + "/users/profile-pictures/" + safeName + extension;
-        } catch (IOException e) {
-            log.error("Failed to store profile picture for user {}", email, e);
-            throw new FileStorageException("Failed to store profile picture", e);
-        }
     }
 
     private CRMUser resolveCurrentUser() {
@@ -144,7 +107,7 @@ public class CrmUserService {
                 user.getAddress(),
                 user.getBirthday(),
                 Arrays.asList(user.getRoles().split(",")),
-                user.getPicturePath()
+                StorageService.url(user.getPicturePath())
         );
     }
 }

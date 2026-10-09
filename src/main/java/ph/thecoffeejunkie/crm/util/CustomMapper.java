@@ -31,6 +31,7 @@ import ph.thecoffeejunkie.crm.entity.StockMovement;
 import ph.thecoffeejunkie.crm.entity.Warehouse;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+import ph.thecoffeejunkie.crm.service.StorageService;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -84,7 +85,7 @@ public final class CustomMapper {
                 invoice.getPaymentTerms() != null ? invoice.getPaymentTerms().getLabel() : null,
                 invoice.getNotes(),
                 invoice.getTermsAndConditions(),
-                invoice.getProofOfPaymentPath(),
+                StorageService.url(invoice.getProofOfPaymentPath()),
                 invoice.getPayments().stream().map(CustomMapper::toInvoicePaymentResponse).toList(),
                 invoice.getPaidAt()
                 );
@@ -131,7 +132,7 @@ public final class CustomMapper {
                 payment.getAmount(),
                 payment.getMethod(),
                 payment.getMethod() != null ? payment.getMethod().getLabel() : null,
-                payment.getProofOfPaymentPath(),
+                StorageService.url(payment.getProofOfPaymentPath()),
                 payment.getRecordedAt()
                 );
     }
@@ -151,7 +152,7 @@ public final class CustomMapper {
                 product.getUnit(),
                 product.getPrice(),
                 product.getCost(),
-                product.getPicturePath()
+                StorageService.url(product.getPicturePath())
         );
     }
 
@@ -256,9 +257,9 @@ public final class CustomMapper {
                 deliveryOrder.getDeliveryInstructions(),
                 deliveryOrder.getTargetDeliveryDate(),
                 toDeliveryOrderItemResponses(deliveryOrder.getInvoice()),
-                deliveryOrder.getProofOfPickupPaths(),
+                deliveryOrder.getProofOfPickupPaths().stream().map(StorageService::url).toList(),
                 deliveryOrder.getPickedUpAt(),
-                deliveryOrder.getProofOfDeliveryPaths(),
+                deliveryOrder.getProofOfDeliveryPaths().stream().map(StorageService::url).toList(),
                 deliveryOrder.getDeliveredAt(),
                 deliveryOrder.getCreatedAt()
         );
