@@ -31,6 +31,8 @@ services:
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       APP_BASE_URL: ${APP_BASE_URL}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       MAIL_USERNAME: ${MAIL_USERNAME}
@@ -45,6 +47,8 @@ services:
       mysql:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - default
@@ -88,6 +92,20 @@ services:
       - traefik.http.routers.files.tls=true
       - traefik.http.services.files.loadbalancer.server.port=9000
 
+  redis:
+    image: redis:7.4.2-alpine
+    restart: unless-stopped
+    # appendonly so a restart doesn't bring logged-out tokens back to life
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not published and not on the Traefik network - only the api talks to it.
+
   # One-off copy of the old on-disk uploads into the bucket, keeping their relative paths
   # (which is what the V4 Flyway migration turns the stored DB paths into):
   #   docker compose --profile migrate run --rm storage-migrate
@@ -107,6 +125,7 @@ services:
 volumes:
   mysql_data:
   minio_data:
+  redis_data:
   api_storage: # legacy uploads; remove after storage-migrate has run
 
 networks:

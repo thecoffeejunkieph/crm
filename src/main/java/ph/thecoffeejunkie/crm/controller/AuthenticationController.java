@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,12 +41,25 @@ public class AuthenticationController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        log.info("Checking token: {}", token);
+        // Never log the token itself - it is a live credential.
+        log.debug("Checking session token");
         return ResponseEntity.ok(authenticationService.isTokenValid(token));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout() {
+    public ResponseEntity<Void> logout(HttpServletRequest request) {
+        String token = jwtUtil.extractTokenFromRequest(request);
+        if (!token.isEmpty()) {
+            authenticationService.revoke(token);
+        }
+        authenticationService.clearJwtCookie();
+        return ResponseEntity.ok().build();
+    }
+
+    /** Signs the current user out on every device (e.g. after a lost laptop). */
+    @PostMapping("/logout-all")
+    public ResponseEntity<Void> logoutAll(Authentication authentication) {
+        authenticationService.revokeAllFor(authentication.getName());
         authenticationService.clearJwtCookie();
         return ResponseEntity.ok().build();
     }

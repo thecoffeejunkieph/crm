@@ -16,6 +16,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
+import ph.thecoffeejunkie.crm.service.TokenRevocationService;
 import ph.thecoffeejunkie.crm.util.JwtUtil;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ public class JWTFilter extends OncePerRequestFilter {
 
     private final UserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
+    private final TokenRevocationService tokenRevocationService;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -59,24 +61,15 @@ public class JWTFilter extends OncePerRequestFilter {
         // never reach GlobalExceptionHandler - they must be handled here instead, otherwise
         // an expired/malformed token would surface as an unhandled 500.
         try {
-            String authorizationHeader = request.getHeader("Authorization");
-
-            String username;
-            String token;
-
-            if (Objects.nonNull(authorizationHeader) && authorizationHeader.startsWith("Bearer ")) {
-                token = authorizationHeader.substring(7);
-                username = jwtUtil.extractUsername(token);
-            } else {
-                token = jwtUtil.extractTokenFromCookies(request);
-                username = jwtUtil.extractUsername(token);
-            }
+            String token = jwtUtil.extractTokenFromRequest(request);
+            String username = jwtUtil.extractUsername(token);
 
             if (Objects.nonNull(username) && Objects.isNull(SecurityContextHolder.getContext().getAuthentication())) {
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                if (jwtUtil.validateToken(token, userDetails)) {
+                if (jwtUtil.validateToken(token, userDetails)
+                        && !tokenRevocationService.isRevoked(jwtUtil.extractJti(token), username, jwtUtil.extractIssuedAt(token))) {
 
                     UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());

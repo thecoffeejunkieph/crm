@@ -31,12 +31,28 @@ services:
       # handed to the browser must point at the host-published port.
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_URL: http://localhost:9000
+      REDIS_HOST: redis
     ports: ["8080:8080"] # exposed for the frontend (dev server on :5173) to call
     depends_on:
       mysql:
         condition: service_healthy
       minio:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7.4.2-alpine
+    # appendonly so a restart doesn't bring logged-out tokens back to life
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-devredis}"]
+    ports: ["6379:6379"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-devredis}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   minio:
     # MinIO stopped publishing new community images; pinned to the last release we have.
@@ -57,6 +73,7 @@ services:
 volumes:
   mysql_data:
   minio_data:
+  redis_data:
 
 networks:
   default:

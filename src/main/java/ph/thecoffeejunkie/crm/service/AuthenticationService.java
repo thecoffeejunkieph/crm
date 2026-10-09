@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.service;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final UserDetailsServiceImpl userDetailsService;
+    private final TokenRevocationService tokenRevocationService;
 
     // Browsers drop Secure cookies on plain HTTP, so keep this off for local dev
     // (http://localhost:5173 -> http://localhost:8080) and turn it on in prod via env var.
@@ -49,7 +51,21 @@ public class AuthenticationService {
     public boolean isTokenValid(String token) {
         String username = jwtUtil.extractUsername(token);
         final UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        return jwtUtil.validateToken(token, userDetails);
+        return jwtUtil.validateToken(token, userDetails)
+                && !tokenRevocationService.isRevoked(jwtUtil.extractJti(token), username, jwtUtil.extractIssuedAt(token));
+    }
+
+    /** Logout for this one token; a token that no longer parses has nothing left to revoke. */
+    public void revoke(String token) {
+        try {
+            tokenRevocationService.revoke(jwtUtil.extractJti(token), jwtUtil.extractExpiration(token).toInstant());
+        } catch (JwtException | IllegalArgumentException e) {
+            // expired or malformed - already unusable
+        }
+    }
+
+    public void revokeAllFor(String username) {
+        tokenRevocationService.revokeAllFor(username);
     }
 
     public void addJwtToCookie(String jwtToken) {
