@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.repository.QuotationRepository;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -24,10 +25,18 @@ public class QuotationExpiryService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Manila");
 
     private final QuotationRepository quotationRepository;
+    private final DistributedLock distributedLock;
 
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Manila")
     @Transactional
     public void expireOverdueQuotations() {
+        // Every API instance fires this cron. The lock is never released: holding it for its TTL
+        // also stops an instance whose clock fires a few seconds later from running it again.
+        if (!distributedLock.tryLock("job:quotation-expiry", Duration.ofMinutes(10))) {
+            log.info("Skipping quotation expiry; another instance holds the lock");
+            return;
+        }
+
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         List<Quotation> overdue = quotationRepository.findByStatusInAndExpiryDateBefore(OPEN_STATUSES, today);
 
