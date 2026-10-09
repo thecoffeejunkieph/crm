@@ -46,7 +46,8 @@ public final class RedisTestSupport {
         return new StringRedisTemplate(deadConnectionFactory());
     }
 
-    private static LettuceConnectionFactory build(String host, int port) {
+    /** A factory with the same short timeouts as the shared one, for tests that need their own Redis. */
+    public static LettuceConnectionFactory build(String host, int port) {
         var clientConfig = LettuceClientConfiguration.builder()
                 .commandTimeout(Duration.ofSeconds(2))
                 .clientOptions(ClientOptions.builder()

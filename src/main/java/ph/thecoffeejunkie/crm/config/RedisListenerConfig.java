@@ -54,13 +54,24 @@ public class RedisListenerConfig {
                 return;
             }
             try {
-                super.start();
+                subscribe();
             } catch (RuntimeException e) {
                 log.warn("Notification listener could not subscribe to Redis; retrying in {}s: {}",
                         RETRY_SECONDS, e.getMessage());
                 super.stop();
                 CompletableFuture.delayedExecutor(RETRY_SECONDS, TimeUnit.SECONDS).execute(this::attempt);
+                return;
             }
+            // stop() may have run while subscribe() was blocked, before there was anything to
+            // unsubscribe; undo the late subscription so a shut-down container stays down.
+            if (!wanted) {
+                super.stop();
+            }
+        }
+
+        /** Blocks until subscribed or failed; separate so a test can land a stop() in the middle of it. */
+        void subscribe() {
+            super.start();
         }
     }
 }

@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.service;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,6 +28,11 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 class NotificationStreamsIT {
@@ -97,6 +103,27 @@ class NotificationStreamsIT {
         assertDoesNotThrow(() -> streams.publish(a, notification()));
 
         assertTrue(forA.getResponse().getContentAsString().contains("Invoice INV-1 paid"));
+    }
+
+    @Test
+    void skipsRedisBrieflyAfterAFailure() throws Exception {
+        // One markPaid notifies several users; with Redis down each publish would otherwise wait
+        // out the Redis timeout in turn.
+        var template = mock(StringRedisTemplate.class);
+        when(template.convertAndSend(anyString(), anyString())).thenThrow(new RedisConnectionFailureException("down"));
+        var streams = streams(template);
+        String a = email();
+        String b = email();
+        MockMvc mvc = mvc(streams);
+        MvcResult forA = open(mvc, a, 0);
+        MvcResult forB = open(mvc, b, 0);
+
+        streams.publish(a, notification());
+        streams.publish(b, notification());
+
+        verify(template, times(1)).convertAndSend(anyString(), anyString());
+        assertTrue(forA.getResponse().getContentAsString().contains("Invoice INV-1 paid"));
+        assertTrue(forB.getResponse().getContentAsString().contains("Invoice INV-1 paid"));
     }
 
     @Test

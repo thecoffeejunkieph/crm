@@ -38,7 +38,11 @@ public class NotificationStreams implements MessageListener {
     private final StringRedisTemplate redis;
     private final JsonMapper jsonMapper;
 
+    private static final Duration REDIS_RETRY_AFTER = Duration.ofSeconds(10);
+
     private final Map<String, Set<SseEmitter>> emitters = new ConcurrentHashMap<>();
+
+    private volatile long skipRedisUntil;
 
     public SseEmitter open(String email, long unreadCount) {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MILLIS);
@@ -56,11 +60,18 @@ public class NotificationStreams implements MessageListener {
     /** Never throws: with Redis down the notification still reaches users connected to this instance. */
     public void publish(String email, NotificationResponse notification) {
         String json = jsonMapper.writeValueAsString(notification);
+        if (System.currentTimeMillis() < skipRedisUntil) {
+            deliver(email, json);
+            return;
+        }
         try {
             redis.convertAndSend(CHANNEL_PREFIX + email, json);
         } catch (RuntimeException e) {
-            log.warn("Could not publish notification {} to Redis; delivering on this instance only: {}",
-                    notification.id(), e.getMessage());
+            // One action can notify several users; without this each publish would wait out the
+            // Redis timeout in turn while the user who clicked waits for the response.
+            skipRedisUntil = System.currentTimeMillis() + REDIS_RETRY_AFTER.toMillis();
+            log.warn("Could not publish notification {} to Redis; delivering on this instance only for the next {}s: {}",
+                    notification.id(), REDIS_RETRY_AFTER.toSeconds(), e.getMessage());
             deliver(email, json);
         }
     }
