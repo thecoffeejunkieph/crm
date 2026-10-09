@@ -16,7 +16,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import ph.thecoffeejunkie.crm.filter.JWTFilter;
 
@@ -49,7 +51,9 @@ public class SecurityConfig {
                                 "/favicon.ico"
                         ).permitAll()
                         .anyRequest().authenticated()).
-                httpBasic(Customizer.withDefaults()).
+                // No HTTP Basic: it would let anyone guess passwords on any endpoint, bypassing the
+                // login rate limit. Unauthenticated requests still get 401 (what the frontend expects).
+                exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))).
                 sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();

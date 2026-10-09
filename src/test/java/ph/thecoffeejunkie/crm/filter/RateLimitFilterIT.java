@@ -32,13 +32,13 @@ class RateLimitFilterIT {
     void blocksEleventhLoginFromSameIpWithin60s() throws Exception {
         String ip = uniqueClient();
         for (int i = 0; i < 10; i++) {
-            var chain = new MockFilterChain();
+            var chain = failedLogin();
             var res = send(filter, "POST", "/api/v1/auth/login", ip, chain);
-            assertEquals(200, res.getStatus());
+            assertEquals(401, res.getStatus());
             assertNotNull(chain.getRequest(), "chain should run for attempt " + (i + 1));
         }
 
-        var chain = new MockFilterChain();
+        var chain = failedLogin();
         var res = send(filter, "POST", "/api/v1/auth/login", ip, chain);
 
         assertEquals(429, res.getStatus());
@@ -52,12 +52,21 @@ class RateLimitFilterIT {
     void limitsArePerIp() throws Exception {
         String blocked = uniqueClient();
         for (int i = 0; i < 11; i++) {
-            send(filter, "POST", "/api/v1/auth/login", blocked, new MockFilterChain());
+            send(filter, "POST", "/api/v1/auth/login", blocked, failedLogin());
         }
 
         var res = send(filter, "POST", "/api/v1/auth/login", uniqueClient(), new MockFilterChain());
 
         assertEquals(200, res.getStatus());
+    }
+
+    @Test
+    void successfulLoginsDoNotCount() throws Exception {
+        // A whole office behind one NAT IP logging in each morning must not trip the limit.
+        String officeIp = uniqueClient();
+        for (int i = 0; i < 25; i++) {
+            assertEquals(200, send(filter, "POST", "/api/v1/auth/login", officeIp, new MockFilterChain()).getStatus());
+        }
     }
 
     @Test
@@ -85,6 +94,16 @@ class RateLimitFilterIT {
         var res = new MockHttpServletResponse();
         f.doFilter(req, res, chain);
         return res;
+    }
+
+    /** A chain that answers like a wrong password does: 401. */
+    private static MockFilterChain failedLogin() {
+        return new MockFilterChain(new jakarta.servlet.http.HttpServlet() {
+            @Override
+            protected void service(jakarta.servlet.http.HttpServletRequest req, jakarta.servlet.http.HttpServletResponse res) {
+                res.setStatus(401);
+            }
+        });
     }
 
     // Unique per call so re-runs inside the same minute never share a window.

@@ -48,19 +48,32 @@ public class AuthenticationController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request) {
-        String token = jwtUtil.extractTokenFromRequest(request);
-        if (!token.isEmpty()) {
-            authenticationService.revoke(token);
+        try {
+            String token = jwtUtil.extractTokenFromRequest(request);
+            if (!token.isEmpty()) {
+                authenticationService.revoke(token);
+            }
+        } catch (RuntimeException e) {
+            // Still sign the browser out; the token itself stays valid until it expires.
+            log.error("Could not revoke token on logout; clearing the cookie only", e);
+        } finally {
+            authenticationService.clearJwtCookie();
         }
-        authenticationService.clearJwtCookie();
         return ResponseEntity.ok().build();
     }
 
     /** Signs the current user out on every device (e.g. after a lost laptop). */
     @PostMapping("/logout-all")
     public ResponseEntity<Void> logoutAll(Authentication authentication) {
-        authenticationService.revokeAllFor(authentication.getName());
-        authenticationService.clearJwtCookie();
+        try {
+            authenticationService.revokeAllFor(authentication.getName());
+        } catch (RuntimeException e) {
+            // The other devices are NOT signed out - say so instead of pretending it worked.
+            log.error("Could not sign {} out everywhere", authentication.getName(), e);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        } finally {
+            authenticationService.clearJwtCookie();
+        }
         return ResponseEntity.ok().build();
     }
 

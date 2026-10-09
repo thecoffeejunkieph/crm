@@ -26,12 +26,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private record Rule(String name, String pattern, int limit, Duration window) {}
+    /** failuresOnly: count only requests answered 401, so a whole office on one NAT IP can still log in. */
+    private record Rule(String name, String pattern, int limit, Duration window, boolean failuresOnly) {}
 
     private static final List<Rule> RULES = List.of(
-            new Rule("login", "/api/v1/auth/login", 10, Duration.ofSeconds(60)),
-            new Rule("quote-link", "/api/v1/quotations/*/respond", 20, Duration.ofSeconds(60)),
-            new Rule("payment-link", "/api/v1/invoices/*/proof-of-payment", 20, Duration.ofSeconds(60))
+            new Rule("login", "/api/v1/auth/login", 10, Duration.ofSeconds(60), true),
+            new Rule("quote-link", "/api/v1/quotations/*/respond", 20, Duration.ofSeconds(60), false),
+            new Rule("payment-link", "/api/v1/invoices/*/proof-of-payment", 20, Duration.ofSeconds(60), false)
     );
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
@@ -46,7 +47,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
             if (!PATH_MATCHER.match(rule.pattern(), path)) {
                 continue;
             }
-            long retryAfter = rateLimiter.retryAfterSeconds(rule.name(), request.getRemoteAddr(), rule.limit(), rule.window());
+            String client = request.getRemoteAddr();
+            long retryAfter = rule.failuresOnly()
+                    ? rateLimiter.retryAfterIfOver(rule.name(), client, rule.limit(), rule.window())
+                    : rateLimiter.retryAfterSeconds(rule.name(), client, rule.limit(), rule.window());
             if (retryAfter > 0) {
                 log.warn("Rate limit '{}' hit by {} on {}", rule.name(), request.getRemoteAddr(), path);
                 response.setStatus(429);
@@ -56,7 +60,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
                         + retryAfter + " seconds.\"}");
                 return;
             }
-            break;
+            chain.doFilter(request, response);
+            if (rule.failuresOnly() && response.getStatus() == HttpServletResponse.SC_UNAUTHORIZED) {
+                rateLimiter.record(rule.name(), client, rule.window());
+            }
+            return;
         }
         chain.doFilter(request, response);
     }
