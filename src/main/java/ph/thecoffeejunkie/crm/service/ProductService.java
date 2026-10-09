@@ -75,6 +75,7 @@ public class ProductService {
         product.setDescription(request.description());
         product.setUnit(request.unit());
         product.setPrice(request.price());
+        product.setCost(request.cost());
 
         log.info("Updated product with id: {}", id);
         return toProductResponse(productRepository.save(product));
@@ -135,6 +136,7 @@ public class ProductService {
         product.setDescription(request.description());
         product.setUnit(request.unit());
         product.setPrice(request.price());
+        product.setCost(request.cost());
 
         return product;
     }
@@ -146,6 +148,7 @@ public class ProductService {
                 product.getDescription(),
                 product.getUnit(),
                 product.getPrice(),
+                product.getCost(),
                 product.getPicturePath()
         );
     }
