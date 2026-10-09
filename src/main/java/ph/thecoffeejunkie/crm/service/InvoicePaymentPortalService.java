@@ -13,6 +13,8 @@ import ph.thecoffeejunkie.crm.exception.CrmException;
 import ph.thecoffeejunkie.crm.repository.InvoiceRepository;
 import ph.thecoffeejunkie.crm.util.InvoicePaymentTokenService;
 
+import java.time.Duration;
+
 /**
  * Owns the customer-facing "upload proof of payment" flow reached via the token-secured link in
  * the invoice email - mirrors how {@link QuotationEmailService} serves the accept/reject page
@@ -26,6 +28,7 @@ public class InvoicePaymentPortalService {
     private final InvoiceRepository repository;
     private final InvoicePaymentTokenService tokenService;
     private final InvoiceService invoiceService;
+    private final DistributedLock distributedLock;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -60,11 +63,19 @@ public class InvoicePaymentPortalService {
             return resolved.error();
         }
 
+        // A double-submitted form would otherwise race past uploadProofOfPayment's UNPAID check.
+        String lockName = "invoice-proof:" + id;
+        if (!distributedLock.tryLock(lockName, Duration.ofMinutes(2))) {
+            return message(HttpStatus.CONFLICT, "Already Processing",
+                    "We're already processing a response for this link. Please refresh in a moment.");
+        }
         try {
             invoiceService.uploadProofOfPayment(id, file);
         } catch (CrmException e) {
             log.warn("Rejected proof of payment upload for invoice {}: {}", id, e.getMessage());
             return message(e.getStatus(), "Upload Failed", e.getMessage());
+        } finally {
+            distributedLock.unlock(lockName);
         }
 
         return message(HttpStatus.OK, "Proof of Payment Received",

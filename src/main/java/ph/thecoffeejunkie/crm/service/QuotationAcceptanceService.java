@@ -9,6 +9,7 @@ import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.QuotationRepository;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -29,8 +30,27 @@ public class QuotationAcceptanceService {
     private final InvoiceService invoiceService;
     private final InvoiceEmailService invoiceEmailService;
     private final InventoryService inventoryService;
+    private final DistributedLock distributedLock;
+
+    static final Duration LOCK_TTL = Duration.ofMinutes(2);
+
+    /** Same lock for the customer's email link and staff's manual accept, so they can't race each other. */
+    static String lockName(Long quotationId) {
+        return "quotation-accept:" + quotationId;
+    }
 
     public InvoiceResponse acceptById(Long quotationId) {
+        if (!distributedLock.tryLock(lockName(quotationId), LOCK_TTL)) {
+            throw new InvalidRequestException("This quotation is already being processed");
+        }
+        try {
+            return acceptByIdLocked(quotationId);
+        } finally {
+            distributedLock.unlock(lockName(quotationId));
+        }
+    }
+
+    private InvoiceResponse acceptByIdLocked(Long quotationId) {
         Quotation quotation = quotationRepository.findById(quotationId)
                 .orElseThrow(() -> {
                     log.warn("Quotation not found with id: {}", quotationId);

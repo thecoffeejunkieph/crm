@@ -44,6 +44,7 @@ public class QuotationEmailService {
     private final QuotationAcceptanceService quotationAcceptanceService;
     private final JavaMailSender mailSender;
     private final LogoAsset logoAsset;
+    private final DistributedLock distributedLock;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -128,6 +129,21 @@ public class QuotationEmailService {
             return message(HttpStatus.BAD_REQUEST, "Invalid Request", "This link is not valid.");
         }
 
+        // Two clicks at once would both pass the "already responded" check below and create two
+        // invoices - the lock makes the check-then-act happen once. Shared with staff "accept".
+        String lockName = QuotationAcceptanceService.lockName(id);
+        if (!distributedLock.tryLock(lockName, QuotationAcceptanceService.LOCK_TTL)) {
+            return message(HttpStatus.CONFLICT, "Already Processing",
+                    "We're already processing a response for this link. Please refresh in a moment.");
+        }
+        try {
+            return respondLocked(id, normalizedDecision);
+        } finally {
+            distributedLock.unlock(lockName);
+        }
+    }
+
+    private RespondResult respondLocked(Long id, String normalizedDecision) {
         Quotation quotation = repository.findById(id).orElse(null);
         if (quotation == null) {
             return message(HttpStatus.NOT_FOUND, "Not Found", "This quotation no longer exists.");
