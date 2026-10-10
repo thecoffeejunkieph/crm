@@ -50,7 +50,8 @@
     </tr>
 </table>
 
-<h1>INVOICE</h1>
+<h1 th:text="${receipt} ? 'SALES RECEIPT' : 'INVOICE'">INVOICE</h1>
+<div class="fw-bold mb-2" th:if="${receipt}">PAID</div>
 <div class="text-muted mb-2" th:text="'#' + ${invoiceNumber}">#INV-0001</div>
 
 <table class="table meta-table mb-2">
@@ -69,11 +70,11 @@
             <span class="small meta-label d-block">Invoice Date</span>
             <span th:text="${invoiceDate}">-</span>
         </td>
-        <td>
+        <td th:unless="${receipt}">
             <span class="small meta-label d-block">Due Date</span>
             <span th:text="${dueDate}">-</span>
         </td>
-        <td>
+        <td th:unless="${receipt}">
             <span class="small meta-label d-block">Payment Terms</span>
             <span th:text="${paymentTermsLabel}">-</span>
         </td>
@@ -118,12 +119,31 @@
         <td class="text-end" th:text="${discount}">0.00</td>
     </tr>
     <tr>
-        <td class="fw-bold border-top" style="padding-top:6pt;">Total Amount Due</td>
+        <td class="fw-bold border-top" style="padding-top:6pt;" th:text="${receipt} ? 'Total Paid' : 'Total Amount Due'">Total Amount Due</td>
         <td class="text-end fw-bold border-top" style="padding-top:6pt;" th:text="${totalAmount}">0.00</td>
     </tr>
 </table>
 
-<div class="bg-light rounded mb-2" style="padding:3pt 10pt;">
+<table class="table items-table mb-2" th:if="${receipt}">
+    <thead class="table-dark">
+    <tr>
+        <th style="width:40%;">Payment</th>
+        <th style="width:20%;">Amount</th>
+        <th style="width:20%;">Tendered</th>
+        <th style="width:20%;">Change</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="payment : ${payments}">
+        <td th:text="${payment.method}">Cash</td>
+        <td class="text-end" th:text="${payment.amount}">0.00</td>
+        <td class="text-end" th:text="${payment.tendered} ?: '-'">-</td>
+        <td class="text-end" th:text="${payment.change} ?: '-'">-</td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="bg-light rounded mb-2" style="padding:3pt 10pt;" th:unless="${receipt}">
     <h6>Bank Details for Payment</h6>
     <div>Bank Name: <span th:text="${bankName}">-</span></div>
     <div>Account Name: <span th:text="${bankAccountName}">-</span></div>

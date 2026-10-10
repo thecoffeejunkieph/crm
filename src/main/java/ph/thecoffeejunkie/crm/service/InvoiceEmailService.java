@@ -12,8 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 import ph.thecoffeejunkie.crm.constant.ActivityType;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
+import ph.thecoffeejunkie.crm.constant.SalesChannel;
 import ph.thecoffeejunkie.crm.dto.request.CustomerActivityRequest;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceItemResponse;
+import ph.thecoffeejunkie.crm.dto.response.InvoicePaymentResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.exception.EmailSendException;
@@ -26,6 +28,7 @@ import ph.thecoffeejunkie.crm.util.FormatUtils;
 import ph.thecoffeejunkie.crm.util.LogoAsset;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -102,7 +105,9 @@ public class InvoiceEmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, "UTF-8");
 
             helper.setTo(invoice.getCustomer().getEmail());
-            helper.setSubject("Invoice " + invoice.getInvoiceNumber() + " from " + companyName);
+            helper.setSubject(invoice.getChannel() == SalesChannel.POS
+                    ? "Your receipt – " + invoice.getInvoiceNumber()
+                    : "Invoice " + invoice.getInvoiceNumber() + " from " + companyName);
             helper.setText(buildHtmlBody(CustomMapper.toInvoiceResponse(invoice)), true);
             helper.addInline(LOGO_CONTENT_ID, new ByteArrayResource(logoAsset.pngBytes()), "image/png");
             helper.addAttachment(pdf.fileName(), new ByteArrayResource(pdf.content()), MediaType.APPLICATION_PDF_VALUE);
@@ -114,7 +119,7 @@ public class InvoiceEmailService {
         }
     }
 
-    private String buildHtmlBody(InvoiceResponse response) {
+    String buildHtmlBody(InvoiceResponse response) {
         StringBuilder items = new StringBuilder();
         for (InvoiceItemResponse item : response.invoiceItems()) {
             items.append("<tr>")
@@ -156,7 +161,46 @@ public class InvoiceEmailService {
                 ? "<p style=\"text-align:right;\">Discount: " + FormatUtils.formatDiscount(response.discount(), response.discountType()) + "</p>"
                 : "";
 
-        String uploadCta = response.status() == InvoiceStatus.UNPAID
+        // POS sales are receipts: already paid, so no due date, terms, bank details or upload link.
+        boolean receipt = response.channel() == SalesChannel.POS;
+
+        String intro = receipt
+                ? "Thank you for your purchase! Your receipt <strong>%s</strong> is attached. A summary is below."
+                        .formatted(response.invoiceNumber())
+                : "Thank you for your business! Please find attached invoice <strong>%s</strong> (from quotation <strong>%s</strong>). A summary is below."
+                        .formatted(response.invoiceNumber(), response.quotationNumber());
+
+        String meta = receipt
+                ? """
+                  <p><strong>Date:</strong> %s</p>
+                  <p><strong>Cashier:</strong> %s</p>
+                  <p><strong>Status:</strong> Paid</p>
+                  """.formatted(FormatUtils.formatDate(response.invoiceDate()), salesRepName)
+                : """
+                  <p><strong>Invoice Date:</strong> %s</p>
+                  <p><strong>Due Date:</strong> %s</p>
+                  <p><strong>Payment Terms:</strong> %s</p>
+                  <p><strong>Sales Person:</strong> %s</p>
+                  <p><strong>Status:</strong> %s</p>
+                  """.formatted(FormatUtils.formatDate(response.invoiceDate()), FormatUtils.formatDate(response.dueDate()),
+                        response.paymentTermsLabel() == null ? "-" : response.paymentTermsLabel(), salesRepName,
+                        response.statusLabel() == null ? "-" : response.statusLabel());
+
+        String totalLabel = receipt ? "Total Paid" : "Total Amount Due";
+
+        String bankBox = receipt ? "" : """
+                <div class="bank-box">
+                  <strong>Bank Details for Payment</strong><br/>
+                  Bank Name: %s<br/>
+                  Account Name: %s<br/>
+                  Account Number: %s<br/>
+                  SWIFT Code: %s
+                </div>
+                """.formatted(bankName, bankAccountName, bankAccountNumber, bankSwiftCode);
+
+        String paymentsSection = receipt ? buildPaymentsTable(response.payments()) : "";
+
+        String uploadCta = !receipt && response.status() == InvoiceStatus.UNPAID
                 ? """
                   <div style="text-align:center;margin:28px 0;">
                     <a href="%s" class="btn btn-dark">Upload Proof of Payment</a>
@@ -203,14 +247,10 @@ public class InvoiceEmailService {
                       </div>
                       <div class="email-body">
                         <p>Hi %s,</p>
-                        <p>Thank you for your business! Please find attached invoice <strong>%s</strong> (from quotation <strong>%s</strong>). A summary is below.</p>
+                        <p>%s</p>
 
                         <div class="meta">
-                          <p><strong>Invoice Date:</strong> %s</p>
-                          <p><strong>Due Date:</strong> %s</p>
-                          <p><strong>Payment Terms:</strong> %s</p>
-                          <p><strong>Sales Person:</strong> %s</p>
-                          <p><strong>Status:</strong> %s</p>
+                          %s
                         </div>
 
                         <table class="table">
@@ -232,16 +272,12 @@ public class InvoiceEmailService {
                           <p style="text-align:right;">Subtotal: %s</p>
                           %s
                           %s
-                          <p style="text-align:right;font-size:17px;"><strong>Total Amount Due: %s</strong></p>
+                          <p style="text-align:right;font-size:17px;"><strong>%s: %s</strong></p>
                         </div>
 
-                        <div class="bank-box">
-                          <strong>Bank Details for Payment</strong><br/>
-                          Bank Name: %s<br/>
-                          Account Name: %s<br/>
-                          Account Number: %s<br/>
-                          SWIFT Code: %s
-                        </div>
+                        %s
+
+                        %s
 
                         %s
 
@@ -257,15 +293,34 @@ public class InvoiceEmailService {
                 """.formatted(
                 EmailStyles.BOOTSTRAP_CSS,
                 LOGO_CONTENT_ID, HtmlUtils.htmlEscape(companyName),
-                customerName, response.invoiceNumber(), response.quotationNumber(),
-                FormatUtils.formatDate(response.invoiceDate()), FormatUtils.formatDate(response.dueDate()),
-                response.paymentTermsLabel() == null ? "-" : response.paymentTermsLabel(), salesRepName,
-                response.statusLabel() == null ? "-" : response.statusLabel(),
+                customerName, intro,
+                meta,
                 items,
-                FormatUtils.formatCurrency(subtotal), shippingRow, discountRow, FormatUtils.formatCurrency(response.totalAmount()),
-                bankName, bankAccountName, bankAccountNumber, bankSwiftCode,
+                FormatUtils.formatCurrency(subtotal), shippingRow, discountRow, totalLabel, FormatUtils.formatCurrency(response.totalAmount()),
+                paymentsSection,
+                bankBox,
                 uploadCta,
                 notesSection, termsSection,
                 HtmlUtils.htmlEscape(companyName), HtmlUtils.htmlEscape(companyAddress), HtmlUtils.htmlEscape(companyEmail));
+    }
+    private static String buildPaymentsTable(List<InvoicePaymentResponse> payments) {
+        StringBuilder rows = new StringBuilder();
+        for (InvoicePaymentResponse payment : payments) {
+            String cash = payment.amountTendered() == null ? "" : " (tendered %s, change %s)".formatted(
+                    FormatUtils.formatCurrency(payment.amountTendered()),
+                    FormatUtils.formatCurrency(payment.amountTendered().subtract(payment.amount())));
+            rows.append("<tr><td>")
+                    .append(HtmlUtils.htmlEscape(payment.methodLabel() == null ? "-" : payment.methodLabel()))
+                    .append(cash)
+                    .append("</td><td style=\"text-align:right;\">")
+                    .append(FormatUtils.formatCurrency(payment.amount()))
+                    .append("</td></tr>");
+        }
+        return """
+                <table class="table">
+                  <thead class="table-dark"><tr><th style="text-align:left;">Payment</th><th style="text-align:right;">Amount</th></tr></thead>
+                  <tbody>%s</tbody>
+                </table>
+                """.formatted(rows);
     }
 }

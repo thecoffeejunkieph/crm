@@ -10,7 +10,9 @@ import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import org.xhtmlrenderer.pdf.ITextRenderer;
 import ph.thecoffeejunkie.crm.dto.response.CustomerResponse;
+import ph.thecoffeejunkie.crm.constant.SalesChannel;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceItemResponse;
+import ph.thecoffeejunkie.crm.dto.response.InvoicePaymentResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.exception.PdfGenerationException;
@@ -80,8 +82,7 @@ public class InvoicePdfService {
     public record InvoicePdf(String fileName, byte[] content) {}
 
     private byte[] render(Invoice invoice) {
-        InvoiceResponse response = CustomMapper.toInvoiceResponse(invoice);
-        String html = TEMPLATE_ENGINE.process(TEMPLATE_NAME, buildContext(response));
+        String html = html(CustomMapper.toInvoiceResponse(invoice));
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ITextRenderer renderer = new ITextRenderer();
@@ -93,6 +94,10 @@ public class InvoicePdfService {
             log.error("Failed to render PDF for invoice {}", invoice.getInvoiceNumber(), e);
             throw new PdfGenerationException("Failed to generate PDF", e);
         }
+    }
+
+    String html(InvoiceResponse response) {
+        return TEMPLATE_ENGINE.process(TEMPLATE_NAME, buildContext(response));
     }
 
     private static TemplateEngine buildTemplateEngine() {
@@ -144,6 +149,10 @@ public class InvoicePdfService {
         context.setVariable("bankAccountNumber", bankAccountNumber);
         context.setVariable("bankSwiftCode", bankSwiftCode);
 
+        // POS sales print as a paid Sales Receipt with the tenders instead of due date, terms and bank details.
+        context.setVariable("receipt", response.channel() == SalesChannel.POS);
+        context.setVariable("payments", buildPaymentRows(response.payments()));
+
         context.setVariable("notesLines", splitLines(response.notes()));
         context.setVariable("termsLines", splitLines(response.termsAndConditions()));
 
@@ -186,6 +195,18 @@ public class InvoicePdfService {
                 .toList();
     }
 
+    private List<PaymentRow> buildPaymentRows(List<InvoicePaymentResponse> payments) {
+        return payments.stream()
+                .map(payment -> new PaymentRow(
+                        payment.methodLabel() == null ? "-" : payment.methodLabel(),
+                        FormatUtils.formatCurrency(payment.amount()),
+                        payment.amountTendered() == null ? null : FormatUtils.formatCurrency(payment.amountTendered()),
+                        payment.amountTendered() == null ? null
+                                : FormatUtils.formatCurrency(payment.amountTendered().subtract(payment.amount()))
+                ))
+                .toList();
+    }
+
     private List<String> splitLines(String text) {
         if (text == null || text.isBlank()) {
             return List.of();
@@ -198,5 +219,7 @@ public class InvoicePdfService {
     }
 
     private record ItemRow(String product, String quantity, String unitPrice, String discount, String total) {}
+
+    private record PaymentRow(String method, String amount, String tendered, String change) {}
 
 }
