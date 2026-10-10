@@ -10,6 +10,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -49,10 +50,15 @@ public class AuthenticationService {
     }
 
     public boolean isTokenValid(String token) {
-        String username = jwtUtil.extractUsername(token);
-        final UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        return jwtUtil.validateToken(token, userDetails)
-                && !tokenRevocationService.isRevoked(jwtUtil.extractJti(token), username, jwtUtil.extractIssuedAt(token));
+        try {
+            String username = jwtUtil.extractUsername(token);
+            final UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            return jwtUtil.validateToken(token, userDetails)
+                    && !tokenRevocationService.isRevoked(jwtUtil.extractJti(token), username, jwtUtil.extractIssuedAt(token));
+        } catch (JwtException | UsernameNotFoundException | IllegalArgumentException e) {
+            // expired, tampered, or the user is gone - just "not valid", same as JWTFilter
+            return false;
+        }
     }
 
     /** Logout for this one token; a token that no longer parses has nothing left to revoke. */

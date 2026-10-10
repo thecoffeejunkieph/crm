@@ -13,6 +13,7 @@ import ph.thecoffeejunkie.crm.dto.response.RateStat;
 import ph.thecoffeejunkie.crm.dto.response.SalesStat;
 import ph.thecoffeejunkie.crm.dto.response.SalesSummaryPoint;
 import ph.thecoffeejunkie.crm.dto.response.SalesSummaryResponse;
+import ph.thecoffeejunkie.crm.dto.response.SoldCount;
 import ph.thecoffeejunkie.crm.dto.response.TopCustomerResponse;
 import ph.thecoffeejunkie.crm.dto.response.TopSalesRepResponse;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
@@ -26,6 +27,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +44,7 @@ public class DashboardService {
     private static final int PERIOD_DAYS = 30;
     private static final int CHART_MONTHS = 6;
     private static final int TOP_N = 5;
+    private static final String UNCATEGORIZED = "Uncategorized";
 
     private final QuotationRepository quotationRepository;
     private final CustomerRepository customerRepository;
@@ -87,7 +91,8 @@ public class DashboardService {
 
     /**
      * Gross sales and gross profit from PAID invoices, invoice count from non-cancelled ones, in [from, to]
-     * (default last 30 days), bucketed by day for ranges up to 31 days, else by month.
+     * (default last 30 days), bucketed by day for ranges up to 31 days, else by month. Also the
+     * quantity sold per product and per category from those PAID invoices.
      */
     @Cacheable("sales-summary")
     public SalesSummaryResponse getSalesSummary(LocalDate from, LocalDate to) {
@@ -124,11 +129,26 @@ public class DashboardService {
                         counts.getOrDefault(e.getKey(), 0L)))
                 .toList();
 
+        List<SoldCount> byProduct = new ArrayList<>();
+        Map<String, SoldCount> byCategory = new LinkedHashMap<>();
+        for (Object[] row : invoiceRepository.findPaidQuantityByProduct(start, end)) {
+            SoldCount sold = new SoldCount((String) row[1], ((Number) row[3]).longValue(), (BigDecimal) row[4]);
+            byProduct.add(sold);
+            String category = row[2] != null ? (String) row[2] : UNCATEGORIZED;
+            byCategory.merge(category, new SoldCount(category, sold.quantitySold(), sold.totalSales()),
+                    (a, b) -> new SoldCount(category, a.quantitySold() + b.quantitySold(),
+                            a.totalSales().add(b.totalSales())));
+        }
+
         return new SalesSummaryResponse(
                 points.stream().map(SalesSummaryPoint::grossSales).reduce(BigDecimal.ZERO, BigDecimal::add),
                 points.stream().map(SalesSummaryPoint::grossProfit).reduce(BigDecimal.ZERO, BigDecimal::add),
                 points.stream().mapToLong(SalesSummaryPoint::invoiceCount).sum(),
-                points);
+                points,
+                byProduct,
+                byCategory.values().stream()
+                        .sorted(Comparator.comparingLong(SoldCount::quantitySold).reversed())
+                        .toList());
     }
 
     private String bucketKey(LocalDate date, boolean daily) {

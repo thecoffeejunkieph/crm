@@ -26,6 +26,15 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             "group by inv.invoiceDate")
     List<Object[]> findDailyPaidSalesAndProfit(@Param("start") LocalDate start, @Param("end") LocalDate end);
 
+    /** [product id, name, category, quantity, sales] from PAID invoices in [start, end], most sold first. */
+    @Query("select p.id, p.productName, c.name, coalesce(sum(i.quantity), 0), coalesce(sum(i.total), 0) " +
+            "from Invoice inv join inv.invoiceItems i join i.product p left join p.category c " +
+            "where inv.status = ph.thecoffeejunkie.crm.constant.InvoiceStatus.PAID " +
+            "and inv.invoiceDate between :start and :end " +
+            "group by p.id, p.productName, c.name " +
+            "order by sum(i.quantity) desc")
+    List<Object[]> findPaidQuantityByProduct(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
     @Query("select inv.invoiceDate, count(inv) from Invoice inv " +
             "where inv.status <> ph.thecoffeejunkie.crm.constant.InvoiceStatus.CANCELLED " +
             "and inv.invoiceDate between :start and :end " +

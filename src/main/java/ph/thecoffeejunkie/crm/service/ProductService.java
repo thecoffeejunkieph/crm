@@ -8,9 +8,11 @@ import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.dto.request.ProductCreateRequest;
 import ph.thecoffeejunkie.crm.dto.request.ProductUpdateRequest;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
+import ph.thecoffeejunkie.crm.entity.Category;
 import ph.thecoffeejunkie.crm.entity.Product;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
+import ph.thecoffeejunkie.crm.repository.CategoryRepository;
 import ph.thecoffeejunkie.crm.repository.ProductRepository;
 
 import java.util.List;
@@ -21,6 +23,7 @@ import java.util.List;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
     private final StorageService storageService;
 
     public ProductResponse save(ProductCreateRequest request) {
@@ -55,6 +58,7 @@ public class ProductService {
 
         product.setProductName(request.productName());
         product.setDescription(request.description());
+        product.setCategory(findCategory(request.categoryId()));
         product.setUnit(request.unit());
         product.setPrice(request.price());
         product.setCost(request.cost());
@@ -99,6 +103,7 @@ public class ProductService {
         Product product = new Product();
         product.setProductName(request.productName());
         product.setDescription(request.description());
+        product.setCategory(findCategory(request.categoryId()));
         product.setUnit(request.unit());
         product.setPrice(request.price());
         product.setCost(request.cost());
@@ -106,11 +111,21 @@ public class ProductService {
         return product;
     }
 
+    private Category findCategory(Long categoryId) {
+        if (categoryId == null) {
+            return null;
+        }
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Category", categoryId));
+    }
+
     private ProductResponse toProductResponse(Product product) {
         return new ProductResponse(
                 product.getId(),
                 product.getProductName(),
                 product.getDescription(),
+                product.getCategory() != null ? product.getCategory().getId() : null,
+                product.getCategory() != null ? product.getCategory().getName() : null,
                 product.getUnit(),
                 product.getPrice(),
                 product.getCost(),

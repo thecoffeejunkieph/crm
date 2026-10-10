@@ -9,5 +9,7 @@ public record SalesSummaryResponse(
         BigDecimal grossSales,
         BigDecimal grossProfit,
         long invoiceCount,
-        List<SalesSummaryPoint> points
+        List<SalesSummaryPoint> points,
+        List<SoldCount> soldByProduct,
+        List<SoldCount> soldByCategory
 ) implements Serializable {}

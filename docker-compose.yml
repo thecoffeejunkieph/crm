@@ -88,7 +88,7 @@ services:
     # private; a link works only while its signature is valid. The console stays unexposed.
     labels:
       - traefik.enable=true
-      - traefik.http.routers.files.rule=Host(``)
+      - traefik.http.routers.files.rule=Host(`${MINIO_PUBLIC_HOST}`)
       - traefik.http.routers.files.entrypoints=websecure
       - traefik.http.routers.files.tls.certresolver=letsencrypt
       - traefik.http.routers.files.tls=true

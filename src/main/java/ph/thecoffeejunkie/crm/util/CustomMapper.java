@@ -149,6 +149,8 @@ public final class CustomMapper {
                 product.getId(),
                 product.getProductName(),
                 product.getDescription(),
+                product.getCategory() != null ? product.getCategory().getId() : null,
+                product.getCategory() != null ? product.getCategory().getName() : null,
                 product.getUnit(),
                 product.getPrice(),
                 product.getCost(),

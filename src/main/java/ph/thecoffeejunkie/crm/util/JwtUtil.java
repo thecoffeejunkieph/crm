@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @Service
 public class JwtUtil {
 
-    @Value("${auth.secret-key})")
+    @Value("${auth.secret-key}")
     private String secretKey;
 
     public String extractUsername(String token) {

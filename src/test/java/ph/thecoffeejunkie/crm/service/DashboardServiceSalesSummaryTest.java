@@ -51,4 +51,22 @@ class DashboardServiceSalesSummaryTest {
         assertEquals("2026-01-05", daily.points().get(4).period());
         assertEquals(2, daily.points().get(4).invoiceCount());
     }
+
+    @Test
+    void groupsSoldQuantityByProductAndCategory() {
+        LocalDate day = LocalDate.of(2026, 1, 5);
+        when(invoices.findPaidQuantityByProduct(day, day)).thenReturn(List.of(
+                new Object[]{1L, "Latte", "Coffee", 5L, new BigDecimal("500")},
+                new Object[]{2L, "Mocha", "Coffee", 3L, new BigDecimal("300")},
+                new Object[]{3L, "Mug", null, 4L, new BigDecimal("400")}));
+
+        SalesSummaryResponse summary = service.getSalesSummary(day, day);
+        assertEquals(3, summary.soldByProduct().size());
+        assertEquals("Latte", summary.soldByProduct().get(0).name());
+        assertEquals(2, summary.soldByCategory().size());
+        assertEquals("Coffee", summary.soldByCategory().get(0).name());
+        assertEquals(8, summary.soldByCategory().get(0).quantitySold());
+        assertEquals(0, new BigDecimal("800").compareTo(summary.soldByCategory().get(0).totalSales()));
+        assertEquals("Uncategorized", summary.soldByCategory().get(1).name());
+    }
 }

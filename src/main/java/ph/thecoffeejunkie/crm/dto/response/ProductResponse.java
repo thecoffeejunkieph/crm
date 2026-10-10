@@ -11,6 +11,8 @@ public record ProductResponse(
         Long id,
         String productName,
         String description,
+        Long categoryId,
+        String category,
         Unit unit,
         BigDecimal price,
         BigDecimal cost,

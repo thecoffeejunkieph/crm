@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 public record ProductUpdateRequest(
         @NotBlank String productName,
         String description,
+        Long categoryId,
         Unit unit,
         @NotNull @Positive BigDecimal price,
         @PositiveOrZero BigDecimal cost

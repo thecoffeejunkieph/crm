@@ -1,0 +1,96 @@
+# Local stack: everything self-contained, no .env needed, no Traefik.
+#   docker compose -f docker-compose.local.yml up -d --build
+# API http://localhost:8080 · MinIO console http://localhost:9001 · MySQL localhost:3306
+# Secrets below are random local-only values - never reuse them anywhere else.
+name: crm-local
+
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_USER: crm
+      MYSQL_PASSWORD: Lq7vN2xR9kTb4WmZ
+      MYSQL_ROOT_PASSWORD: Hs3pX8cJ5nQf1VdY
+      MYSQL_DATABASE: crm_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pHs3pX8cJ5nQf1VdY"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:mysql://mysql:3306/crm_db
+      DB_USERNAME: crm
+      DB_PASSWORD: Lq7vN2xR9kTb4WmZ
+      AUTH_SECRET_KEY: 2_I1qE8Su_5NWyw4Kr5hL53ogf56168UnPjFMx5juk5nxfB6k3dHifHhD0i9oCC5
+      ENCRYPTION_SALT: ed34adf22dd98ca69917bf039754b685
+      COOKIE_SECURE: "false" # plain HTTP locally; browsers drop Secure cookies
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_URL: http://localhost:9000
+      MINIO_ACCESS_KEY: crm-local
+      MINIO_SECRET_KEY: OxXyRZqdfwsFHcanfJmQwuab7_w1r30wgKwqA3Vp
+      REDIS_HOST: redis
+      REDIS_PASSWORD: kKXLPwDIy953G9apHC4BKWxvIgLbwPZ1
+      APP_BASE_URL: http://localhost:8080
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      # Dummy SMTP creds: outgoing mail fails locally. Put a test mailbox here if you need it.
+      MAIL_USERNAME: dev@localhost
+      MAIL_PASSWORD: not-a-real-password
+      QUOTATION_RESPONSE_SECRET: uDALCTr1CtkDsGrA2tELA50_wLz73ctbjc-9zkH-BIhklT9NhaGzssKvVRLFCpNJ
+      INVOICE_PAYMENT_SECRET: yS2sxUGW1FGFJW4BA-elKDdU60ImbrkF1qPNmnJfIBklDM8_zsIOhp1vCGiMRc6W
+      INVOICE_BANK_NAME: Local Test Bank
+      INVOICE_BANK_ACCOUNT_NAME: The Coffee Junkie (TEST)
+      INVOICE_BANK_ACCOUNT_NUMBER: "000000000000"
+      INVOICE_BANK_SWIFT_CODE: TESTPHMM
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      # The api uses the root user directly; the bucket is created by the api on startup.
+      MINIO_ROOT_USER: crm-local
+      MINIO_ROOT_PASSWORD: OxXyRZqdfwsFHcanfJmQwuab7_w1r30wgKwqA3Vp
+    ports:
+      - "9000:9000" # S3 API - browsers follow presigned links here
+      - "9001:9001" # console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4.2-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "kKXLPwDIy953G9apHC4BKWxvIgLbwPZ1"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "kKXLPwDIy953G9apHC4BKWxvIgLbwPZ1", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
+  minio_data:
+  redis_data:
