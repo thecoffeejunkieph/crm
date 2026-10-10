@@ -148,6 +148,13 @@ public class PosSaleService {
         return new PosSaleResponse(CustomMapper.toInvoiceResponse(saved), change, PosSaleResponse.EmailStatus.NOT_REQUESTED);
     }
 
+    public void requirePosSale(Long id) {
+        Invoice invoice = invoices.findById(id).orElseThrow(() -> ResourceNotFoundException.of("Invoice", id));
+        if (invoice.getChannel() != SalesChannel.POS) {
+            throw new InvalidRequestException("Not a POS sale");
+        }
+    }
+
     // Net amount after a PERCENT (0-100) or FIXED (0..gross) discount, HALF_UP to centavos.
     static BigDecimal applyDiscount(BigDecimal gross, Integer discount, DiscountType type) {
         if (discount == null || discount == 0) {

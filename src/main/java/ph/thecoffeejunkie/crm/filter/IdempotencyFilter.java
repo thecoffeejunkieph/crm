@@ -35,6 +35,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             "/api/v1/quotations",
             "/api/v1/invoices",
             "/api/v1/invoices/*/payments",
+            "/api/v1/pos/sales",
             "/api/v1/inventory/receive",
             "/api/v1/inventory/reserve",
             "/api/v1/inventory/release"
