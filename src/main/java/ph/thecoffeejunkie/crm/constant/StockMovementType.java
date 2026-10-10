@@ -4,5 +4,6 @@ public enum StockMovementType {
     RECEIPT,
     RESERVE,
     RELEASE,
-    DELIVERY
+    DELIVERY,
+    SALE
 }

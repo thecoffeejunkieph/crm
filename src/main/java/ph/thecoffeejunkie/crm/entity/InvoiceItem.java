@@ -30,6 +30,9 @@ public class InvoiceItem extends BaseEntity {
 
     private BigDecimal total;
 
+    // List price at sale time; only set on POS lines so the receipt can show overrides.
+    private BigDecimal listPrice;
+
     @ManyToOne (fetch = FetchType.LAZY)
     @JsonBackReference
     private Invoice invoice;

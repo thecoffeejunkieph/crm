@@ -36,4 +36,7 @@ public class InvoicePayment extends BaseEntity {
     private String proofOfPaymentPath;
 
     private LocalDateTime recordedAt;
+
+    // Cash handed over by the customer at the POS; null for other methods.
+    private BigDecimal amountTendered;
 }

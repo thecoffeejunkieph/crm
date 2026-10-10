@@ -10,6 +10,7 @@ import lombok.Setter;
 import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+import ph.thecoffeejunkie.crm.constant.SalesChannel;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -77,4 +78,7 @@ public class Invoice extends BaseEntity {
     private List<String> proofOfPaymentPaths = new ArrayList<>();
 
     private LocalDateTime paidAt;
+
+    @Enumerated(EnumType.STRING)
+    private SalesChannel channel = SalesChannel.B2B;
 }

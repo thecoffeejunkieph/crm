@@ -14,5 +14,6 @@ public record InvoiceItemResponse (
         Integer discount,
         DiscountType discountType,
         BigDecimal total,
-        ProductResponse product
+        ProductResponse product,
+        BigDecimal listPrice
 ) implements Serializable {}

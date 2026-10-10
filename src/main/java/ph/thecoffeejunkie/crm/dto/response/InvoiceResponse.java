@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import ph.thecoffeejunkie.crm.constant.DiscountType;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+import ph.thecoffeejunkie.crm.constant.SalesChannel;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,5 +37,6 @@ public record InvoiceResponse(
         String proofOfPaymentPath,
         List<String> proofOfPaymentPaths,
         List<InvoicePaymentResponse> payments,
-        LocalDateTime paidAt
+        LocalDateTime paidAt,
+        SalesChannel channel
 ) implements Serializable {}

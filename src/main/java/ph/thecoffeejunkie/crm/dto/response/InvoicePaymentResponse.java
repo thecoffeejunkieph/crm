@@ -15,5 +15,6 @@ public record InvoicePaymentResponse(
         PaymentMethod method,
         String methodLabel,
         String proofOfPaymentPath,
-        LocalDateTime recordedAt
+        LocalDateTime recordedAt,
+        BigDecimal amountTendered
 ) implements Serializable {}

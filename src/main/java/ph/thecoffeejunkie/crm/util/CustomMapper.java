@@ -92,7 +92,8 @@ public final class CustomMapper {
                 invoice.getProofOfPaymentPaths().isEmpty() ? null : StorageService.url(invoice.getProofOfPaymentPaths().get(0)),
                 invoice.getProofOfPaymentPaths().stream().map(StorageService::url).toList(),
                 invoice.getPayments().stream().map(CustomMapper::toInvoicePaymentResponse).toList(),
-                invoice.getPaidAt()
+                invoice.getPaidAt(),
+                invoice.getChannel()
                 );
     }
 
@@ -156,7 +157,8 @@ public final class CustomMapper {
                 invoiceItem.getDiscount(),
                 invoiceItem.getDiscountType(),
                 invoiceItem.getTotal(),
-                toProductResponse(invoiceItem.getProduct())
+                toProductResponse(invoiceItem.getProduct()),
+                invoiceItem.getListPrice()
                 );
     }
 
@@ -167,7 +169,8 @@ public final class CustomMapper {
                 payment.getMethod(),
                 payment.getMethod() != null ? payment.getMethod().getLabel() : null,
                 StorageService.url(payment.getProofOfPaymentPath()),
-                payment.getRecordedAt()
+                payment.getRecordedAt(),
+                payment.getAmountTendered()
                 );
     }
 
