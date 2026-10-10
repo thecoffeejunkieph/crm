@@ -12,8 +12,10 @@ import ph.thecoffeejunkie.crm.dto.request.PosSaleItemRequest;
 import ph.thecoffeejunkie.crm.dto.request.PosSaleRequest;
 import ph.thecoffeejunkie.crm.dto.response.PosSaleResponse;
 import ph.thecoffeejunkie.crm.entity.Customer;
+import ph.thecoffeejunkie.crm.entity.InventoryItem;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.entity.Product;
+import ph.thecoffeejunkie.crm.entity.Warehouse;
 import ph.thecoffeejunkie.crm.exception.InsufficientStockException;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.repository.CRMUserRepository;
@@ -25,6 +27,9 @@ import ph.thecoffeejunkie.crm.repository.InvoiceRepository;
 import ph.thecoffeejunkie.crm.repository.ProductRepository;
 import ph.thecoffeejunkie.crm.util.InvoiceNumberGenerator;
 
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +37,9 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -174,6 +182,27 @@ class PosSaleServiceTest {
 
         assertThrows(InsufficientStockException.class,
                 () -> service.checkout(sale(List.of(line(3L, 1)), null, null, cash("600.00"))));
+    }
+
+    @Test
+    void searchDefaultsMissingInventoryToZero() {
+        Warehouse warehouse = new Warehouse();
+        warehouse.setId(1L);
+        when(warehouseService.resolveDefaultWarehouse()).thenReturn(warehouse);
+        Product latte = product(3L, "Latte", "600.00", true);
+        Product mocha = product(5L, "Mocha", "650.00", true);
+        when(products.searchActive(isNull(), isNull(), any())).thenReturn(new PageImpl<>(List.of(latte, mocha)));
+        InventoryItem stock = new InventoryItem();
+        stock.setProduct(latte);
+        stock.setQuantityOnHand(8);
+        stock.setQuantityReserved(2);
+        when(inventoryItems.findByWarehouseIdAndProductIdIn(eq(1L), anyCollection())).thenReturn(List.of(stock));
+
+        var page = service.searchProducts("  ", null, PageRequest.of(0, 24));
+
+        verify(products).searchActive(isNull(), isNull(), any());
+        assertEquals(6, page.content().get(0).quantityAvailable());
+        assertEquals(0, page.content().get(1).quantityAvailable());
     }
 
     private void assertRejected(Executable call) {

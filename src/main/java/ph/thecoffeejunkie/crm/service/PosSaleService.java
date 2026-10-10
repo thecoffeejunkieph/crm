@@ -2,6 +2,8 @@ package ph.thecoffeejunkie.crm.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -14,9 +16,12 @@ import ph.thecoffeejunkie.crm.constant.SalesChannel;
 import ph.thecoffeejunkie.crm.dto.request.PosPaymentRequest;
 import ph.thecoffeejunkie.crm.dto.request.PosSaleItemRequest;
 import ph.thecoffeejunkie.crm.dto.request.PosSaleRequest;
+import ph.thecoffeejunkie.crm.dto.response.PageResponse;
+import ph.thecoffeejunkie.crm.dto.response.PosProductResponse;
 import ph.thecoffeejunkie.crm.dto.response.PosSaleResponse;
 import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Customer;
+import ph.thecoffeejunkie.crm.entity.InventoryItem;
 import ph.thecoffeejunkie.crm.entity.Invoice;
 import ph.thecoffeejunkie.crm.entity.InvoiceItem;
 import ph.thecoffeejunkie.crm.entity.InvoicePayment;
@@ -40,7 +45,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 // Walk-in retail sales: priced on the server, paid in full, stock deducted at once.
 @Slf4j
@@ -60,6 +67,32 @@ public class PosSaleService {
     private final InventoryService inventoryService;
     private final WarehouseService warehouseService;
     private final CRMUserRepository users;
+
+    public PageResponse<PosProductResponse> searchProducts(String q, Long categoryId, PageRequest pageRequest) {
+        String query = q == null || q.isBlank() ? null : q.trim();
+        Page<Product> page = products.searchActive(query, categoryId, pageRequest);
+
+        Long warehouseId = warehouseService.resolveDefaultWarehouse().getId();
+        List<Long> ids = page.getContent().stream().map(Product::getId).toList();
+        Map<Long, Integer> available = ids.isEmpty() ? Map.of()
+                : inventoryItems.findByWarehouseIdAndProductIdIn(warehouseId, ids).stream()
+                        .collect(Collectors.toMap(i -> i.getProduct().getId(), InventoryItem::getQuantityAvailable));
+
+        return new PageResponse<>(
+                page.getNumber() + 1,
+                page.getSize(),
+                page.getTotalPages(),
+                page.getTotalElements(),
+                page.getContent().stream().map(p -> new PosProductResponse(
+                        p.getId(),
+                        p.getProductName(),
+                        p.getCategory() != null ? p.getCategory().getId() : null,
+                        p.getCategory() != null ? p.getCategory().getName() : null,
+                        p.getUnit(),
+                        p.getPrice(),
+                        StorageService.url(p.getPicturePath()),
+                        available.getOrDefault(p.getId(), 0))).toList());
+    }
 
     @Transactional
     public PosSaleResponse checkout(PosSaleRequest request) {

@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import ph.thecoffeejunkie.crm.entity.InventoryItem;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -14,4 +16,5 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     Page<InventoryItem> findByProductId(Long productId, Pageable pageable);
     Page<InventoryItem> findByWarehouseId(Long warehouseId, Pageable pageable);
     Page<InventoryItem> findByProductIdAndWarehouseId(Long productId, Long warehouseId, Pageable pageable);
+    List<InventoryItem> findByWarehouseIdAndProductIdIn(Long warehouseId, Collection<Long> productIds);
 }
