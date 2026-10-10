@@ -130,6 +130,19 @@ public class InventoryService {
         log.info("Delivered stock for invoice {}", invoice.getInvoiceNumber());
     }
 
+    // POS sales hand goods over at the counter: no reservation, on-hand drops immediately.
+    @Transactional
+    public void sellForPos(Invoice invoice) {
+        log.info("Deducting stock for POS sale {}...", invoice.getInvoiceNumber());
+
+        Warehouse warehouse = warehouseService.resolveDefaultWarehouse();
+        for (InvoiceItem item : invoice.getInvoiceItems()) {
+            sell(item.getProduct(), warehouse, item.getQuantity(), invoice.getId());
+        }
+
+        log.info("Deducted stock for POS sale {}", invoice.getInvoiceNumber());
+    }
+
     public void assertSufficientStock(Long productId, int quantity) {
         Warehouse warehouse = warehouseService.resolveDefaultWarehouse();
         InventoryItem item = inventoryItemRepository.findByProductIdAndWarehouseId(productId, warehouse.getId())
@@ -230,6 +243,22 @@ public class InventoryService {
 
         recordMovement(saved, StockMovementType.DELIVERY, quantity, referenceType, referenceId, null);
         return saved;
+    }
+
+    private void sell(Product product, Warehouse warehouse, int quantity, Long invoiceId) {
+        InventoryItem item = inventoryItemRepository.findByProductIdAndWarehouseId(product.getId(), warehouse.getId())
+                .orElse(null);
+
+        int available = item != null ? item.getQuantityAvailable() : 0;
+        if (available < quantity) {
+            throw new InsufficientStockException("Insufficient stock for " + product.getProductName()
+                    + ": requested " + quantity + ", available " + available);
+        }
+
+        item.setQuantityOnHand(item.getQuantityOnHand() - quantity);
+        InventoryItem saved = saveWithLockHandling(item);
+
+        recordMovement(saved, StockMovementType.SALE, quantity, "POS", invoiceId, null);
     }
 
     private InventoryItem getOrCreateInventoryItem(Long productId, Warehouse warehouse) {
