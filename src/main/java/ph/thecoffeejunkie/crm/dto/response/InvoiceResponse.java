@@ -34,6 +34,7 @@ public record InvoiceResponse(
         String notes,
         String termsAndConditions,
         String proofOfPaymentPath,
+        List<String> proofOfPaymentPaths,
         List<InvoicePaymentResponse> payments,
         LocalDateTime paidAt
 ) implements Serializable {}

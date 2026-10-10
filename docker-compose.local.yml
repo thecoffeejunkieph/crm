@@ -39,6 +39,7 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD: kKXLPwDIy953G9apHC4BKWxvIgLbwPZ1
       APP_BASE_URL: http://localhost:8080
+      APP_FRONTEND_URL: http://localhost:5173
       CORS_ALLOWED_ORIGINS: http://localhost:5173
       # Dummy SMTP creds: outgoing mail fails locally. Put a test mailbox here if you need it.
       MAIL_USERNAME: dev@localhost

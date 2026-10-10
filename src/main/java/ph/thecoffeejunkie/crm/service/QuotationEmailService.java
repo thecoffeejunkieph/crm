@@ -13,11 +13,13 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 import ph.thecoffeejunkie.crm.constant.NotificationType;
+import ph.thecoffeejunkie.crm.dto.response.PublicQuotationResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.exception.EmailSendException;
 import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
+import ph.thecoffeejunkie.crm.exception.LinkExpiredException;
 import ph.thecoffeejunkie.crm.exception.ResourceNotFoundException;
 import ph.thecoffeejunkie.crm.repository.QuotationRepository;
 import ph.thecoffeejunkie.crm.util.CustomMapper;
@@ -50,6 +52,9 @@ public class QuotationEmailService {
 
     @Value("${app.base-url}")
     private String baseUrl;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     @Value("${app.company.name}")
     private String companyName;
@@ -94,7 +99,7 @@ public class QuotationEmailService {
             message.setFrom(salesEmail);
             MimeMessageHelper helper = new MimeMessageHelper(message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, "UTF-8");
 
-            String acceptUrl = buildResponseUrl(quotation.getId(), token, "accept");
+            String acceptUrl = acceptPageUrl(quotation.getId(), token);
             String rejectUrl = buildResponseUrl(quotation.getId(), token, "reject");
 
             helper.setTo(quotation.getCustomer().getEmail());
@@ -110,10 +115,57 @@ public class QuotationEmailService {
         }
     }
 
+    /** The frontend page where the customer reviews the quotation and confirms their email to accept. */
+    public String acceptPageUrl(Long quotationId, String token) {
+        return frontendUrl + "/portal/quotations/" + quotationId + "/accept?token=" + token;
+    }
+
+    public PublicQuotationResponse getForCustomer(Long id, String token) {
+        resolveToken(id, token);
+        Quotation quotation = repository.findById(id)
+                .orElseThrow(() -> ResourceNotFoundException.of("Quotation", id));
+        return CustomMapper.toPublicQuotationResponse(quotation);
+    }
+
+    /**
+     * Accepting needs the customer to type the email the quotation was sent to, so a forwarded
+     * link alone can't accept it. The rest (lock, status/expiry checks, invoice) is shared with staff accept.
+     */
+    public PublicQuotationResponse acceptByCustomer(Long id, String token, String email) {
+        resolveToken(id, token);
+        Quotation quotation = repository.findById(id)
+                .orElseThrow(() -> ResourceNotFoundException.of("Quotation", id));
+
+        String customerEmail = quotation.getCustomer().getEmail();
+        if (email == null || customerEmail == null || !customerEmail.trim().equalsIgnoreCase(email.trim())) {
+            log.warn("Quotation {} accept refused: email did not match the customer's", quotation.getQuotationNumber());
+            throw new InvalidRequestException("That email address doesn't match the one this quotation was sent to.");
+        }
+
+        quotationAcceptanceService.acceptById(id);
+        log.info("Quotation {} accepted via customer acceptance page", quotation.getQuotationNumber());
+        return getForCustomer(id, token);
+    }
+
+    private void resolveToken(Long id, String token) {
+        Long tokenQuotationId;
+        try {
+            tokenQuotationId = tokenService.resolveQuotationId(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            log.warn("Rejected quotation link with invalid/expired token for id {}: {}", id, e.getMessage());
+            throw new LinkExpiredException();
+        }
+        if (!tokenQuotationId.equals(id)) {
+            log.warn("Quotation link token/path id mismatch: token={}, path={}", tokenQuotationId, id);
+            throw new InvalidRequestException("This link is not valid.");
+        }
+    }
+
+    /** Handles the email's reject link. Accept links go to {@link #acceptPageUrl} instead. */
     public RespondResult respond(Long id, String token, String decision) {
         String normalizedDecision = decision == null ? "" : decision.trim().toUpperCase(Locale.ROOT);
 
-        if (!normalizedDecision.equals("ACCEPT") && !normalizedDecision.equals("REJECT")) {
+        if (!normalizedDecision.equals("REJECT")) {
             return message(HttpStatus.BAD_REQUEST, "Invalid Request", "This link is not valid.");
         }
 
@@ -139,13 +191,13 @@ public class QuotationEmailService {
                     "We're already processing a response for this link. Please refresh in a moment.");
         }
         try {
-            return respondLocked(id, normalizedDecision);
+            return rejectLocked(id);
         } finally {
             distributedLock.unlock(lockName);
         }
     }
 
-    private RespondResult respondLocked(Long id, String normalizedDecision) {
+    private RespondResult rejectLocked(Long id) {
         Quotation quotation = repository.findById(id).orElse(null);
         if (quotation == null) {
             return message(HttpStatus.NOT_FOUND, "Not Found", "This quotation no longer exists.");
@@ -159,14 +211,6 @@ public class QuotationEmailService {
         if (quotation.getExpiryDate() != null && quotation.getExpiryDate().isBefore(LocalDate.now())) {
             return message(HttpStatus.GONE, "Quotation Expired",
                     "This quotation has expired. Please contact us for a new one.");
-        }
-
-        if (normalizedDecision.equals("ACCEPT")) {
-            quotationAcceptanceService.accept(quotation);
-            log.info("Quotation {} marked as ACCEPTED via customer response link", quotation.getQuotationNumber());
-            return message(HttpStatus.OK, "Quotation Accepted",
-                    "Thank you! Your quotation " + quotation.getQuotationNumber()
-                            + " has been accepted. An invoice has been emailed to you.");
         }
 
         quotation.setStatus("REJECTED");

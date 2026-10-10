@@ -31,7 +31,7 @@ class QuotationRespondLockTest {
         long id = System.nanoTime(); // unique lock name per run
         lock.tryLock("quotation-accept:" + id, Duration.ofMinutes(1));
         try {
-            var result = service.respond(id, tokenService.generate(id), "ACCEPT");
+            var result = service.respond(id, tokenService.generate(id), "REJECT");
 
             assertEquals(HttpStatus.CONFLICT, result.status());
             verifyNoInteractions(acceptance, repository);

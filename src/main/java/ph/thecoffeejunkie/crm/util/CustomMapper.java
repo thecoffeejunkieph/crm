@@ -10,6 +10,8 @@ import ph.thecoffeejunkie.crm.dto.response.InvoiceItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoicePaymentResponse;
 import ph.thecoffeejunkie.crm.dto.response.InvoiceResponse;
 import ph.thecoffeejunkie.crm.dto.response.ProductResponse;
+import ph.thecoffeejunkie.crm.dto.response.PublicLineItem;
+import ph.thecoffeejunkie.crm.dto.response.PublicQuotationResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationItemResponse;
 import ph.thecoffeejunkie.crm.dto.response.QuotationResponse;
 import ph.thecoffeejunkie.crm.dto.response.SalesRepResponse;
@@ -31,6 +33,7 @@ import ph.thecoffeejunkie.crm.entity.StockMovement;
 import ph.thecoffeejunkie.crm.entity.Warehouse;
 import ph.thecoffeejunkie.crm.constant.InvoiceStatus;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
+import ph.thecoffeejunkie.crm.service.NotificationService;
 import ph.thecoffeejunkie.crm.service.StorageService;
 
 import java.time.LocalDate;
@@ -85,10 +88,41 @@ public final class CustomMapper {
                 invoice.getPaymentTerms() != null ? invoice.getPaymentTerms().getLabel() : null,
                 invoice.getNotes(),
                 invoice.getTermsAndConditions(),
-                StorageService.url(invoice.getProofOfPaymentPath()),
+                // proofOfPaymentPath (first file) kept so existing clients still get one link
+                invoice.getProofOfPaymentPaths().isEmpty() ? null : StorageService.url(invoice.getProofOfPaymentPaths().get(0)),
+                invoice.getProofOfPaymentPaths().stream().map(StorageService::url).toList(),
                 invoice.getPayments().stream().map(CustomMapper::toInvoicePaymentResponse).toList(),
                 invoice.getPaidAt()
                 );
+    }
+
+    public static PublicQuotationResponse toPublicQuotationResponse(Quotation quotation) {
+        return new PublicQuotationResponse(
+                quotation.getQuotationNumber(),
+                NotificationService.customerName(quotation.getCustomer()),
+                quotation.getStatus(),
+                quotation.getExpiryDate() != null && quotation.getExpiryDate().isBefore(LocalDate.now()),
+                quotation.getQuoteDate(),
+                quotation.getExpiryDate(),
+                quotation.getPaymentTerms() != null ? quotation.getPaymentTerms().getLabel() : null,
+                quotation.getQuotationItems().stream()
+                        .map(i -> new PublicLineItem(i.getProduct().getProductName(), i.getQuantity(), i.getPrice(),
+                                i.getDiscount(), i.getDiscountType(), i.getTotal()))
+                        .toList(),
+                quotation.getShippingCharges(),
+                quotation.getDiscount(),
+                quotation.getDiscountType(),
+                quotation.getTotalAmount(),
+                quotation.getNotes(),
+                quotation.getTermsAndConditions()
+        );
+    }
+
+    public static List<PublicLineItem> toPublicLineItems(Invoice invoice) {
+        return invoice.getInvoiceItems().stream()
+                .map(i -> new PublicLineItem(i.getProduct().getProductName(), i.getQuantity(), i.getPrice(),
+                        i.getDiscount(), i.getDiscountType(), i.getTotal()))
+                .toList();
     }
 
     /**

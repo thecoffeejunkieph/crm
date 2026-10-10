@@ -32,7 +32,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final List<Rule> RULES = List.of(
             new Rule("login", "/api/v1/auth/login", 10, Duration.ofSeconds(60), true),
             new Rule("quote-link", "/api/v1/quotations/*/respond", 20, Duration.ofSeconds(60), false),
-            new Rule("payment-link", "/api/v1/invoices/*/proof-of-payment", 20, Duration.ofSeconds(60), false)
+            new Rule("payment-link", "/api/v1/invoices/*/proof-of-payment", 20, Duration.ofSeconds(60), false),
+            // Customer portal pages: also caps guessing the email on the accept-quotation page.
+            new Rule("public-portal", "/api/v1/public/**", 30, Duration.ofSeconds(60), false)
     );
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();

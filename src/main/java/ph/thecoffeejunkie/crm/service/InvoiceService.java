@@ -38,6 +38,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -216,7 +218,7 @@ public class InvoiceService {
         return invoice;
     }
 
-    public InvoiceResponse uploadProofOfPayment(Long id, MultipartFile file) {
+    public InvoiceResponse uploadProofOfPayment(Long id, List<MultipartFile> files, BigDecimal amount, PaymentMethod method) {
         log.info("Uploading proof of payment for invoice with id: {}", id);
 
         Invoice invoice = repository.findById(id)
@@ -230,15 +232,39 @@ public class InvoiceService {
                     + invoice.getStatus());
         }
 
-        if (file == null || file.isEmpty()) {
+        List<MultipartFile> nonEmpty = files == null ? List.of()
+                : files.stream().filter(f -> f != null && !f.isEmpty()).toList();
+        if (nonEmpty.isEmpty()) {
             throw new InvalidRequestException("Proof of payment file is required");
         }
+        BigDecimal balance = validatePayment(invoice, amount, method);
 
-        String key = storageService.store("invoices/" + invoice.getInvoiceNumber() + "/proof-of-payment",
-                file, StorageService.PROOF_TYPES);
+        String prefix = "invoices/" + invoice.getInvoiceNumber() + "/proof-of-payment";
+        List<String> keys = new ArrayList<>();
+        try {
+            for (MultipartFile file : nonEmpty) {
+                keys.add(storageService.store(prefix, file, StorageService.CUSTOMER_PROOF_TYPES));
+            }
+        } catch (RuntimeException e) {
+            // One bad file rejects the whole upload - don't leave the earlier ones orphaned.
+            keys.forEach(storageService::deleteQuietly);
+            throw e;
+        }
 
-        invoice.setProofOfPaymentPath(key);
-        invoice.setStatus(InvoiceStatus.FOR_PAYMENT_VERIFICATION);
+        invoice.getProofOfPaymentPaths().addAll(keys);
+
+        InvoicePayment payment = new InvoicePayment();
+        payment.setInvoice(invoice);
+        payment.setAmount(amount);
+        payment.setMethod(method);
+        payment.setProofOfPaymentPath(keys.get(0));
+        payment.setRecordedAt(LocalDateTime.now());
+        invoice.getPayments().add(invoicePaymentRepository.save(payment));
+
+        // A partial payment leaves the invoice UNPAID so the customer can upload the rest later.
+        if (amount.compareTo(balance) >= 0) {
+            invoice.setStatus(InvoiceStatus.FOR_PAYMENT_VERIFICATION);
+        }
         InvoiceResponse response = CustomMapper.toInvoiceResponse(repository.save(invoice));
 
         log.info("Received proof of payment for invoice {}", invoice.getInvoiceNumber());
@@ -262,21 +288,8 @@ public class InvoiceService {
             throw new InvalidRequestException("Cannot record a payment for a cancelled invoice");
         }
 
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidRequestException("Payment amount must be greater than zero");
-        }
-        if (method == null) {
-            throw new InvalidRequestException("Payment method is required");
-        }
-
-        BigDecimal amountPaid = invoice.getPayments().stream()
-                .map(InvoicePayment::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal balance = invoice.getTotalAmount().subtract(amountPaid);
-
-        if (amount.compareTo(balance) > 0) {
-            throw new InvalidRequestException("Payment amount exceeds the remaining balance of " + balance);
-        }
+        BigDecimal amountPaid = amountPaid(invoice);
+        validatePayment(invoice, amount, method);
 
         String proofOfPaymentPath = null;
         if (file != null && !file.isEmpty()) {
@@ -303,6 +316,27 @@ public class InvoiceService {
         return repository.findById(id)
                 .map(CustomMapper::toInvoiceResponse)
                 .orElseThrow(() -> ResourceNotFoundException.of("Invoice", id));
+    }
+
+    /** Returns the balance before this payment. */
+    private static BigDecimal validatePayment(Invoice invoice, BigDecimal amount, PaymentMethod method) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidRequestException("Payment amount must be greater than zero");
+        }
+        if (method == null) {
+            throw new InvalidRequestException("Payment method is required");
+        }
+        BigDecimal balance = invoice.getTotalAmount().subtract(amountPaid(invoice));
+        if (amount.compareTo(balance) > 0) {
+            throw new InvalidRequestException("Payment amount exceeds the remaining balance of " + balance);
+        }
+        return balance;
+    }
+
+    private static BigDecimal amountPaid(Invoice invoice) {
+        return invoice.getPayments().stream()
+                .map(InvoicePayment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     public InvoiceResponse markPaid(Long id) {

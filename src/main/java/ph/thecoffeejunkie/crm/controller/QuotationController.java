@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,6 +23,8 @@ import ph.thecoffeejunkie.crm.service.QuotationAcceptanceService;
 import ph.thecoffeejunkie.crm.service.QuotationEmailService;
 import ph.thecoffeejunkie.crm.service.QuotationPdfService;
 import ph.thecoffeejunkie.crm.service.QuotationService;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/api/v1/quotations")
@@ -81,6 +84,11 @@ public class QuotationController {
     public ResponseEntity<String> respond(@PathVariable Long id,
                                            @RequestParam String token,
                                            @RequestParam String decision) {
+        // Accept links in emails sent before the frontend acceptance page existed land here.
+        if ("accept".equalsIgnoreCase(decision.trim())) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(quotationEmailService.acceptPageUrl(id, token))).build();
+        }
         QuotationEmailService.RespondResult result = quotationEmailService.respond(id, token, decision);
         return ResponseEntity.status(result.status()).body(result.html());
     }

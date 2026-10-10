@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,6 +26,7 @@ import ph.thecoffeejunkie.crm.service.InvoicePdfService;
 import ph.thecoffeejunkie.crm.service.InvoiceService;
 
 import java.math.BigDecimal;
+import java.net.URI;
 
 @RestController
 @RequestMapping("/api/v1/invoices")
@@ -76,17 +78,11 @@ public class InvoiceController {
         return invoiceEmailService.send(id);
     }
 
-    @GetMapping(value = "/{id}/proof-of-payment", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> uploadForm(@PathVariable Long id, @RequestParam String token) {
-        InvoicePaymentPortalService.PortalResult result = invoicePaymentPortalService.renderUploadForm(id, token);
-        return ResponseEntity.status(result.status()).body(result.html());
-    }
-
-    @PostMapping(value = "/{id}/proof-of-payment", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> uploadProof(@PathVariable Long id, @RequestParam String token,
-                                               @RequestParam("file") MultipartFile file) {
-        InvoicePaymentPortalService.PortalResult result = invoicePaymentPortalService.handleUpload(id, token, file);
-        return ResponseEntity.status(result.status()).body(result.html());
+    /** Upload links in emails sent before the frontend payment page existed land here. */
+    @GetMapping("/{id}/proof-of-payment")
+    public ResponseEntity<Void> uploadForm(@PathVariable Long id, @RequestParam String token) {
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(invoicePaymentPortalService.uploadPageUrl(id, token))).build();
     }
 
     @PostMapping(value = "/{id}/payments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

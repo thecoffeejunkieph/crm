@@ -53,6 +53,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/check-token",
                                 "/api/v1/quotations/*/respond",
                                 "/api/v1/invoices/*/proof-of-payment",
+                                "/api/v1/public/**",
                                 "/favicon.ico"
                         ).permitAll()
                         .anyRequest().authenticated()).

@@ -15,6 +15,7 @@ import ph.thecoffeejunkie.crm.entity.CRMUser;
 import ph.thecoffeejunkie.crm.entity.Customer;
 import ph.thecoffeejunkie.crm.entity.DeliveryOrder;
 import ph.thecoffeejunkie.crm.entity.Invoice;
+import ph.thecoffeejunkie.crm.exception.InvalidRequestException;
 import ph.thecoffeejunkie.crm.entity.Quotation;
 import ph.thecoffeejunkie.crm.repository.CRMUserRepository;
 import ph.thecoffeejunkie.crm.repository.CustomerRepository;
@@ -134,10 +135,33 @@ class NotificationEventsTest {
         var invoices = new InvoiceFixture();
         when(invoices.storage.store(anyString(), any(), any())).thenReturn("key");
 
-        invoices.service.uploadProofOfPayment(11L, file());
+        invoices.service.uploadProofOfPayment(11L, List.of(file()), new BigDecimal("100"), PaymentMethod.GCASH);
 
         verify(notifications).toRole(Role.ADMIN, NotificationType.PAYMENT_AWAITING_VERIFICATION, 11L,
                 "Payment to verify: INV-1", "Ana Cruz's payment for invoice INV-1 is waiting for verification.");
+    }
+
+    @Test
+    void partialProofUploadRecordsPaymentAndStaysUnpaid() {
+        var invoices = new InvoiceFixture();
+        when(invoices.storage.store(anyString(), any(), any())).thenReturn("key");
+
+        InvoiceResponse response = invoices.service.uploadProofOfPayment(11L, List.of(file()),
+                new BigDecimal("40"), PaymentMethod.BANK_TRANSFER);
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, response.payments().size());
+        org.junit.jupiter.api.Assertions.assertEquals(new BigDecimal("40"), response.payments().get(0).amount());
+        org.junit.jupiter.api.Assertions.assertEquals(PaymentMethod.BANK_TRANSFER, response.payments().get(0).method());
+        org.junit.jupiter.api.Assertions.assertEquals(InvoiceStatus.UNPAID, response.status());
+    }
+
+    @Test
+    void proofUploadOverBalanceIsRejected() {
+        var invoices = new InvoiceFixture();
+
+        org.junit.jupiter.api.Assertions.assertThrows(InvalidRequestException.class, () ->
+                invoices.service.uploadProofOfPayment(11L, List.of(file()), new BigDecimal("101"), PaymentMethod.GCASH));
+        verifyNoInteractions(invoices.storage);
     }
 
     @Test
@@ -201,8 +225,9 @@ class NotificationEventsTest {
         final InvoiceRepository repository = mock(InvoiceRepository.class);
         final StorageService storage = mock(StorageService.class);
         final DeliveryOrderService deliveryOrders = mock(DeliveryOrderService.class);
+        final InvoicePaymentRepository payments = mock(InvoicePaymentRepository.class);
         final InvoiceService service = new InvoiceService(repository, mock(InvoiceItemRepository.class),
-                mock(InvoicePaymentRepository.class), mock(InvoiceNumberGenerator.class), mock(InventoryService.class),
+                payments, mock(InvoiceNumberGenerator.class), mock(InventoryService.class),
                 deliveryOrders, mock(CustomerRepository.class), mock(ProductRepository.class),
                 mock(CRMUserRepository.class), storage, notifications);
 
@@ -210,6 +235,7 @@ class NotificationEventsTest {
             Invoice invoice = invoice();
             when(repository.findById(11L)).thenReturn(Optional.of(invoice));
             when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(payments.save(any())).thenAnswer(inv -> inv.getArgument(0));
         }
     }
 

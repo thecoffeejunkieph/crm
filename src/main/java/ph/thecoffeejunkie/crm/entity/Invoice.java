@@ -71,6 +71,10 @@ public class Invoice extends BaseEntity {
     private String notes;
     private String termsAndConditions;
 
-    private String proofOfPaymentPath;
+    @ElementCollection
+    @CollectionTable(name = "invoice_proof_of_payment", joinColumns = @JoinColumn(name = "invoice_id"))
+    @Column(name = "file_path")
+    private List<String> proofOfPaymentPaths = new ArrayList<>();
+
     private LocalDateTime paidAt;
 }

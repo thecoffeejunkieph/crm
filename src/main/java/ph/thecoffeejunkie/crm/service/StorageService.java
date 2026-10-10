@@ -36,6 +36,8 @@ public class StorageService {
 
     public static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     public static final Set<String> PROOF_TYPES = Set.of("image/jpeg", "image/png", "image/webp", "application/pdf");
+    /** What customers may upload on the public payment page. */
+    public static final Set<String> CUSTOMER_PROOF_TYPES = Set.of("image/jpeg", "image/png", "application/pdf");
 
     private static final String FILES_PATH = "/api/v1/files/";
 
