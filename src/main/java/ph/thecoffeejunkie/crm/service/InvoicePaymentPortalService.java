@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.constant.PaymentMethod;
+import ph.thecoffeejunkie.crm.constant.SalesChannel;
 import ph.thecoffeejunkie.crm.dto.response.PublicInvoiceResponse;
 import ph.thecoffeejunkie.crm.entity.InvoicePayment;
 import ph.thecoffeejunkie.crm.entity.Invoice;
@@ -66,6 +67,7 @@ public class InvoicePaymentPortalService {
     public PublicInvoiceResponse upload(Long id, String token, List<MultipartFile> files,
                                         BigDecimal amount, PaymentMethod method) {
         resolveToken(id, token);
+        findOrThrow(id);
 
         // A double-submitted form would otherwise race past uploadProofOfPayment's UNPAID check.
         String lockName = "invoice-proof:" + id;
@@ -95,7 +97,10 @@ public class InvoicePaymentPortalService {
     }
 
     private Invoice findOrThrow(Long id) {
-        return repository.findById(id).orElseThrow(() -> ResourceNotFoundException.of("Invoice", id));
+        // POS receipts have no payment portal.
+        return repository.findById(id)
+                .filter(invoice -> invoice.getChannel() != SalesChannel.POS)
+                .orElseThrow(() -> ResourceNotFoundException.of("Invoice", id));
     }
 
     private PublicInvoiceResponse toPublic(Invoice invoice) {

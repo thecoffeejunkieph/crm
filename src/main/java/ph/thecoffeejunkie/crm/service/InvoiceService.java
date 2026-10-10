@@ -11,6 +11,7 @@ import ph.thecoffeejunkie.crm.constant.NotificationType;
 import ph.thecoffeejunkie.crm.constant.PaymentMethod;
 import ph.thecoffeejunkie.crm.constant.PaymentTerms;
 import ph.thecoffeejunkie.crm.constant.Role;
+import ph.thecoffeejunkie.crm.constant.SalesChannel;
 import ph.thecoffeejunkie.crm.dto.request.InvoiceCreateRequest;
 import ph.thecoffeejunkie.crm.dto.request.InvoiceItemRequest;
 import ph.thecoffeejunkie.crm.dto.response.DeliveryOrderResponse;
@@ -226,6 +227,7 @@ public class InvoiceService {
                     log.warn("Invoice not found with id: {}", id);
                     return ResourceNotFoundException.of("Invoice", id);
                 });
+        rejectPos(invoice);
 
         if (invoice.getStatus() != InvoiceStatus.UNPAID) {
             throw new InvalidRequestException("Proof of payment cannot be uploaded for an invoice with status "
@@ -280,6 +282,7 @@ public class InvoiceService {
                     log.warn("Invoice not found with id: {}", id);
                     return ResourceNotFoundException.of("Invoice", id);
                 });
+        rejectPos(invoice);
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new InvalidRequestException("Cannot record a payment for an invoice that is already paid");
@@ -347,6 +350,7 @@ public class InvoiceService {
                     log.warn("Invoice not found with id: {}", id);
                     return ResourceNotFoundException.of("Invoice", id);
                 });
+        rejectPos(invoice);
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new InvalidRequestException("Invoice is already marked as paid");
@@ -371,6 +375,13 @@ public class InvoiceService {
         return response;
     }
 
+    // POS sales are paid and handed over at the counter; the B2B payment and cancel flows don't apply.
+    private static void rejectPos(Invoice invoice) {
+        if (invoice.getChannel() == SalesChannel.POS) {
+            throw new InvalidRequestException("Not allowed on POS sales");
+        }
+    }
+
     // Admins verify payments and mark invoices paid.
     private void notifyPaymentToVerify(Invoice invoice) {
         notificationService.toRole(Role.ADMIN, NotificationType.PAYMENT_AWAITING_VERIFICATION, invoice.getId(),
@@ -387,6 +398,7 @@ public class InvoiceService {
                     log.warn("Invoice not found with id: {}", id);
                     return ResourceNotFoundException.of("Invoice", id);
                 });
+        rejectPos(invoice);
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new InvalidRequestException("Cannot cancel an invoice that has already been paid");
