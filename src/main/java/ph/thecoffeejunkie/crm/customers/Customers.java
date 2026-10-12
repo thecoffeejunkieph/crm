@@ -214,6 +214,20 @@ public class Customers {
                         .map(c -> new ContactPrincipal(k.id, c.id, k.email, k.name)));
     }
 
+    /** For portal redeem: the same eligibility as {@link #portalContactByEmail}, by id. */
+    @Transactional(readOnly = true)
+    public Optional<ContactPrincipal> portalContact(long contactId) {
+        return contacts.findById(contactId).filter(k -> k.archivedAt == null && k.portalEnabled)
+                .flatMap(k -> repo.findById(k.customerId).filter(c -> c.archivedAt == null)
+                        .map(c -> new ContactPrincipal(k.id, c.id, k.email, k.name)));
+    }
+
+    @Transactional(readOnly = true)
+    public String customerName(long customerId) {
+        return repo.findById(customerId).map(c -> c.displayName)
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+    }
+
     @Transactional(readOnly = true)
     public boolean contactActive(long contactId) {
         return contacts.findById(contactId).filter(k -> k.archivedAt == null && k.portalEnabled)

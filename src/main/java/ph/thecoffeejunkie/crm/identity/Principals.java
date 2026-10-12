@@ -10,7 +10,7 @@ import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
 import java.util.Set;
 
-final class Principals {
+public final class Principals {
 
     private static final HttpSessionSecurityContextRepository REPOSITORY = new HttpSessionSecurityContextRepository();
 
@@ -23,7 +23,7 @@ final class Principals {
     }
 
     /** Rotates the session id (fixation protection) and stores the authentication in the session. */
-    static void establish(HttpServletRequest request, HttpServletResponse response, Authentication auth) {
+    public static void establish(HttpServletRequest request, HttpServletResponse response, Authentication auth) {
         request.getSession(true);
         request.changeSessionId();
         var context = SecurityContextHolder.createEmptyContext();
