@@ -1,12 +1,17 @@
 package ph.thecoffeejunkie.crm.identity;
 
-/** Kills sessions. Principal names are {@code user:<id>} / {@code contact:<id>}. */
+import java.util.List;
+
+/** Lists and kills sessions. Principal names are {@code user:<id>} / {@code contact:<id>}. */
 public interface SessionAdmin {
+
+    /** Sessions of one principal; {@code current} marks {@code currentSessionId} (may be null). */
+    List<SessionResponse> list(String principalName, String currentSessionId);
 
     void revokeAll(String principalName);
 
     void revokeAllExcept(String principalName, String keepSessionId);
 
-    /** Kills one session by its real id (never client-supplied; resolve hashes server-side first). */
-    void revoke(String sessionId);
+    /** Kills the principal's session whose id hashes to {@code hash}; false if it has none. */
+    boolean revokeByHash(String principalName, String hash);
 }

@@ -18,7 +18,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -48,7 +48,7 @@ class WarehousesIT {
     }
 
     private ResultActions create(String code, boolean isDefault) throws Exception {
-        return mvc.perform(post("/api/warehouses").with(authentication(auth(Role.ADMIN))).with(csrf())
+        return mvc.perform(post("/api/warehouses").with(authentication(auth(Role.ADMIN))).with(csrf(mvc))
                 .contentType(MediaType.APPLICATION_JSON).content(body(code, isDefault, null)));
     }
 
@@ -84,7 +84,7 @@ class WarehousesIT {
     void cannotArchiveDefault() throws Exception {
         create("WT7-E", true).andExpect(status().isOk());
         mvc.perform(post("/api/warehouses/" + idOf("WT7-E") + "/archive")
-                        .with(authentication(auth(Role.ADMIN))).with(csrf()))
+                        .with(authentication(auth(Role.ADMIN))).with(csrf(mvc)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.detail").value("Choose another default warehouse first."));
     }
@@ -93,13 +93,13 @@ class WarehousesIT {
     void staleVersionRejected() throws Exception {
         create("WT7-F", false).andExpect(status().isOk());
         long id = idOf("WT7-F");
-        mvc.perform(put("/api/warehouses/" + id).with(authentication(auth(Role.ADMIN))).with(csrf())
+        mvc.perform(put("/api/warehouses/" + id).with(authentication(auth(Role.ADMIN))).with(csrf(mvc))
                         .contentType(MediaType.APPLICATION_JSON).content(body("WT7-F", false, 99L)))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STALE_VERSION"));
-        mvc.perform(put("/api/warehouses/" + id).with(authentication(auth(Role.ADMIN))).with(csrf())
+        mvc.perform(put("/api/warehouses/" + id).with(authentication(auth(Role.ADMIN))).with(csrf(mvc))
                         .contentType(MediaType.APPLICATION_JSON).content(body("WT7-F", false, null)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
-        mvc.perform(put("/api/warehouses/" + id).with(authentication(auth(Role.ADMIN))).with(csrf())
+        mvc.perform(put("/api/warehouses/" + id).with(authentication(auth(Role.ADMIN))).with(csrf(mvc))
                         .contentType(MediaType.APPLICATION_JSON).content(body("WT7-F", false, 0L)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
     }
@@ -107,7 +107,7 @@ class WarehousesIT {
     @Test
     void salesCanListButNotCreate() throws Exception {
         mvc.perform(get("/api/warehouses").with(authentication(auth(Role.SALES)))).andExpect(status().isOk());
-        mvc.perform(post("/api/warehouses").with(authentication(auth(Role.SALES))).with(csrf())
+        mvc.perform(post("/api/warehouses").with(authentication(auth(Role.SALES))).with(csrf(mvc))
                 .contentType(MediaType.APPLICATION_JSON).content(body("WT7-G", false, null)))
                 .andExpect(status().isForbidden());
     }
@@ -115,7 +115,7 @@ class WarehousesIT {
     @Test
     void cannotUnsetDefaultViaUpdate() throws Exception {
         create("WT7-H", true).andExpect(status().isOk());
-        mvc.perform(put("/api/warehouses/" + idOf("WT7-H")).with(authentication(auth(Role.ADMIN))).with(csrf())
+        mvc.perform(put("/api/warehouses/" + idOf("WT7-H")).with(authentication(auth(Role.ADMIN))).with(csrf(mvc))
                         .contentType(MediaType.APPLICATION_JSON).content(body("WT7-H", false, 0L)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.detail").value("Choose another default warehouse first."));
@@ -125,7 +125,7 @@ class WarehousesIT {
     void archiveNonDefaultIsAuditedAndHidden() throws Exception {
         create("WT7-I", false).andExpect(status().isOk());
         long id = idOf("WT7-I");
-        mvc.perform(post("/api/warehouses/" + id + "/archive").with(authentication(auth(Role.ADMIN))).with(csrf()))
+        mvc.perform(post("/api/warehouses/" + id + "/archive").with(authentication(auth(Role.ADMIN))).with(csrf(mvc)))
                 .andExpect(status().isOk());
         assertThat(jdbc.queryForObject("select count(*) from audit_event where entity_type='WAREHOUSE' "
                 + "and action='ARCHIVED' and entity_id = ?", Integer.class, id)).isEqualTo(1);

@@ -4,8 +4,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.session.FindByIndexNameSessionRepository;
-import org.springframework.session.Session;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,23 +17,17 @@ import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HexFormat;
 import java.util.List;
 
 @RestController
 class SessionController {
 
-    private final FindByIndexNameSessionRepository<? extends Session> sessions;
     private final SessionAdmin admin;
     private final AppUserRepository users;
     private final CurrentActor actor;
     private final AuditLog audit;
 
-    SessionController(FindByIndexNameSessionRepository<? extends Session> sessions, SessionAdmin admin,
-                      AppUserRepository users, CurrentActor actor, AuditLog audit) {
-        this.sessions = sessions;
+    SessionController(SessionAdmin admin, AppUserRepository users, CurrentActor actor, AuditLog audit) {
         this.admin = admin;
         this.users = users;
         this.actor = actor;
@@ -44,7 +36,7 @@ class SessionController {
 
     @GetMapping("/api/me/sessions")
     List<SessionResponse> mine(HttpServletRequest request) {
-        return list(principal(actor.scope().userId()), currentId(request));
+        return admin.list(principal(actor.scope().userId()), currentId(request));
     }
 
     @DeleteMapping("/api/me/sessions/{hash}")
@@ -65,7 +57,7 @@ class SessionController {
     @PreAuthorize("hasRole('ADMIN')")
     List<SessionResponse> ofUser(@PathVariable long id, HttpServletRequest request) {
         requireUser(id);
-        return list(principal(id), currentId(request));
+        return admin.list(principal(id), currentId(request));
     }
 
     @DeleteMapping("/api/admin/users/{id}/sessions/{hash}")
@@ -86,32 +78,26 @@ class SessionController {
         revokeMany(id, null);
     }
 
+    // The audit row is written first: if it fails nothing was revoked.
     private void revokeOne(long userId, String hash) {
-        String id = sessions.findByPrincipalName(principal(userId)).keySet().stream()
-                .filter(s -> sha256hex(s).equals(hash)).findFirst()
-                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Session not found"));
-        admin.revoke(id);
+        if (admin.list(principal(userId), null).stream().noneMatch(s -> s.id().equals(hash))) {
+            throw new DomainException(ErrorCode.NOT_FOUND, "Session not found");
+        }
         audit.record(AuditAction.SESSION_REVOKED, "USER", userId, "Session revoked", AuditChanges.diff());
+        admin.revokeByHash(principal(userId), hash);
     }
 
     private void revokeMany(long userId, String keepId) {
+        if (admin.list(principal(userId), keepId).stream().anyMatch(s -> !s.current())) {
+            audit.record(AuditAction.SESSION_REVOKED, "USER", userId, "Sessions revoked", AuditChanges.diff());
+        }
         admin.revokeAllExcept(principal(userId), keepId);
-        audit.record(AuditAction.SESSION_REVOKED, "USER", userId, "Sessions revoked", AuditChanges.diff());
     }
 
     private void requireUser(long id) {
         if (!users.existsById(id)) {
             throw new DomainException(ErrorCode.NOT_FOUND, "User not found");
         }
-    }
-
-    private List<SessionResponse> list(String principal, String currentId) {
-        return sessions.findByPrincipalName(principal).entrySet().stream().map(e -> {
-            Session s = e.getValue();
-            return new SessionResponse(sha256hex(e.getKey()), s.getAttribute("clientType"),
-                    s.getAttribute("clientIp"), s.getAttribute("userAgent"), s.getCreationTime(),
-                    s.getLastAccessedTime(), e.getKey().equals(currentId));
-        }).sorted((a, b) -> b.lastAccessedAt().compareTo(a.lastAccessedAt())).toList();
     }
 
     private static String currentId(HttpServletRequest request) {
@@ -121,14 +107,5 @@ class SessionController {
 
     private static String principal(long userId) {
         return "user:" + userId;
-    }
-
-    static String sha256hex(String s) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(s.getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

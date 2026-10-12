@@ -72,6 +72,8 @@ class MeController {
     void changePassword(@Valid @RequestBody ChangePasswordRequest body, HttpServletRequest request) {
         AppUser u = current();
         if (!encoder.matches(body.currentPassword(), u.passwordHash)) {
+            // A hijacked session must not be able to brute-force the current password.
+            throttle.recordFailure(u.email);
             throw new DomainException(ErrorCode.VALIDATION_FAILED, "Current password is incorrect.",
                     Map.of("field", "currentPassword"));
         }

@@ -20,7 +20,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,7 +48,7 @@ class SettingsIT {
     }
 
     private MockHttpServletRequestBuilder putJson(String body) {
-        return put("/api/admin/settings").with(authentication(auth(Role.ADMIN))).with(csrf())
+        return put("/api/admin/settings").with(authentication(auth(Role.ADMIN))).with(csrf(mvc))
                 .contentType(MediaType.APPLICATION_JSON).content(body);
     }
 
@@ -122,7 +122,7 @@ class SettingsIT {
     void salesCannotRead() throws Exception {
         mvc.perform(get("/api/admin/settings").with(authentication(auth(Role.SALES))))
                 .andExpect(status().isForbidden());
-        mvc.perform(put("/api/admin/settings").with(authentication(auth(Role.SALES))).with(csrf())
+        mvc.perform(put("/api/admin/settings").with(authentication(auth(Role.SALES))).with(csrf(mvc))
                 .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isForbidden());
     }
 }
