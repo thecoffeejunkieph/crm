@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -24,6 +25,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
@@ -44,11 +46,17 @@ class LoginIT {
     @Autowired AppUserRepository users;
     @Autowired JdbcTemplate jdbc;
     @Autowired RedisIndexedSessionRepository sessions;
+    @Autowired StringRedisTemplate redis;
 
     @BeforeEach
     @AfterEach
     void clean() {
         jdbc.update("delete from app_user where email like '%@login.it' or email = 'ana@tcj.ph'");
+        // Throttle state lives in Redis and would otherwise leak between tests that reuse an email.
+        var keys = redis.keys("login:*");
+        if (!keys.isEmpty()) {
+            redis.delete(keys);
+        }
     }
 
     private AppUser user(String email, Role role) {
@@ -178,29 +186,67 @@ class LoginIT {
         mvc.perform(get("/api/me").cookie(session)).andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void parallelWrongPasswordsAllCountAndLock() throws Exception {
-        AppUser u = user("race@login.it", Role.SALES);
-        Callable<Integer> attempt = () -> mvc.perform(post("/api/auth/login").header("X-Client-Type", "ANDROID")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"race@login.it\",\"password\":\"wrong-password-123\"}"))
-                .andReturn().getResponse().getStatus();
+    /** Fires 10 simultaneous wrong-password logins; returns the sorted error codes. */
+    private List<String> burst(String email) throws Exception {
+        var gate = new CyclicBarrier(10);
+        Callable<String> attempt = () -> {
+            gate.await();
+            var res = mvc.perform(post("/api/auth/login").header("X-Client-Type", "ANDROID")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"" + email + "\",\"password\":\"wrong-password-123\"}"))
+                    .andReturn().getResponse();
+            assertThat(res.getStatus()).isEqualTo(401);
+            return JsonPath.read(res.getContentAsString(), "$.code");
+        };
         var pool = Executors.newFixedThreadPool(10);
         try {
-            List<Future<Integer>> results = new ArrayList<>();
+            List<Future<String>> results = new ArrayList<>();
             for (int i = 0; i < 10; i++) {
                 results.add(pool.submit(attempt));
             }
-            for (Future<Integer> r : results) {
-                assertThat(r.get()).isEqualTo(401);
+            List<String> codes = new ArrayList<>();
+            for (Future<String> r : results) {
+                codes.add(r.get());
             }
+            return codes.stream().sorted().toList();
         } finally {
             pool.shutdown();
         }
+    }
+
+    @Test
+    void parallelWrongPasswordsAllCountAndLock() throws Exception {
+        AppUser u = user("race@login.it", Role.SALES);
+        burst("race@login.it");
         assertThat(jdbc.queryForObject("select locked_until > now() from app_user where id = ?", Boolean.class, u.id))
                 .isTrue();
         assertThat(auditCount("ACCOUNT_LOCKED", u.id)).isEqualTo(1);
-        assertThat(auditCount("LOGIN_FAILED", u.id)).isEqualTo(5);
+        assertThat(auditCount("LOGIN_FAILED", u.id)).isEqualTo(10);
+        login("race@login.it", PW).andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
+    }
+
+    @Test
+    void parallelBurstLooksTheSameForUnknownEmail() throws Exception {
+        user("twin@login.it", Role.SALES);
+        String ghost = "ghost-" + UUID.randomUUID() + "@login.it";
+        List<String> known = burst("twin@login.it");
+        List<String> unknown = burst(ghost);
+        assertThat(unknown).isEqualTo(known);
+        login("twin@login.it", PW).andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
+        login(ghost, PW).andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
+    }
+
+    @Test
+    void successfulLoginClearsFailureCount() throws Exception {
+        user("reset@login.it", Role.SALES);
+        for (int i = 0; i < 4; i++) {
+            login("reset@login.it", "wrong-password-123").andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        }
+        login("reset@login.it", PW).andExpect(status().isOk());
+        for (int i = 0; i < 4; i++) {
+            login("reset@login.it", "wrong-password-123").andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        }
+        login("reset@login.it", PW).andExpect(status().isOk());
     }
 
     private int auditCount(String action, long userId) {

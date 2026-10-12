@@ -10,21 +10,14 @@ import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
-import ph.thecoffeejunkie.crm.shared.RateLimiter;
 import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
 @Service
 class LoginService {
-
-    static final int MAX_FAILURES = 5;
-    static final Duration LOCK_DURATION = Duration.ofMinutes(15);
-    private static final String UNKNOWN_EMAIL_RULE = "login-unknown-email";
 
     /** What the caller turns into a session, after the transaction has committed. */
     record Outcome(String next, Authentication authentication) {
@@ -33,52 +26,47 @@ class LoginService {
     private final AppUserRepository users;
     private final PasswordEncoder encoder;
     private final AuditLog audit;
-    private final RateLimiter failures;
+    private final LoginThrottle throttle;
     private final Clock clock;
     /** Checked when there is no real hash, so every path costs the same bcrypt time. */
     private final String dummyHash;
 
-    LoginService(AppUserRepository users, PasswordEncoder encoder, AuditLog audit, RateLimiter failures,
+    LoginService(AppUserRepository users, PasswordEncoder encoder, AuditLog audit, LoginThrottle throttle,
                  Clock clock) {
         this.users = users;
         this.encoder = encoder;
         this.audit = audit;
-        this.failures = failures;
+        this.throttle = throttle;
         this.clock = clock;
         this.dummyHash = encoder.encode("timing-equaliser-not-a-password");
     }
 
-    /** No rollback on DomainException: failed-login counters and audit rows must survive the 401. */
+    /**
+     * Lockout is decided by LoginThrottle (Redis, per email, same rules for unknown emails); the app_user
+     * columns only mirror it. No row lock is held, so bcrypt never pins a DB connection behind another login.
+     * No rollback on DomainException: the mirror and audit rows must survive the 401.
+     */
     @Transactional(noRollbackFor = DomainException.class)
     Outcome login(LoginRequest req) {
         String email = req.email().trim().toLowerCase(Locale.ROOT);
-        Instant now = clock.instant();
-        AppUser u = users.lockForLogin(email).orElse(null);
-        if (u == null) {
+        if (throttle.isLocked(email)) {
             encoder.matches(req.password(), dummyHash);
-            // Unknown emails "lock" too (counted in Redis), so ACCOUNT_LOCKED does not reveal which emails exist.
-            // RateLimiter fails open (WARN) if Redis is down.
-            if (failures.retryAfterIfOver(UNKNOWN_EMAIL_RULE, email, MAX_FAILURES, LOCK_DURATION) > 0) {
-                throw accountLocked();
-            }
-            failures.record(UNKNOWN_EMAIL_RULE, email, LOCK_DURATION);
-            audit.recordFor("SYSTEM", null, null, AuditAction.LOGIN_FAILED, "USER", null,
-                    "Failed login for " + email);
-            throw invalidCredentials();
+            throw new DomainException(ErrorCode.ACCOUNT_LOCKED, "Too many failed logins. Try again later.");
         }
-        if (u.lockedUntil != null && u.lockedUntil.isAfter(now)) {
-            encoder.matches(req.password(), dummyHash);
-            throw accountLocked();
-        }
-        // An invited user without a password yet fails exactly like a wrong password.
-        boolean ok = encoder.matches(req.password(), u.passwordHash == null ? dummyHash : u.passwordHash)
-                && u.passwordHash != null;
+        AppUser u = users.findByEmailAndArchivedAtIsNull(email).orElse(null);
+        String hash = u == null ? null : u.passwordHash;
+        // Unknown emails and invited users without a password fail exactly like a wrong password.
+        boolean ok = encoder.matches(req.password(), hash == null ? dummyHash : hash) && hash != null;
         if (!ok) {
-            recordFailure(u, email, now);
-            throw invalidCredentials();
+            recordFailure(u, email);
+            // Even the attempt that locks answers UNAUTHORIZED; the next one gets ACCOUNT_LOCKED.
+            throw new DomainException(ErrorCode.UNAUTHORIZED, "Invalid email or password");
         }
 
-        u.failedLogins = 0;
+        throttle.clear(email);
+        if (u.failedLogins != 0 || u.lockedUntil != null) {
+            users.resetFailedLogins(u.id);
+        }
         var principal = Principals.staffOf(u, u.warehouseIds);
         String next;
         String authority;
@@ -98,23 +86,25 @@ class LoginService {
                 principal, null, List.of(new SimpleGrantedAuthority(authority))));
     }
 
-    private void recordFailure(AppUser u, String email, Instant now) {
-        u.failedLogins++;
-        audit.recordFor("USER", u.id, u.displayName(), AuditAction.LOGIN_FAILED, "USER", u.id,
-                "Failed login for " + email);
-        if (u.failedLogins >= MAX_FAILURES) {
-            u.lockedUntil = now.plus(LOCK_DURATION);
-            u.failedLogins = 0;
-            audit.recordFor("USER", u.id, u.displayName(), AuditAction.ACCOUNT_LOCKED, "USER", u.id,
-                    "Locked for " + LOCK_DURATION.toMinutes() + " minutes after " + MAX_FAILURES + " failed logins");
+    private void recordFailure(AppUser u, String email) {
+        boolean locked = throttle.recordFailure(email);
+        String summary = "Failed login for " + email;
+        if (u == null) {
+            audit.recordFor("SYSTEM", null, null, AuditAction.LOGIN_FAILED, "USER", null, summary);
+            if (locked) {
+                audit.recordFor("SYSTEM", null, null, AuditAction.ACCOUNT_LOCKED, "USER", null,
+                        "Unknown email " + email + " locked after " + LoginThrottle.MAX_FAILURES + " failed logins");
+            }
+            return;
         }
-    }
-
-    private static DomainException invalidCredentials() {
-        return new DomainException(ErrorCode.UNAUTHORIZED, "Invalid email or password");
-    }
-
-    private static DomainException accountLocked() {
-        return new DomainException(ErrorCode.ACCOUNT_LOCKED, "Too many failed logins. Try again later.");
+        audit.recordFor("USER", u.id, u.displayName(), AuditAction.LOGIN_FAILED, "USER", u.id, summary);
+        if (locked) {
+            users.lockLogin(u.id, clock.instant().plus(LoginThrottle.WINDOW));
+            audit.recordFor("USER", u.id, u.displayName(), AuditAction.ACCOUNT_LOCKED, "USER", u.id,
+                    "Locked for " + LoginThrottle.WINDOW.toMinutes() + " minutes after "
+                            + LoginThrottle.MAX_FAILURES + " failed logins");
+        } else {
+            users.incrementFailedLogins(u.id);
+        }
     }
 }
