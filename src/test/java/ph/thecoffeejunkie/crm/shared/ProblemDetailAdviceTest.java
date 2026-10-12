@@ -75,6 +75,22 @@ class ProblemDetailAdviceTest {
     }
 
     @Test
+    void malformedJsonKeeps400WithCodeAndRequestId() throws Exception {
+        mvc.perform(post("/valid").contentType(MediaType.APPLICATION_JSON).content("{not json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.requestId").value(not(emptyString())));
+    }
+
+    @Test
+    void wrongMethodKeeps405WithRequestIdAndNoCode() throws Exception {
+        mvc.perform(post("/dup"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.requestId").value(not(emptyString())))
+                .andExpect(jsonPath("$.code").doesNotExist());
+    }
+
+    @Test
     void unexpectedErrorHidesDetail() throws Exception {
         mvc.perform(get("/boom"))
                 .andExpect(status().isInternalServerError())

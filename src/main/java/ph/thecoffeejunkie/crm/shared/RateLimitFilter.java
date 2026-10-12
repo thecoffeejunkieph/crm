@@ -68,7 +68,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 response.getWriter().write("{\"title\":\"Too Many Requests\",\"status\":429,"
                         + "\"detail\":\"Too many attempts. Try again in " + retryAfter + " seconds.\","
                         + "\"code\":\"" + ErrorCode.RATE_LIMITED.name() + "\","
-                        + "\"requestId\":\"" + MDC.get(RequestIdFilter.MDC_KEY) + "\"}");
+                        + "\"requestId\":\"" + java.util.Objects.requireNonNullElse(MDC.get(RequestIdFilter.MDC_KEY), "") + "\"}");
                 return;
             }
             chain.doFilter(request, response);

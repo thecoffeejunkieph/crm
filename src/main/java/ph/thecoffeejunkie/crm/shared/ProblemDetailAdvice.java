@@ -4,21 +4,25 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.ErrorResponse;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.List;
 import java.util.Map;
 
 @Slf4j
 @RestControllerAdvice
-public class ProblemDetailAdvice {
+public class ProblemDetailAdvice extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> domain(DomainException e) {
@@ -27,12 +31,31 @@ public class ProblemDetailAdvice {
         return respond(pd);
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    ResponseEntity<ProblemDetail> invalidBody(MethodArgumentNotValidException e) {
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException e,
+            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         List<Map<String, String>> errors = e.getBindingResult().getFieldErrors().stream()
                 .map(f -> Map.of("field", f.getField(), "message", String.valueOf(f.getDefaultMessage())))
                 .toList();
-        return validation(errors);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validation(errors).getBody());
+    }
+
+    /** Spring MVC's own 4xx exceptions keep their status; they just gain requestId (and code where it is unambiguous). */
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception e, Object body, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+        if (body == null && e instanceof ErrorResponse er) {
+            body = er.getBody();
+        }
+        if (body instanceof ProblemDetail pd) {
+            pd.setProperty("requestId", MDC.get(RequestIdFilter.MDC_KEY));
+            if (status.value() == 400) {
+                pd.setProperty("code", ErrorCode.VALIDATION_FAILED.name());
+            } else if (status.value() == 404) {
+                pd.setProperty("code", ErrorCode.NOT_FOUND.name());
+            }
+        }
+        return super.handleExceptionInternal(e, body, headers, status, request);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -51,11 +74,6 @@ public class ProblemDetailAdvice {
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ProblemDetail> denied(AccessDeniedException e) {
         return respond(problem(ErrorCode.FORBIDDEN, "You do not have access to this resource."));
-    }
-
-    @ExceptionHandler(NoResourceFoundException.class)
-    ResponseEntity<ProblemDetail> noResource(NoResourceFoundException e) {
-        return respond(problem(ErrorCode.NOT_FOUND, "Not found."));
     }
 
     @ExceptionHandler(Exception.class)
