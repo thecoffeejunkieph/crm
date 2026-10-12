@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -17,9 +19,11 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import ph.thecoffeejunkie.crm.MailIntegrationTest;
 import ph.thecoffeejunkie.crm.MailSupport;
+import ph.thecoffeejunkie.crm.identity.SessionAdmin;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -40,6 +44,8 @@ class PortalAuthIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired JavaMailSender sender;
     @Autowired ThreadPoolTaskExecutor applicationTaskExecutor;
+    @Autowired SessionAdmin sessionAdmin;
+    @Autowired FindByIndexNameSessionRepository<?> sessionRepo;
 
     private final String tag = "PO" + UUID.randomUUID().toString().substring(0, 8);
     private long admin;
@@ -67,7 +73,7 @@ class PortalAuthIT {
         jdbc.update("delete from one_time_token where subject_type='CONTACT' and subject_id=?", contactId);
         jdbc.update("delete from customer_contact where customer_id=?", customerId);
         jdbc.update("delete from customer where id=?", customerId);
-        jdbc.update("delete from app_user where email like ?", tag + "%");
+        jdbc.update("delete from app_user where lower(email) like lower(?)", tag + "%");
     }
 
     private static String contactJson(String email, boolean portal, Long version) {
@@ -127,7 +133,13 @@ class PortalAuthIT {
 
     @Test
     void redeemCreatesCustomerSession() throws Exception {
-        Cookie c = signIn();
+        String token = mailedToken();
+        assertThat(jdbc.queryForObject("select extract(epoch from expires_at - now()) from one_time_token "
+                + "where subject_type='CONTACT' and subject_id=? and used_at is null", Double.class, contactId))
+                .isBetween(14 * 60.0, 15 * 60.0);
+        Cookie c = redeem(token).andExpect(status().isOk()).andReturn().getResponse().getCookie("TCJSESSION");
+        assertThat(sessionRepo.findByPrincipalName("contact:" + contactId).values())
+                .singleElement().satisfies(x -> assertThat(x.getMaxInactiveInterval()).isEqualTo(Duration.ofDays(7)));
         mvc.perform(get("/api/portal/me").cookie(c)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.contactId").value(contactId))
                 .andExpect(jsonPath("$.customerId").value(customerId))
@@ -173,6 +185,7 @@ class PortalAuthIT {
     void archivedContactLosesSession() throws Exception {
         Cookie c = signIn();
         asAdmin(post("/api/customers/" + customerId + "/contacts/" + contactId + "/archive"), "");
+        assertThat(sessionAdmin.list("contact:" + contactId, null)).isEmpty(); // revoked by the hook, not just the guard
         mvc.perform(get("/api/portal/me").cookie(c)).andExpect(status().isUnauthorized());
     }
 
@@ -180,6 +193,7 @@ class PortalAuthIT {
     void archivedCustomerLosesSession() throws Exception {
         Cookie c = signIn();
         asAdmin(post("/api/customers/" + customerId + "/archive"), "");
+        assertThat(sessionAdmin.list("contact:" + contactId, null)).isEmpty(); // revoked by the hook, not just the guard
         mvc.perform(get("/api/portal/me").cookie(c)).andExpect(status().isUnauthorized());
     }
 
@@ -187,6 +201,7 @@ class PortalAuthIT {
     void portalDisabledLosesSession() throws Exception {
         Cookie c = signIn();
         asAdmin(put("/api/customers/" + customerId + "/contacts/" + contactId), contactJson(email, false, 0L));
+        assertThat(sessionAdmin.list("contact:" + contactId, null)).isEmpty(); // revoked by the hook, not just the guard
         mvc.perform(get("/api/portal/me").cookie(c)).andExpect(status().isUnauthorized());
     }
 
@@ -194,6 +209,7 @@ class PortalAuthIT {
     void emailChangeLosesSession() throws Exception {
         Cookie c = signIn();
         asAdmin(put("/api/customers/" + customerId + "/contacts/" + contactId), contactJson("new" + email, true, 0L));
+        assertThat(sessionAdmin.list("contact:" + contactId, null)).isEmpty(); // revoked by the hook, not just the guard
         mvc.perform(get("/api/portal/me").cookie(c)).andExpect(status().isUnauthorized());
     }
 
@@ -204,5 +220,19 @@ class PortalAuthIT {
         mvc.perform(get("/api/portal/me").cookie(c)).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
         mvc.perform(get("/api/portal/me").cookie(c)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void staffLoginDropsPortalSessionInsteadOfInheritingItsInterval() throws Exception {
+        Cookie portal = signIn();
+        jdbc.update("insert into app_user (email, first_name, last_name, role, password_hash) "
+                + "values (?, 'S', 'U', 'SALES', ?)", tag.toLowerCase() + "sales@portal.it", new BCryptPasswordEncoder().encode("correct-horse-battery"));
+        long staffId = jdbc.queryForObject("select id from app_user where email = ?", Long.class, tag.toLowerCase() + "sales@portal.it");
+        mvc.perform(post("/api/auth/login").cookie(portal).with(csrf(mvc)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + tag.toLowerCase() + "sales@portal.it\",\"password\":\"correct-horse-battery\"}"))
+                .andExpect(status().isOk());
+        assertThat(sessionAdmin.list("contact:" + contactId, null)).isEmpty();
+        assertThat(sessionRepo.findByPrincipalName("user:" + staffId).values())
+                .singleElement().satisfies(x -> assertThat(x.getMaxInactiveInterval()).isLessThan(Duration.ofDays(1)));
     }
 }

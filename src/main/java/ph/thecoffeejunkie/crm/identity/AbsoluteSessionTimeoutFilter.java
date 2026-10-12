@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.ProblemResponses;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ class AbsoluteSessionTimeoutFilter extends OncePerRequestFilter {
                 && clock.millis() - session.getCreationTime() > MAX_AGE.toMillis()) {
             session.invalidate();
             SecurityContextHolder.clearContext();
-            SecurityConfig.writeProblem(response, ErrorCode.UNAUTHORIZED, "Your session has expired. Log in again.");
+            ProblemResponses.write(response, ErrorCode.UNAUTHORIZED, "Your session has expired. Log in again.");
             return;
         }
         chain.doFilter(request, response);

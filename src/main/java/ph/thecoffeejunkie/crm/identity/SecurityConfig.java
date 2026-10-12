@@ -1,14 +1,11 @@
 package ph.thecoffeejunkie.crm.identity;
 
-import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,11 +17,9 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.util.matcher.RequestHeaderRequestMatcher;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
-import ph.thecoffeejunkie.crm.shared.RequestIdFilter;
+import ph.thecoffeejunkie.crm.shared.ProblemResponses;
 
-import java.io.IOException;
 import java.time.Clock;
-import java.util.Objects;
 
 import static ph.thecoffeejunkie.crm.identity.HeaderOrCookieSessionIdResolver.ANDROID;
 import static ph.thecoffeejunkie.crm.identity.HeaderOrCookieSessionIdResolver.AUTH_HEADER;
@@ -77,9 +72,9 @@ class SecurityConfig {
                 })
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint((req, res, ex) ->
-                                writeProblem(res, ErrorCode.UNAUTHORIZED, "Login required."))
+                                ProblemResponses.write(res, ErrorCode.UNAUTHORIZED, "Login required."))
                         .accessDeniedHandler((req, res, ex) ->
-                                writeProblem(res, ErrorCode.FORBIDDEN, "You do not have access to this resource.")))
+                                ProblemResponses.write(res, ErrorCode.FORBIDDEN, "You do not have access to this resource.")))
                 .addFilterAfter(new AbsoluteSessionTimeoutFilter(clock), SecurityContextHolderFilter.class)
                 // A 401 must not create a session just to remember the request.
                 .requestCache(c -> c.disable())
@@ -87,19 +82,5 @@ class SecurityConfig {
                 .formLogin(f -> f.disable())
                 .httpBasic(b -> b.disable())
                 .build();
-    }
-
-    /**
-     * Hand-written ProblemDetail JSON: security filters run outside MVC's message converters.
-     * Only constant details are passed in; requestId is [A-Za-z0-9-] (see RequestIdFilter).
-     */
-    static void writeProblem(HttpServletResponse response, ErrorCode code, String detail) throws IOException {
-        response.setStatus(code.status().value());
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        response.getWriter().write("{\"title\":\"" + code.status().getReasonPhrase() + "\","
-                + "\"status\":" + code.status().value() + ","
-                + "\"detail\":\"" + detail + "\","
-                + "\"code\":\"" + code.name() + "\","
-                + "\"requestId\":\"" + Objects.requireNonNullElse(MDC.get(RequestIdFilter.MDC_KEY), "") + "\"}");
     }
 }
