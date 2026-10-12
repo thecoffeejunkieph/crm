@@ -12,4 +12,6 @@ interface CustomerContactRepository extends JpaRepository<CustomerContact, Long>
     Optional<CustomerContact> findByIdAndCustomerIdAndArchivedAtIsNull(long id, long customerId);
 
     Optional<CustomerContact> findByEmailAndArchivedAtIsNull(String email);
+
+    List<CustomerContact> findByCustomerIdAndArchivedAtOrderById(long customerId, java.time.Instant archivedAt);
 }

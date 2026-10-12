@@ -36,6 +36,7 @@ class CustomerScopingIT {
     void cleanUp() {
         jdbc.update("delete from customer_contact where customer_id in (select id from customer where display_name like ?)", tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
+        jdbc.update("delete from app_user where email like ?", tag + "%");
     }
 
     private long user(String name, String role) {
@@ -98,6 +99,18 @@ class CustomerScopingIT {
                 .andExpect(jsonPath("$[0].creditLimit").doesNotExist())
                 .andExpect(jsonPath("$[0].notes").doesNotExist())
                 .andExpect(jsonPath("$[0].contacts").doesNotExist());
+    }
+
+    @Test
+    void listWithoutQWorksForAdminAndSales() throws Exception {
+        long a = user("a", "SALES"), admin = user("adm", "ADMIN");
+        customer("mine", a);
+        customer("other", null);
+        mvc.perform(get("/api/customers").with(authentication(as(a, Role.SALES))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(get("/api/customers").param("size", "100").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.displayName=='" + tag + "other')]").exists());
     }
 
     @Test

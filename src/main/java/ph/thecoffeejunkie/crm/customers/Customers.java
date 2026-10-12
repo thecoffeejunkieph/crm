@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.customers;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -95,7 +96,7 @@ public class Customers {
                 .field("tin", c.tin, req.tin())
                 .field("address", c.address, req.address())
                 .field("phone", c.phone, req.phone())
-                .field("email", c.email, req.email())
+                .field("email", c.email, normaliseOrNull(req.email()))
                 .field("creditLimit", c.creditLimit, req.creditLimit())
                 .field("paymentTerms", c.paymentTerms, req.paymentTerms())
                 .field("source", c.source, req.source())
@@ -126,10 +127,12 @@ public class Customers {
     CustomerResponse assign(Scope s, long id, Long repId) {
         Customer c = findVisible(id, s, false);
         if (repId != null && !users.isActiveWithRole(repId, Role.SALES)) {
-            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Choose an active sales user.",
-                    Map.of("field", "repId"));
+            throw invalid("repId", "Choose an active sales user.");
         }
         AuditChanges changes = AuditChanges.diff().field("assignedRepId", c.assignedRepId, repId);
+        if (changes.isEmpty()) {
+            return toResponse(c);
+        }
         c.assignedRepId = repId;
         c.updatedAt = Instant.now();
         repo.saveAndFlush(c);
@@ -145,7 +148,7 @@ public class Customers {
         String email = normalise(req.email());
         requireEmailFree(email, null);
         fill(k, req, email);
-        contacts.saveAndFlush(k);
+        saveContact(k);
         audit.record(AuditAction.CREATED, ENTITY, customerId,
                 "Added contact " + k.name + " to " + c.displayName, null);
         return toResponse(k);
@@ -161,10 +164,11 @@ public class Customers {
         AuditChanges changes = AuditChanges.diff().field("contact.name", k.name, req.name().trim())
                 .field("contact.email", k.email, email).field("contact.phone", k.phone, req.phone())
                 .field("contact.portalEnabled", k.portalEnabled, req.portalEnabled());
-        boolean portalRevoked = k.portalEnabled && !req.portalEnabled();
+        // A live portal principal carries the old email, so email change or portal disable ends its sessions.
+        boolean portalRevoked = (k.portalEnabled && !req.portalEnabled()) || !k.email.equals(email);
         fill(k, req, email);
         k.updatedAt = Instant.now();
-        contacts.saveAndFlush(k);
+        saveContact(k);
         audit.record(AuditAction.UPDATED, ENTITY, customerId,
                 "Updated contact " + k.name + " of " + c.displayName, changes);
         if (portalRevoked) {
@@ -195,8 +199,7 @@ public class Customers {
     @Transactional(readOnly = true)
     List<CustomerLookupItem> lookup(String q) {
         if (q == null || q.trim().length() < 2) {
-            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Type at least 2 characters.",
-                    Map.of("field", "q"));
+            throw invalid("q", "Type at least 2 characters.");
         }
         Specification<Customer> spec = Specification.allOf(CustomerScopes.active(), CustomerScopes.matches(q));
         return repo.findAll(spec, PageRequest.of(0, 20, DEFAULT_SORT)).stream()
@@ -227,21 +230,39 @@ public class Customers {
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Contact not found"));
     }
 
+    // The partial unique index is the real guard; the pre-check only gives the common case a cheap path.
+    private void saveContact(CustomerContact k) {
+        try {
+            contacts.saveAndFlush(k);
+        } catch (DataIntegrityViolationException e) {
+            throw duplicateEmail();
+        }
+    }
+
     private void requireEmailFree(String email, Long selfId) {
         contacts.findByEmailAndArchivedAtIsNull(email).filter(k -> !k.id.equals(selfId)).ifPresent(k -> {
-            throw new DomainException(ErrorCode.DUPLICATE, "A contact with this email already exists.");
+            throw duplicateEmail();
         });
     }
 
     private static void requireVersion(long current, Long sent) {
         if (sent == null) {
-            throw new DomainException(ErrorCode.VALIDATION_FAILED, "version is required",
-                    Map.of("errors", List.of(Map.of("field", "version", "message", "must not be null"))));
+            throw invalid("version", "must not be null");
         }
         if (current != sent) {
             throw new DomainException(ErrorCode.STALE_VERSION,
                     "This record was changed by someone else. Reload and retry.");
         }
+    }
+
+    /** Same body as a failed {@code @Valid}: {@code errors:[{field,message}]}. */
+    private static DomainException invalid(String field, String message) {
+        return new DomainException(ErrorCode.VALIDATION_FAILED, message,
+                Map.of("errors", List.of(Map.of("field", field, "message", message))));
+    }
+
+    private static DomainException duplicateEmail() {
+        return new DomainException(ErrorCode.DUPLICATE, "A contact with this email already exists.");
     }
 
     private static boolean sameAmount(BigDecimal a, BigDecimal b) {
@@ -256,7 +277,7 @@ public class Customers {
         c.tin = r.tin();
         c.address = r.address();
         c.phone = r.phone();
-        c.email = r.email();
+        c.email = normaliseOrNull(r.email());
         c.paymentTerms = r.paymentTerms();
         c.source = r.source();
         c.notes = r.notes();
@@ -272,6 +293,10 @@ public class Customers {
         k.portalEnabled = r.portalEnabled();
     }
 
+    private static String normaliseOrNull(String email) {
+        return email == null || email.isBlank() ? null : normalise(email);
+    }
+
     private static String normalise(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
@@ -283,7 +308,10 @@ public class Customers {
     }
 
     private CustomerResponse toResponse(Customer c) {
-        List<ContactResponse> cs = contacts.findByCustomerIdAndArchivedAtIsNullOrderById(c.id).stream()
+        // An archived customer shows the contacts that were archived together with it.
+        var rows = c.archivedAt == null ? contacts.findByCustomerIdAndArchivedAtIsNullOrderById(c.id)
+                : contacts.findByCustomerIdAndArchivedAtOrderById(c.id, c.archivedAt);
+        List<ContactResponse> cs = rows.stream()
                 .map(Customers::toResponse).toList();
         String rep = c.assignedRepId == null ? null : repNames(List.of(c.assignedRepId)).get(c.assignedRepId);
         return new CustomerResponse(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.phone, c.email,

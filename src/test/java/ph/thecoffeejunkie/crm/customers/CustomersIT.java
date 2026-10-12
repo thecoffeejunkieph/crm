@@ -14,7 +14,11 @@ import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.Set;
 import java.util.UUID;
 
@@ -39,6 +43,7 @@ class CustomersIT {
     void cleanUp() {
         jdbc.update("delete from customer_contact where customer_id in (select id from customer where display_name like ?)", tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
+        jdbc.update("delete from app_user where email like ?", tag + "%");
     }
 
     private long user(String name, String role) {
@@ -144,5 +149,117 @@ class CustomersIT {
         long admin = user("adm", "ADMIN");
         mvc.perform(get("/api/customers/lookup").param("q", "a").with(authentication(as(admin, Role.ADMIN))))
                 .andExpect(status().isBadRequest());
+    }
+
+    private long contactId(ResultActions r) throws Exception {
+        return ((Number) JsonPath.read(r.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(),
+                "$.id")).longValue();
+    }
+
+    private ResultActions postTo(long uid, Role role, String url) throws Exception {
+        return mvc.perform(post(url).with(authentication(as(uid, role))).with(csrf(mvc)));
+    }
+
+    @Test
+    void customerEmailNormalised() throws Exception {
+        long admin = user("adm", "ADMIN");
+        String body = json("em", "1", null, null).replace("\"phone\"", "\"email\":\"  Foo@Bar.PH \",\"phone\"");
+        create(admin, Role.ADMIN, body).andExpect(status().isOk()).andExpect(jsonPath("$.email").value("foo@bar.ph"));
+    }
+
+    @Test
+    void concurrentDuplicateContactEmailNever500() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long id = createdId(admin, Role.ADMIN, "race");
+        for (int round = 0; round < 3; round++) {
+            String email = tag.toLowerCase() + "r" + round + "@race.ph";
+            var pool = Executors.newFixedThreadPool(4);
+            var start = new CountDownLatch(1);
+            List<Future<Integer>> results = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                var req = post("/api/customers/" + id + "/contacts").with(authentication(as(admin, Role.ADMIN)))
+                        .with(csrf(mvc)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"C\",\"email\":\"" + email + "\",\"portalEnabled\":true}");
+                results.add(pool.submit(() -> {
+                    start.await();
+                    return mvc.perform(req).andReturn().getResponse().getStatus();
+                }));
+            }
+            start.countDown();
+            List<Integer> codes = new ArrayList<>();
+            for (var f : results) {
+                codes.add(f.get());
+            }
+            pool.shutdown();
+            assertThat(codes).containsOnly(200, 409).containsOnlyOnce(200);
+        }
+    }
+
+    @Test
+    void adminArchivesCustomer() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long id = createdId(admin, Role.ADMIN, "arch");
+        addContact(admin, Role.ADMIN, id, tag.toLowerCase() + "@arch.ph").andExpect(status().isOk());
+        postTo(admin, Role.ADMIN, "/api/customers/" + id + "/archive").andExpect(status().isNoContent());
+        var me = authentication(as(admin, Role.ADMIN));
+        mvc.perform(get("/api/customers/" + id).with(me)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.archivedAt").isNotEmpty())
+                .andExpect(jsonPath("$.contacts.length()").value(1));
+        mvc.perform(put("/api/customers/" + id).with(me).with(csrf(mvc)).contentType(MediaType.APPLICATION_JSON)
+                .content(json("arch", "1", null, 0L))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void contactUpdateAndArchive() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long id = createdId(admin, Role.ADMIN, "ct");
+        long cid = contactId(addContact(admin, Role.ADMIN, id, tag.toLowerCase() + "@ct.ph"));
+        String url = "/api/customers/" + id + "/contacts/" + cid;
+        mvc.perform(put(url).with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"New\",\"email\":\"" + tag.toLowerCase()
+                        + "@ct2.ph\",\"portalEnabled\":false,\"version\":0}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("New"))
+                .andExpect(jsonPath("$.portalEnabled").value(false));
+        postTo(admin, Role.ADMIN, url + "/archive").andExpect(status().isNoContent());
+        mvc.perform(get("/api/customers/" + id).with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(jsonPath("$.contacts.length()").value(0));
+    }
+
+    @Test
+    void assignNullUnassignsAndUnchangedIsNotAudited() throws Exception {
+        long admin = user("adm", "ADMIN"), rep = user("rep", "SALES");
+        long id = createdId(admin, Role.ADMIN, "an");
+        String url = "/api/customers/" + id + "/assignment";
+        var me = authentication(as(admin, Role.ADMIN));
+        for (String body : List.of("{\"repId\":" + rep + "}", "{\"repId\":" + rep + "}", "{\"repId\":null}")) {
+            mvc.perform(put(url).with(me).with(csrf(mvc)).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk());
+        }
+        mvc.perform(get("/api/customers/" + id).with(me)).andExpect(jsonPath("$.assignedRepId").doesNotExist());
+        assertThat(jdbc.queryForObject("select count(*) from audit_event where entity_type='CUSTOMER' "
+                + "and action='ASSIGNMENT_CHANGED' and entity_id=?", Integer.class, id)).isEqualTo(2);
+    }
+
+    @Test
+    void salesCannotArchiveOrAssign() throws Exception {
+        long rep = user("rep", "SALES");
+        long id = createdId(rep, Role.SALES, "sa");
+        postTo(rep, Role.SALES, "/api/customers/" + id + "/archive").andExpect(status().isForbidden());
+        mvc.perform(put("/api/customers/" + id + "/assignment").with(authentication(as(rep, Role.SALES)))
+                .with(csrf(mvc)).contentType(MediaType.APPLICATION_JSON).content("{\"repId\":null}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void validationErrorsUseStandardShape() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long id = createdId(admin, Role.ADMIN, "vs");
+        var me = authentication(as(admin, Role.ADMIN));
+        mvc.perform(get("/api/customers/lookup").param("q", "a").with(me)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("q"));
+        mvc.perform(put("/api/customers/" + id + "/assignment").with(me).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"repId\":" + admin + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("repId"));
     }
 }

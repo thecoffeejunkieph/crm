@@ -11,4 +11,9 @@ public record CustomerRequest(@NotNull CustomerType type, @NotBlank String displ
                               String tin, String address, String phone, @Email String email,
                               @PositiveOrZero BigDecimal creditLimit, @NotNull PaymentTerms paymentTerms,
                               String source, String notes, Long version) {
+
+    // Trim before @Email runs, so padded input is accepted and stored normalised.
+    public CustomerRequest {
+        email = email == null ? null : email.trim();
+    }
 }
