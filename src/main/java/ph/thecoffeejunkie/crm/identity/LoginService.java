@@ -5,7 +5,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.shared.DomainException;
@@ -19,7 +20,7 @@ import java.util.Locale;
 @Service
 class LoginService {
 
-    /** What the caller turns into a session, after the transaction has committed. */
+    /** What the caller turns into a session, after the write transaction has committed. */
     record Outcome(String next, Authentication authentication) {
     }
 
@@ -28,25 +29,28 @@ class LoginService {
     private final AuditLog audit;
     private final LoginThrottle throttle;
     private final Clock clock;
+    private final TransactionTemplate tx;
     /** Checked when there is no real hash, so every path costs the same bcrypt time. */
     private final String dummyHash;
 
     LoginService(AppUserRepository users, PasswordEncoder encoder, AuditLog audit, LoginThrottle throttle,
-                 Clock clock) {
+                 Clock clock, PlatformTransactionManager transactionManager) {
         this.users = users;
         this.encoder = encoder;
         this.audit = audit;
         this.throttle = throttle;
         this.clock = clock;
+        this.tx = new TransactionTemplate(transactionManager);
         this.dummyHash = encoder.encode("timing-equaliser-not-a-password");
     }
 
     /**
      * Lockout is decided by LoginThrottle (Redis, per email, same rules for unknown emails); the app_user
-     * columns only mirror it. No row lock is held, so bcrypt never pins a DB connection behind another login.
-     * No rollback on DomainException: the mirror and audit rows must survive the 401.
+     * columns only mirror it.
+     * Deliberately not @Transactional: bcrypt (~250 ms at cost 12) runs with no transaction and no pooled
+     * connection held, so a login flood cannot drain Hikari. The lookup is its own short repository read; the
+     * mirror UPDATE and audit rows go in one short write transaction afterwards.
      */
-    @Transactional(noRollbackFor = DomainException.class)
     Outcome login(LoginRequest req) {
         String email = req.email().trim().toLowerCase(Locale.ROOT);
         if (throttle.isLocked(email)) {
@@ -58,12 +62,17 @@ class LoginService {
         // Unknown emails and invited users without a password fail exactly like a wrong password.
         boolean ok = encoder.matches(req.password(), hash == null ? dummyHash : hash) && hash != null;
         if (!ok) {
-            recordFailure(u, email);
+            LoginThrottle.Result result = throttle.recordFailure(email);
+            tx.executeWithoutResult(s -> recordFailure(u, email, result));
             // Even the attempt that locks answers UNAUTHORIZED; the next one gets ACCOUNT_LOCKED.
             throw new DomainException(ErrorCode.UNAUTHORIZED, "Invalid email or password");
         }
 
         throttle.clear(email);
+        return tx.execute(s -> succeed(u));
+    }
+
+    private Outcome succeed(AppUser u) {
         if (u.failedLogins != 0 || u.lockedUntil != null) {
             users.resetFailedLogins(u.id);
         }
@@ -86,8 +95,8 @@ class LoginService {
                 principal, null, List.of(new SimpleGrantedAuthority(authority))));
     }
 
-    private void recordFailure(AppUser u, String email) {
-        boolean locked = throttle.recordFailure(email);
+    private void recordFailure(AppUser u, String email, LoginThrottle.Result result) {
+        boolean locked = result == LoginThrottle.Result.LOCKED;
         String summary = "Failed login for " + email;
         if (u == null) {
             audit.recordFor("SYSTEM", null, null, AuditAction.LOGIN_FAILED, "USER", null, summary);
@@ -101,9 +110,10 @@ class LoginService {
         if (locked) {
             users.lockLogin(u.id, clock.instant().plus(LoginThrottle.WINDOW));
             audit.recordFor("USER", u.id, u.displayName(), AuditAction.ACCOUNT_LOCKED, "USER", u.id,
-                    "Locked for " + LoginThrottle.WINDOW.toMinutes() + " minutes after "
+                    "Locked " + email + " for " + LoginThrottle.WINDOW.toMinutes() + " minutes after "
                             + LoginThrottle.MAX_FAILURES + " failed logins");
-        } else {
+        } else if (result == LoginThrottle.Result.COUNTED) {
+            // ALREADY_LOCKED attempts (raced past isLocked) are audited but not mirrored: the lock is already set.
             users.incrementFailedLogins(u.id);
         }
     }

@@ -19,12 +19,14 @@ class LoginThrottle {
     static final int MAX_FAILURES = 5;
     static final Duration WINDOW = Duration.ofMinutes(15);
 
+    enum Result { ALREADY_LOCKED, COUNTED, LOCKED }
+
     /**
-     * Atomic: no counting while locked; INCR with the TTL set only on creation; at the limit, lock and drop
-     * the counter. Returns 1 only for the call that locked.
+     * Atomic: -1 (not counted) while locked; INCR with the TTL set only on creation; at the limit, lock and drop
+     * the counter and return 1; otherwise 0. Both keys share a {hash tag} so the script stays on one slot.
      */
     private static final RedisScript<Long> RECORD_FAILURE = RedisScript.of("""
-            if redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
+            if redis.call('EXISTS', KEYS[2]) == 1 then return -1 end
             local c = redis.call('INCR', KEYS[1])
             if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
             if c >= tonumber(ARGV[2]) then
@@ -50,15 +52,14 @@ class LoginThrottle {
         }
     }
 
-    /** True if this failure locked the email. */
-    boolean recordFailure(String email) {
+    Result recordFailure(String email) {
         try {
-            Long locked = redis.execute(RECORD_FAILURE, List.of(failKey(email), lockKey(email)),
+            Long r = redis.execute(RECORD_FAILURE, List.of(failKey(email), lockKey(email)),
                     String.valueOf(WINDOW.toSeconds()), String.valueOf(MAX_FAILURES));
-            return locked != null && locked == 1;
+            return r == null || r == 0 ? Result.COUNTED : r == 1 ? Result.LOCKED : Result.ALREADY_LOCKED;
         } catch (RuntimeException e) {
             log.warn("Login throttle count failed", e);
-            return false;
+            return Result.COUNTED;
         }
     }
 
@@ -71,10 +72,10 @@ class LoginThrottle {
     }
 
     private static String failKey(String email) {
-        return "login:fail:" + email;
+        return "login:{" + email + "}:fail";
     }
 
     private static String lockKey(String email) {
-        return "login:lock:" + email;
+        return "login:{" + email + "}:lock";
     }
 }

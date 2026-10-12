@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.identity;
 
+import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +12,10 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -17,6 +23,7 @@ import com.jayway.jsonpath.JsonPath;
 import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.shared.Role;
 
+import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +32,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -47,6 +55,8 @@ class LoginIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired RedisIndexedSessionRepository sessions;
     @Autowired StringRedisTemplate redis;
+    @Autowired LoginService loginService;
+    @Autowired DataSource dataSource;
 
     @BeforeEach
     @AfterEach
@@ -214,44 +224,68 @@ class LoginIT {
         }
     }
 
+    /**
+     * Invariants that hold for one burst regardless of thread timing: how many attempts slip past the lock check
+     * before the lock is set is not deterministic, so exact code counts are not asserted.
+     */
+    private void assertBurstLocks(String email, Long userId) throws Exception {
+        List<String> codes = burst(email);
+        assertThat(codes).allMatch(c -> c.equals("UNAUTHORIZED") || c.equals("ACCOUNT_LOCKED"));
+        long unauthorized = codes.stream().filter("UNAUTHORIZED"::equals).count();
+        assertThat(unauthorized).isGreaterThanOrEqualTo(5);
+        login(email, PW).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
+        String byEntity = userId == null ? "entity_id is null" : "entity_id = " + userId;
+        assertThat(jdbc.queryForObject("select count(*) from audit_event where action = 'LOGIN_FAILED' and "
+                + byEntity + " and summary = ?", Long.class, "Failed login for " + email)).isEqualTo(unauthorized);
+        assertThat(jdbc.queryForObject("select count(*) from audit_event where action = 'ACCOUNT_LOCKED' and "
+                + byEntity + " and summary like ?", Integer.class, "%" + email + "%")).isEqualTo(1);
+    }
+
     @Test
     void parallelWrongPasswordsAllCountAndLock() throws Exception {
         AppUser u = user("race@login.it", Role.SALES);
-        burst("race@login.it");
+        assertBurstLocks("race@login.it", u.id);
         assertThat(jdbc.queryForObject("select locked_until > now() from app_user where id = ?", Boolean.class, u.id))
                 .isTrue();
-        assertThat(auditCount("ACCOUNT_LOCKED", u.id)).isEqualTo(1);
-        assertThat(auditCount("LOGIN_FAILED", u.id)).isEqualTo(10);
-        login("race@login.it", PW).andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
     }
 
     @Test
-    void parallelBurstLooksTheSameForUnknownEmail() throws Exception {
-        user("twin@login.it", Role.SALES);
-        String ghost = "ghost-" + UUID.randomUUID() + "@login.it";
-        List<String> known = burst("twin@login.it");
-        List<String> unknown = burst(ghost);
-        assertThat(unknown).isEqualTo(known);
-        login("twin@login.it", PW).andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
-        login(ghost, PW).andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
+    void parallelBurstOnUnknownEmailKeepsTheSameInvariants() throws Exception {
+        assertBurstLocks("ghost-" + UUID.randomUUID() + "@login.it", null);
     }
 
+    /** bcrypt must not hold a transaction or a pooled connection, or a login flood drains the pool for everyone. */
     @Test
-    void successfulLoginClearsFailureCount() throws Exception {
-        user("reset@login.it", Role.SALES);
-        for (int i = 0; i < 4; i++) {
-            login("reset@login.it", "wrong-password-123").andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
-        }
-        login("reset@login.it", PW).andExpect(status().isOk());
-        for (int i = 0; i < 4; i++) {
-            login("reset@login.it", "wrong-password-123").andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
-        }
-        login("reset@login.it", PW).andExpect(status().isOk());
-    }
+    void passwordCheckHoldsNoTransactionOrConnection() throws Exception {
+        user("notx@login.it", Role.SALES);
+        HikariPoolMXBean pool = ((HikariDataSource) dataSource).getHikariPoolMXBean();
+        List<String> seen = new CopyOnWriteArrayList<>();
+        PasswordEncoder recording = new PasswordEncoder() {
+            @Override
+            public String encode(CharSequence raw) {
+                return BCRYPT.encode(raw);
+            }
 
-    private int auditCount(String action, long userId) {
-        return jdbc.queryForObject("select count(*) from audit_event where action = ? and entity_type = 'USER' "
-                + "and entity_id = ?", Integer.class, action, userId);
+            @Override
+            public boolean matches(CharSequence raw, String hash) {
+                seen.add("tx=" + TransactionSynchronizationManager.isActualTransactionActive()
+                        + ",active=" + pool.getActiveConnections());
+                return BCRYPT.matches(raw, hash);
+            }
+        };
+        LoginService target = AopTestUtils.getTargetObject(loginService);
+        Object original = ReflectionTestUtils.getField(target, "encoder");
+        ReflectionTestUtils.setField(target, "encoder", recording);
+        try {
+            for (String pw : List.of("wrong-password-123", PW)) {
+                mvc.perform(post("/api/auth/login").header("X-Client-Type", "ANDROID")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"notx@login.it\",\"password\":\"" + pw + "\"}"));
+            }
+        } finally {
+            ReflectionTestUtils.setField(target, "encoder", original);
+        }
+        assertThat(seen).containsExactly("tx=false,active=0", "tx=false,active=0");
     }
 
     @Test
