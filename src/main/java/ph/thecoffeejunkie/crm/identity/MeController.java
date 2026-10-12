@@ -3,6 +3,16 @@ package ph.thecoffeejunkie.crm.identity;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.support.TransactionTemplate;
+import jakarta.servlet.http.HttpServletRequest;
+import ph.thecoffeejunkie.crm.audit.AuditAction;
+import ph.thecoffeejunkie.crm.audit.AuditChanges;
+import ph.thecoffeejunkie.crm.audit.AuditLog;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,12 +30,26 @@ class MeController {
                            @Size(max = 50) String phone) {
     }
 
+    record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword) {
+    }
+
     private final AppUserRepository users;
     private final CurrentActor actor;
+    private final PasswordEncoder encoder;
+    private final LoginThrottle throttle;
+    private final SessionAdmin sessionAdmin;
+    private final AuditLog audit;
+    private final TransactionTemplate tx;
 
-    MeController(AppUserRepository users, CurrentActor actor) {
+    MeController(AppUserRepository users, CurrentActor actor, PasswordEncoder encoder, LoginThrottle throttle,
+                 SessionAdmin sessionAdmin, AuditLog audit, TransactionTemplate tx) {
         this.users = users;
         this.actor = actor;
+        this.encoder = encoder;
+        this.throttle = throttle;
+        this.sessionAdmin = sessionAdmin;
+        this.audit = audit;
+        this.tx = tx;
     }
 
     @GetMapping
@@ -40,6 +64,26 @@ class MeController {
         u.lastName = body.lastName().trim();
         u.phone = body.phone();
         return MeResponse.of(users.save(u));
+    }
+
+    /** bcrypt runs outside any transaction (no pooled connection held across it); only the save and audit are in one. */
+    @PostMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void changePassword(@Valid @RequestBody ChangePasswordRequest body, HttpServletRequest request) {
+        AppUser u = current();
+        if (!encoder.matches(body.currentPassword(), u.passwordHash)) {
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Current password is incorrect.",
+                    Map.of("field", "currentPassword"));
+        }
+        PasswordPolicy.check(u.email, body.newPassword());
+        u.passwordHash = encoder.encode(body.newPassword());
+        tx.executeWithoutResult(s -> {
+            users.save(u);
+            audit.record(AuditAction.PASSWORD_CHANGED, "USER", u.id, "Password changed", AuditChanges.diff());
+        });
+        var session = request.getSession(false);
+        sessionAdmin.revokeAllExcept("user:" + u.id, session == null ? null : session.getId());
+        throttle.clear(u.email);
     }
 
     private AppUser current() {
