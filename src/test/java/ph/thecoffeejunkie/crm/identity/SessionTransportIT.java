@@ -44,8 +44,7 @@ class SessionTransportIT {
 
         var res = mvc.perform(post("/api/auth/login").header("X-Client-Type", "ANDROID")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"droid@transport.it\",\"password\":\"correct-horse-battery\","
-                                + "\"clientType\":\"ANDROID\"}"))
+                        .content("{\"email\":\"droid@transport.it\",\"password\":\"correct-horse-battery\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.next").value("DONE"))
                 .andReturn().getResponse();
@@ -62,5 +61,39 @@ class SessionTransportIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.firstName").value("Danny"))
                 .andExpect(jsonPath("$.phone").value("0917"));
+    }
+
+    @Test
+    void headerClientNeverFallsBackToCookie() throws Exception {
+        save("cookie@transport.it");
+        var csrf = mvc.perform(get("/api/auth/csrf")).andReturn().getResponse().getCookie("XSRF-TOKEN");
+        var session = mvc.perform(post("/api/auth/login").cookie(csrf).header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"cookie@transport.it\",\"password\":\"correct-horse-battery\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessionToken").doesNotExist())
+                .andReturn().getResponse().getCookie("TCJSESSION");
+        mvc.perform(get("/api/me").cookie(session)).andExpect(status().isOk());
+        mvc.perform(get("/api/me").cookie(session).header("X-Client-Type", "ANDROID"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unknownClientTypeRejected() throws Exception {
+        mvc.perform(post("/api/auth/login").header("X-Client-Type", "IOS").header("X-Auth-Token", "x")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"a@transport.it\",\"password\":\"correct-horse-battery\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    private void save(String email) {
+        var u = new AppUser();
+        u.email = email;
+        u.passwordHash = new BCryptPasswordEncoder().encode("correct-horse-battery");
+        u.firstName = "Cee";
+        u.lastName = "Kie";
+        u.role = Role.SALES;
+        users.save(u);
     }
 }

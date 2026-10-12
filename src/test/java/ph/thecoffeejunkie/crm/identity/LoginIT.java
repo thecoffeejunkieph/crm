@@ -12,17 +12,25 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import com.jayway.jsonpath.JsonPath;
 import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -168,5 +176,78 @@ class LoginIT {
         mvc.perform(post("/api/auth/logout").cookie(session, x).header("X-XSRF-TOKEN", x.getValue()))
                 .andExpect(status().isNoContent());
         mvc.perform(get("/api/me").cookie(session)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void parallelWrongPasswordsAllCountAndLock() throws Exception {
+        AppUser u = user("race@login.it", Role.SALES);
+        Callable<Integer> attempt = () -> mvc.perform(post("/api/auth/login").header("X-Client-Type", "ANDROID")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"race@login.it\",\"password\":\"wrong-password-123\"}"))
+                .andReturn().getResponse().getStatus();
+        var pool = Executors.newFixedThreadPool(10);
+        try {
+            List<Future<Integer>> results = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                results.add(pool.submit(attempt));
+            }
+            for (Future<Integer> r : results) {
+                assertThat(r.get()).isEqualTo(401);
+            }
+        } finally {
+            pool.shutdown();
+        }
+        assertThat(jdbc.queryForObject("select locked_until > now() from app_user where id = ?", Boolean.class, u.id))
+                .isTrue();
+        assertThat(auditCount("ACCOUNT_LOCKED", u.id)).isEqualTo(1);
+        assertThat(auditCount("LOGIN_FAILED", u.id)).isEqualTo(5);
+    }
+
+    private int auditCount(String action, long userId) {
+        return jdbc.queryForObject("select count(*) from audit_event where action = ? and entity_type = 'USER' "
+                + "and entity_id = ?", Integer.class, action, userId);
+    }
+
+    @Test
+    void unknownEmailLocksLikeARealAccount() throws Exception {
+        String ghost = "ghost-" + UUID.randomUUID() + "@login.it";
+        for (int i = 0; i < 5; i++) {
+            login(ghost, "wrong-password-123").andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        }
+        String ghostBody = login(ghost, "wrong-password-123").andExpect(status().isUnauthorized())
+                .andReturn().getResponse().getContentAsString();
+
+        user("reallock@login.it", Role.SALES);
+        for (int i = 0; i < 5; i++) {
+            login("reallock@login.it", "wrong-password-123").andExpect(status().isUnauthorized());
+        }
+        String realBody = login("reallock@login.it", PW).andExpect(status().isUnauthorized())
+                .andReturn().getResponse().getContentAsString();
+
+        for (String field : List.of("$.code", "$.detail", "$.title", "$.status")) {
+            assertThat((Object) JsonPath.read(ghostBody, field)).isEqualTo(JsonPath.read(realBody, field));
+        }
+        assertThat((String) JsonPath.read(ghostBody, "$.code")).isEqualTo("ACCOUNT_LOCKED");
+    }
+
+    @Test
+    void partialSessionCannotUpdateProfile() throws Exception {
+        var u = new AppUser();
+        u.email = "totp@login.it";
+        u.passwordHash = BCRYPT.encode(PW);
+        u.firstName = "Tia";
+        u.lastName = "Totp";
+        u.role = Role.SALES;
+        u.totpEnabledAt = Instant.now();
+        users.save(u);
+        Cookie session = login("totp@login.it", PW).andExpect(status().isOk())
+                .andExpect(jsonPath("$.next").value("TOTP"))
+                .andReturn().getResponse().getCookie("TCJSESSION");
+        Cookie x = xsrf();
+        mvc.perform(put("/api/me").cookie(session, x).header("X-XSRF-TOKEN", x.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstName\":\"Hax\",\"lastName\":\"Or\"}"))
+                .andExpect(status().isForbidden());
     }
 }

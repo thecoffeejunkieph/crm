@@ -29,8 +29,8 @@ class HeaderOrCookieSessionIdResolver implements HttpSessionIdResolver {
 
     @Override
     public List<String> resolveSessionIds(HttpServletRequest request) {
-        return request.getHeader(AUTH_HEADER) != null
-                ? header.resolveSessionIds(request) : cookie.resolveSessionIds(request);
+        // Never fall back to the cookie for a header client: header clients skip CSRF.
+        return (isHeaderClient(request) ? header : cookie).resolveSessionIds(request);
     }
 
     @Override
