@@ -67,6 +67,9 @@ public class Warehouses {
         String code = req.code().trim();
         String name = req.name().trim();
         requireCodeFree(code, id);
+        if (w.isDefault && !req.isDefault()) {
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Choose another default warehouse first.");
+        }
         if (req.isDefault() && !w.isDefault) {
             clearDefault();
         }

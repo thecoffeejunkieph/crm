@@ -111,4 +111,31 @@ class WarehousesIT {
                 .contentType(MediaType.APPLICATION_JSON).content(body("WT7-G", false, null)))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void cannotUnsetDefaultViaUpdate() throws Exception {
+        create("WT7-H", true).andExpect(status().isOk());
+        mvc.perform(put("/api/warehouses/" + idOf("WT7-H")).with(authentication(auth(Role.ADMIN))).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body("WT7-H", false, 0L)))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.detail").value("Choose another default warehouse first."));
+    }
+
+    @Test
+    void archiveNonDefaultIsAuditedAndHidden() throws Exception {
+        create("WT7-I", false).andExpect(status().isOk());
+        long id = idOf("WT7-I");
+        mvc.perform(post("/api/warehouses/" + id + "/archive").with(authentication(auth(Role.ADMIN))).with(csrf()))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select count(*) from audit_event where entity_type='WAREHOUSE' "
+                + "and action='ARCHIVED' and entity_id = ?", Integer.class, id)).isEqualTo(1);
+        mvc.perform(get("/api/warehouses").with(authentication(auth(Role.ADMIN))))
+                .andExpect(jsonPath("$[?(@.code=='WT7-I')]").doesNotExist());
+    }
+
+    @Test
+    void getMissingIs404() throws Exception {
+        mvc.perform(get("/api/warehouses/999999999").with(authentication(auth(Role.ADMIN))))
+                .andExpect(status().isNotFound());
+    }
 }
