@@ -5,12 +5,18 @@ import jakarta.mail.internet.MimeMessage;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mail.javamail.JavaMailSender;
 
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +36,18 @@ public final class MailSupport {
         ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
         verify(sender, atLeast(0)).send(captor.capture());
         return captor.getAllValues();
+    }
+
+    /** Mail sent off-thread: waits (up to 5 s, returns as soon as met) until exactly n messages were sent. */
+    public static List<MimeMessage> awaitMail(JavaMailSender sender, int n) {
+        verify(sender, timeout(5000).times(n)).send(any(MimeMessage.class));
+        return sent(sender);
+    }
+
+    /** Waits until the async executor has nothing running or queued, so "nothing was sent" is checkable. */
+    public static void awaitIdle(ThreadPoolTaskExecutor executor) {
+        await().atMost(Duration.ofSeconds(5)).until(() -> executor.getActiveCount() == 0
+                && executor.getThreadPoolExecutor().getQueue().isEmpty());
     }
 
     /** The single call-to-action link in the message body. */

@@ -23,9 +23,14 @@ import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 import ph.thecoffeejunkie.crm.warehouses.WarehouseRequest;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -220,6 +225,62 @@ class UserAdminIT {
         String ids = String.join(",", java.util.Arrays.stream(keep).map(u -> String.valueOf(u.id)).toList());
         jdbc.update("update app_user set archived_at = now() where role = 'ADMIN' and archived_at is null "
                 + "and id not in (" + ids + ")");
+    }
+
+    /** Real commits and two real threads: the row locks must serialise the guard, with no deadlock or 500. */
+    @Test
+    void concurrentMutualDemotionLeavesExactlyOneAdmin() throws Exception {
+        AppUser a = user("race-a@users.it", Role.ADMIN);
+        AppUser b = user("race-b@users.it", Role.ADMIN);
+        List<Long> others = jdbc.queryForList("select id from app_user where role = 'ADMIN' and archived_at is null "
+                + "and id not in (?, ?)", Long.class, a.id, b.id);
+        others.forEach(id -> jdbc.update("update app_user set archived_at = now() where id = ?", id));
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch go = new CountDownLatch(1);
+            List<Future<Integer>> results = new ArrayList<>();
+            for (AppUser[] pair : new AppUser[][]{{a, b}, {b, a}}) {
+                results.add(pool.submit(() -> {
+                    var request = put("/api/admin/users/" + pair[1].id).with(as(pair[0])).with(csrf(mvc))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"role\":\"SALES\",\"version\":" + pair[1].version + "}");
+                    ready.countDown();
+                    go.await();
+                    return mvc.perform(request).andReturn().getResponse().getStatus();
+                }));
+            }
+            ready.await();
+            go.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for (var f : results) {
+                statuses.add(f.get());
+            }
+            assertThat(statuses).containsExactlyInAnyOrder(200, 409);
+            assertThat(jdbc.queryForObject("select count(*) from app_user where role = 'ADMIN' "
+                    + "and archived_at is null and id in (?, ?)", Integer.class, a.id, b.id)).isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
+            others.forEach(id -> jdbc.update("update app_user set archived_at = null where id = ?", id));
+        }
+    }
+
+    @Test
+    void blankNamesRejectedOnUpdate() throws Exception {
+        AppUser admin = user("admin16@users.it", Role.ADMIN);
+        AppUser sales = user("sales5@users.it", Role.SALES);
+        mvc.perform(put("/api/admin/users/" + sales.id).with(as(admin)).with(csrf(mvc))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstName\":\"  \",\"version\":" + sales.version + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(put("/api/admin/users/" + sales.id).with(as(admin)).with(csrf(mvc))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lastName\":\"\",\"version\":" + sales.version + "}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/admin/users/" + sales.id).with(as(admin)).with(csrf(mvc))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"0917\",\"version\":" + sales.version + "}"))
+                .andExpect(status().isOk());
     }
 
     @Test

@@ -18,6 +18,8 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -129,7 +131,7 @@ class UserAdminService {
         }
         // Old sessions carry the old role and warehouses in their principal.
         if (!roleChange.isEmpty() || !assignment.isEmpty()) {
-            sessions.revokeAll(principal(id));
+            revokeAfterCommit(id);
         }
         return UserResponse.of(u);
     }
@@ -143,7 +145,7 @@ class UserAdminService {
         u.archivedAt = Instant.now();
         users.saveAndFlush(u);
         audit.record(AuditAction.ARCHIVED, ENTITY, id, "Archived " + u.email, null);
-        sessions.revokeAll(principal(id));
+        revokeAfterCommit(id);
     }
 
     @Transactional
@@ -206,9 +208,23 @@ class UserAdminService {
 
     /** Locks the active admins first, so two concurrent removals cannot both see the other as the survivor. */
     private void requireAnotherAdmin(AppUser leaving) {
-        if (users.findByRoleAndArchivedAtIsNull(Role.ADMIN).stream().noneMatch(a -> !a.id.equals(leaving.id))) {
+        if (users.findByRoleAndArchivedAtIsNullOrderById(Role.ADMIN).stream().noneMatch(a -> !a.id.equals(leaving.id))) {
             throw new DomainException(ErrorCode.LAST_ADMIN, "There must be at least one active admin.");
         }
+    }
+
+    /** After commit: a login between an in-transaction revoke and the commit would otherwise survive it. */
+    private void revokeAfterCommit(long id) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            sessions.revokeAll(principal(id));
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                sessions.revokeAll(principal(id));
+            }
+        });
     }
 
     private static DomainException invalid(String detail) {

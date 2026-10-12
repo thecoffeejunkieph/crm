@@ -6,6 +6,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,6 +42,7 @@ class PasswordResetIT {
     @Autowired StringRedisTemplate redis;
     @Autowired JavaMailSender sender;
     @Autowired OneTimeTokens tokens;
+    @Autowired @Qualifier("applicationTaskExecutor") ThreadPoolTaskExecutor executor;
 
     @BeforeEach
     void setUp() {
@@ -87,6 +90,7 @@ class PasswordResetIT {
     @Test
     void forgotForUnknownEmailStill202AndSendsNothing() throws Exception {
         forgot("nobody@reset.it").andExpect(status().isAccepted());
+        MailSupport.awaitIdle(executor);
         assertThat(MailSupport.sent(sender)).isEmpty();
     }
 
@@ -97,6 +101,7 @@ class PasswordResetIT {
         jdbc.update("update app_user set archived_at = now() where email = 'archived@reset.it'");
         forgot("pending@reset.it").andExpect(status().isAccepted());
         forgot("archived@reset.it").andExpect(status().isAccepted());
+        MailSupport.awaitIdle(executor);
         assertThat(MailSupport.sent(sender)).isEmpty();
     }
 
@@ -114,7 +119,7 @@ class PasswordResetIT {
         assertThat(locked.get("locked_until")).isNotNull();
 
         forgot("LOCKED@reset.it").andExpect(status().isAccepted());
-        List<MimeMessage> mails = MailSupport.sent(sender);
+        List<MimeMessage> mails = MailSupport.awaitMail(sender, 1);
         assertThat(mails).hasSize(1);
         assertThat(MailSupport.link(mails.get(0))).startsWith("http://app.test/reset-password/");
         String token = MailSupport.token(mails.get(0));
@@ -138,7 +143,7 @@ class PasswordResetIT {
     void weakPasswordKeepsTokenUsable() throws Exception {
         user("weak@reset.it", PW);
         forgot("weak@reset.it").andExpect(status().isAccepted());
-        String token = MailSupport.token(MailSupport.sent(sender).get(0));
+        String token = MailSupport.token(MailSupport.awaitMail(sender, 1).get(0));
         reset(token, "short").andExpect(status().isBadRequest());
         reset(token, NEW_PW).andExpect(status().isNoContent());
     }
@@ -148,10 +153,33 @@ class PasswordResetIT {
         user("twice@reset.it", PW);
         forgot("twice@reset.it").andExpect(status().isAccepted());
         forgot("twice@reset.it").andExpect(status().isAccepted());
-        List<MimeMessage> mails = MailSupport.sent(sender);
+        List<MimeMessage> mails = MailSupport.awaitMail(sender, 2);
         assertThat(mails).hasSize(2);
         reset(MailSupport.token(mails.get(0)), NEW_PW).andExpect(status().isGone());
         reset(MailSupport.token(mails.get(1)), NEW_PW).andExpect(status().isNoContent());
+    }
+
+    /** Mail latency must not depend on whether the account exists, so forgot never waits for SMTP. */
+    @Test
+    void forgotReturnsBeforeMailIsSent() throws Exception {
+        user("slow@reset.it", PW);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var sendWasBlockedUntilTimeout = new java.util.concurrent.atomic.AtomicBoolean();
+        org.mockito.Mockito.doAnswer(i -> {
+            // bounded wait: a synchronous implementation fails the test instead of hanging it
+            sendWasBlockedUntilTimeout.set(!release.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            return null;
+        }).when(sender).send(org.mockito.ArgumentMatchers.any(MimeMessage.class));
+        try {
+            forgot("slow@reset.it").andExpect(status().isAccepted());
+            assertThat(release.getCount()).isEqualTo(1);
+        } finally {
+            release.countDown();
+        }
+        MailSupport.awaitIdle(executor);
+        assertThat(sendWasBlockedUntilTimeout).isFalse();
+        MailSupport.awaitMail(sender, 1);
+        MailSupport.awaitIdle(executor);
     }
 
     @Test

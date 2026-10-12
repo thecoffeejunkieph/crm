@@ -10,7 +10,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.CountDownLatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,22 +63,32 @@ class OneTimeTokensIT {
     }
 
     @Test
-    void concurrentRedeemOnlyOneWins() {
+    void concurrentRedeemOnlyOneWins() throws Exception {
         String raw = tokens.issue(TokenPurpose.PASSWORD_RESET, "TEST", SUBJECT, Duration.ofHours(1), null);
-        CountDownLatch start = new CountDownLatch(1);
-        List<CompletableFuture<Optional<OneTimeTokens.Subject>>> futures = new ArrayList<>();
-        for (int i = 0; i < 8; i++) {
-            futures.add(CompletableFuture.supplyAsync(() -> {
-                try {
+        int n = 8;
+        // A dedicated pool of n threads: the common pool may be smaller than n on a small CI agent.
+        ExecutorService pool = Executors.newFixedThreadPool(n);
+        try {
+            CountDownLatch ready = new CountDownLatch(n);
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<Optional<OneTimeTokens.Subject>>> futures = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                futures.add(pool.submit(() -> {
+                    ready.countDown();
                     start.await();
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-                return tokens.redeem(TokenPurpose.PASSWORD_RESET, raw);
-            }));
+                    return tokens.redeem(TokenPurpose.PASSWORD_RESET, raw);
+                }));
+            }
+            ready.await();
+            start.countDown();
+            int winners = 0;
+            for (var f : futures) {
+                winners += f.get().isPresent() ? 1 : 0;
+            }
+            assertThat(winners).isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
         }
-        start.countDown();
-        assertThat(futures.stream().map(CompletableFuture::join).filter(Optional::isPresent)).hasSize(1);
     }
 
     @Test

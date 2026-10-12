@@ -1,7 +1,9 @@
 package ph.thecoffeejunkie.crm.identity;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -30,11 +32,13 @@ class PasswordResetService {
     private final LoginThrottle throttle;
     private final SessionAdmin sessions;
     private final IdentityMailer mailer;
+    private final TaskExecutor executor;
     private final TransactionTemplate tx;
     private final String frontendUrl;
 
     PasswordResetService(AppUserRepository users, OneTimeTokens tokens, PasswordEncoder encoder, AuditLog audit,
                          LoginThrottle throttle, SessionAdmin sessions, IdentityMailer mailer,
+                         @Qualifier("applicationTaskExecutor") TaskExecutor executor,
                          PlatformTransactionManager transactionManager,
                          @Value("${app.frontend-url}") String frontendUrl) {
         this.users = users;
@@ -44,6 +48,7 @@ class PasswordResetService {
         this.throttle = throttle;
         this.sessions = sessions;
         this.mailer = mailer;
+        this.executor = executor;
         this.tx = new TransactionTemplate(transactionManager);
         this.frontendUrl = frontendUrl;
     }
@@ -52,7 +57,10 @@ class PasswordResetService {
         setPassword(TokenPurpose.INVITE, token, password, AuditAction.INVITE_ACCEPTED, "Accepted invite");
     }
 
-    /** Silent for unknown, archived and still-pending users: the caller answers 202 regardless. */
+    /**
+     * Silent for unknown, archived and still-pending users: the caller answers 202 regardless. The mail is sent
+     * on another thread after the token commits, so SMTP latency cannot reveal whether the account exists.
+     */
     void forgot(String rawEmail) {
         String email = rawEmail.trim().toLowerCase(Locale.ROOT);
         String link = tx.execute(s -> users.findByEmailAndArchivedAtIsNull(email)
@@ -63,11 +71,13 @@ class PasswordResetService {
         if (link == null) {
             return;
         }
-        try {
-            mailer.sendPasswordReset(email, link);
-        } catch (RuntimeException e) {
-            log.warn("Password reset email failed: {}", e.toString());
-        }
+        executor.execute(() -> {
+            try {
+                mailer.sendPasswordReset(email, link);
+            } catch (RuntimeException e) {
+                log.warn("Password reset email failed: {}", e.toString());
+            }
+        });
     }
 
     void reset(String token, String password) {

@@ -16,14 +16,19 @@ interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpecificati
 
     Optional<AppUser> findByEmailAndArchivedAtIsNull(String email);
 
-    /** Row-locks the active admins so concurrent demotions/archivals cannot both pass the last-admin guard. */
+    /**
+     * Row-locks the active admins so concurrent demotions/archivals cannot both pass the last-admin guard.
+     * Ordered by id so two transactions lock in the same order and cannot deadlock.
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<AppUser> findByRoleAndArchivedAtIsNull(Role role);
+    List<AppUser> findByRoleAndArchivedAtIsNullOrderById(Role role);
 
     @Query("select u.id from AppUser u where u.role = :role and u.archivedAt is null order by u.id")
     List<Long> activeIdsWithRole(Role role);
 
     boolean existsByIdAndRoleAndArchivedAtIsNull(long id, Role role);
+
+    boolean existsByRoleAndArchivedAtIsNullAndPasswordHashIsNotNull(Role role);
 
     // Login mirrors LoginThrottle into the row with single atomic UPDATEs: no read-modify-write, no version bump.
 

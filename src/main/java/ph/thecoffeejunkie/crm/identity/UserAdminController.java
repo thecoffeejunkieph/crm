@@ -41,7 +41,7 @@ class UserAdminController {
     }
 
     @PutMapping("/{id}")
-    UserResponse update(@PathVariable long id, @RequestBody UpdateUserRequest req) {
+    UserResponse update(@PathVariable long id, @Valid @RequestBody UpdateUserRequest req) {
         return service.update(id, req);
     }
 
