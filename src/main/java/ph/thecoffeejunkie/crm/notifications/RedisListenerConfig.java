@@ -1,7 +1,10 @@
-package ph.thecoffeejunkie.crm.shared;
+package ph.thecoffeejunkie.crm.notifications;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
 import java.util.concurrent.CompletableFuture;
@@ -9,6 +12,16 @@ import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class RedisListenerConfig {
+
+    /** Every instance hears every notification and forwards it to whichever of its SSE clients it belongs to. */
+    @Bean
+    RedisMessageListenerContainer notificationListenerContainer(RedisConnectionFactory connectionFactory,
+                                                                NotificationStreams streams) {
+        var container = new RetryingListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.addMessageListener(streams, new PatternTopic(NotificationStreams.CHANNEL_PREFIX + "*"));
+        return container;
+    }
 
     /**
      * The stock container fails on its first connection attempt and never retries it, so Redis

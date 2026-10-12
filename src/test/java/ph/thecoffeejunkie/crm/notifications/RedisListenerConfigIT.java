@@ -1,4 +1,4 @@
-package ph.thecoffeejunkie.crm.shared;
+package ph.thecoffeejunkie.crm.notifications;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.MessageListener;
@@ -27,7 +27,7 @@ class RedisListenerConfigIT {
             }
         };
         container.setConnectionFactory(RedisTestSupport.connectionFactory());
-        container.addMessageListener((message, pattern) -> { }, new PatternTopic("notify:*"));
+        container.addMessageListener((message, pattern) -> { }, new PatternTopic("notifications:user:*"));
         container.afterPropertiesSet();
 
         container.start();
@@ -46,7 +46,7 @@ class RedisListenerConfigIT {
             MessageListener listener = (message, pattern) -> received.countDown();
             var container = new RedisListenerConfig.RetryingListenerContainer();
             container.setConnectionFactory(factory);
-            container.addMessageListener(listener, new PatternTopic("notify:*"));
+            container.addMessageListener(listener, new PatternTopic("notifications:user:*"));
             container.afterPropertiesSet();
 
             redis.getDockerClient().pauseContainerCmd(redis.getContainerId()).exec();
@@ -57,7 +57,7 @@ class RedisListenerConfigIT {
             while (!container.isListening() && System.currentTimeMillis() < deadline) {
                 Thread.sleep(200);
             }
-            new StringRedisTemplate(factory).convertAndSend("notify:a@t.ph", "{}");
+            new StringRedisTemplate(factory).convertAndSend("notifications:user:1", "{}");
 
             assertTrue(received.await(5, TimeUnit.SECONDS), "listener never received a message after recovery");
             container.stop();
