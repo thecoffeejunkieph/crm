@@ -68,6 +68,9 @@ class SecurityConfig {
                     } else {
                         a.requestMatchers("/v3/api-docs/**").denyAll();
                     }
+                    // Admins must reach enrolment before they hold a ROLE_ authority.
+                    a.requestMatchers(HttpMethod.POST, "/api/me/totp/setup", "/api/me/totp/enable")
+                            .hasAnyAuthority("ENROL_2FA", "ROLE_ADMIN", "ROLE_SALES", "ROLE_WAREHOUSE");
                     a.requestMatchers("/api/portal/**").hasRole("CUSTOMER")
                             .requestMatchers("/api/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
                             .anyRequest().permitAll();

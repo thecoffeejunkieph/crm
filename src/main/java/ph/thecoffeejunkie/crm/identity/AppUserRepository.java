@@ -47,4 +47,20 @@ interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpecificati
     @Modifying
     @Query("update AppUser u set u.inviteEmailStatus = :status where u.id = :id")
     void setInviteEmailStatus(long id, String status);
+
+    // TOTP writes are single UPDATEs too, so they never fight login's counters over the row version.
+
+    /** Replay guard: succeeds only if this step is newer than any already used. */
+    @Modifying
+    @Query("update AppUser u set u.totpLastStep = :step where u.id = :id and (u.totpLastStep is null or u.totpLastStep < :step)")
+    int advanceTotpStep(long id, long step);
+
+    @Modifying
+    @Query("update AppUser u set u.totpSecretEnc = :enc, u.totpEnabledAt = :now, u.totpLastStep = :step "
+            + "where u.id = :id and u.totpEnabledAt is null")
+    int enableTotp(long id, String enc, Instant now, long step);
+
+    @Modifying
+    @Query("update AppUser u set u.totpSecretEnc = null, u.totpEnabledAt = null, u.totpLastStep = null where u.id = :id")
+    void clearTotp(long id);
 }
