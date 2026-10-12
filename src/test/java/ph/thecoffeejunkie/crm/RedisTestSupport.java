@@ -30,6 +30,17 @@ public final class RedisTestSupport {
         return factory;
     }
 
+    /** Host and port of the shared container, for Spring contexts that build their own connection. */
+    public static String host() {
+        connectionFactory();
+        return REDIS.getHost();
+    }
+
+    public static int port() {
+        connectionFactory();
+        return REDIS.getMappedPort(6379);
+    }
+
     /** Port 1 is never listening, so every command fails fast - for fail-open/fail-closed tests. */
     public static synchronized LettuceConnectionFactory deadConnectionFactory() {
         if (deadFactory == null) {
