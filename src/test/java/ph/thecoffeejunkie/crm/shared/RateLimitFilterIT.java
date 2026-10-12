@@ -2,6 +2,8 @@ package ph.thecoffeejunkie.crm.shared;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -91,6 +93,32 @@ class RateLimitFilterIT {
         for (int i = 0; i < 11; i++) {
             assertEquals(200, send(down, "POST", "/api/v1/auth/login", ip, new MockFilterChain()).getStatus());
         }
+    }
+
+    @ParameterizedTest(name = "{0} limited after {1}")
+    @CsvSource({
+            "/api/auth/password/forgot,5,false",
+            "/api/portal/auth/request-link,5,false",
+            "/api/auth/invites/accept,20,false",
+            "/api/auth/password/reset,20,false",
+            "/api/portal/auth/redeem,20,false",
+            "/api/auth/login,10,true",
+            "/api/auth/totp,10,true"})
+    void realRulesLimitAfterN(String path, int limit, boolean failuresOnly) throws Exception {
+        var real = new RateLimitFilter(new RateLimiter(RedisTestSupport.template()));
+        String ip = uniqueClient();
+        for (int i = 0; i < limit; i++) {
+            var res = send(real, "POST", path, ip, failuresOnly ? failedLogin() : new MockFilterChain());
+            assertEquals(failuresOnly ? 401 : 200, res.getStatus(), "attempt " + (i + 1));
+        }
+
+        var chain = failuresOnly ? failedLogin() : new MockFilterChain();
+        var res = send(real, "POST", path, ip, chain);
+
+        assertEquals(429, res.getStatus());
+        assertTrue(Integer.parseInt(res.getHeader("Retry-After")) >= 1);
+        assertTrue(res.getContentAsString().contains("\"code\":\"RATE_LIMITED\""));
+        assertNull(chain.getRequest(), "chain must not run when limited");
     }
 
     private static MockHttpServletResponse send(RateLimitFilter f, String method, String path, String ip,

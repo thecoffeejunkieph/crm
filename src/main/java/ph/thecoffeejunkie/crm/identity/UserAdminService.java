@@ -171,7 +171,7 @@ class UserAdminService {
 
     private static Specification<AppUser> matches(String q) {
         if (q == null || q.isBlank()) {
-            return null;
+            return Specification.unrestricted();
         }
         String like = "%" + q.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%")
                 .replace("_", "\\_") + "%";

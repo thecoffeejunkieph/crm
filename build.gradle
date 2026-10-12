@@ -57,4 +57,5 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	systemProperty 'updateSnapshot', System.getProperty('updateSnapshot') ?: 'false'
 }

@@ -66,6 +66,12 @@ class SecurityConfig {
                     // Admins must reach enrolment before they hold a ROLE_ authority.
                     a.requestMatchers(HttpMethod.POST, "/api/me/totp/setup", "/api/me/totp/enable")
                             .hasAnyAuthority("ENROL_2FA", "ROLE_ADMIN", "ROLE_SALES", "ROLE_WAREHOUSE");
+                    // Coarse role gates ahead of @PreAuthorize: argument validation runs before method security,
+                    // so without these a forbidden caller would get a 400 instead of a 403.
+                    a.requestMatchers("/api/admin/**", "/api/approvals/*/decision").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.POST, "/api/warehouses/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/warehouses/**").hasRole("ADMIN")
+                            .requestMatchers("/api/customers/**").hasAnyRole("ADMIN", "SALES");
                     a.requestMatchers("/api/portal/**").hasRole("CUSTOMER")
                             .requestMatchers("/api/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
                             .anyRequest().permitAll();

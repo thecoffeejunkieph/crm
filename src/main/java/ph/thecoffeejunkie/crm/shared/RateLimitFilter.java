@@ -28,8 +28,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
     /** failuresOnly: count only requests answered 401, so a whole office on one NAT IP can still log in. */
     record Rule(String name, String pattern, int limit, Duration window, boolean failuresOnly) {}
 
-    // Task 15 fills the real rules.
-    private static final List<Rule> DEFAULT_RULES = List.of();
+    private static final Duration MINUTE = Duration.ofSeconds(60);
+    private static final List<Rule> DEFAULT_RULES = List.of(
+            new Rule("login", "/api/auth/login", 10, MINUTE, true),
+            new Rule("totp", "/api/auth/totp", 10, MINUTE, true),
+            new Rule("password-forgot", "/api/auth/password/forgot", 5, MINUTE, false),
+            new Rule("portal-request-link", "/api/portal/auth/request-link", 5, MINUTE, false),
+            new Rule("invite-accept", "/api/auth/invites/accept", 20, MINUTE, false),
+            new Rule("password-reset", "/api/auth/password/reset", 20, MINUTE, false),
+            new Rule("portal-redeem", "/api/portal/auth/redeem", 20, MINUTE, false));
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 

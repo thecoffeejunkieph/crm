@@ -1,6 +1,8 @@
 package ph.thecoffeejunkie.crm.shared;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -19,5 +21,17 @@ class IdempotencyFilterPathsTest {
         request.addHeader("Idempotency-Key", "k1");
 
         assertFalse(filter.shouldNotFilter(request));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/customers", "/api/customers/5/contacts", "/api/approvals", "/api/admin/users",
+            "/api/warehouses"})
+    void createEndpointsAreIdempotentByDefault(String path) {
+        IdempotencyFilter filter = new IdempotencyFilter(mock(StringRedisTemplate.class));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        request.addHeader("Idempotency-Key", "k1");
+
+        assertFalse(filter.shouldNotFilter(request), path);
     }
 }
