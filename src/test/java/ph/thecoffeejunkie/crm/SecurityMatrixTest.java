@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -52,6 +53,7 @@ class SecurityMatrixTest {
             Map.entry("POST /api/auth/password/forgot", PUBLIC),
             Map.entry("POST /api/auth/password/reset", PUBLIC),
             Map.entry("POST /api/auth/totp", NONE),
+            // springdoc rows exist and are public in dev/test only; DocsDisabledTest covers the other profiles.
             Map.entry("GET /swagger-ui.html", PUBLIC),
             Map.entry("GET /v3/api-docs", PUBLIC),
             Map.entry("GET /v3/api-docs.yaml", PUBLIC),
@@ -175,7 +177,8 @@ class SecurityMatrixTest {
                 } else if (who == Who.ANON || allowed.isEmpty()) {
                     ok = status == 401;
                 } else {
-                    ok = status == 403 || status == 404;
+                    // Role denial happens before any lookup, so 404 here would mean the gate is missing.
+                    ok = status == 403;
                 }
                 if (!ok) {
                     failures.add(key + " as " + who + " -> " + status
@@ -193,7 +196,10 @@ class SecurityMatrixTest {
             if (key.startsWith("GET ")) {
                 continue;
             }
-            int status = call(key, Who.ADMIN, false);
+            Set<Who> allowed = MATRIX.get(key);
+            Who who = allowed.stream().filter(w -> w != Who.ANON).findFirst().orElse(Who.ADMIN);
+            // Cookie-style session as a role the row allows, so the 403 can only come from CSRF.
+            int status = call(key, who, false);
             if (status != 403) {
                 failures.add(key + " without CSRF -> " + status);
             }
@@ -220,8 +226,8 @@ class SecurityMatrixTest {
     private Set<String> mappedKeys() {
         Set<String> keys = new TreeSet<>();
         handlerMapping.getHandlerMethods().keySet().forEach(info -> {
-            Set<String> patterns = info.getPathPatternsCondition() == null ? Set.of()
-                    : info.getPathPatternsCondition().getPatternValues();
+            Set<String> patterns = Objects.requireNonNull(info.getPathPatternsCondition(),
+                    "mapping without path patterns: " + info).getPatternValues();
             var methods = info.getMethodsCondition().getMethods();
             for (String pattern : patterns) {
                 if (pattern.equals("/error")) {

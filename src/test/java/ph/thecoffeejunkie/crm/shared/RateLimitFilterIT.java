@@ -121,6 +121,8 @@ class RateLimitFilterIT {
         assertNull(chain.getRequest(), "chain must not run when limited");
     }
 
+    // The filter keys on getServletPath(), which MockMvc leaves empty: so these rules are exercised by driving
+    // the filter directly, and MockMvc ITs never share a rate-limit bucket.
     private static MockHttpServletResponse send(RateLimitFilter f, String method, String path, String ip,
                                                 MockFilterChain chain) throws Exception {
         var req = new MockHttpServletRequest(method, path);

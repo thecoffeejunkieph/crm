@@ -58,10 +58,12 @@ class SecurityConfig {
                             // /totp is reachable with PRE_2FA only; its controller checks that authority.
                             .requestMatchers("/api/auth/totp", "/api/auth/password/forgot",
                                     "/api/auth/password/reset", "/api/portal/auth/**").permitAll();
+                    // "/v3/api-docs*" also catches /v3/api-docs.yaml, which "/v3/api-docs/**" does not.
+                    String[] docs = {"/v3/api-docs*", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"};
                     if (apiDocs) {
-                        a.requestMatchers("/v3/api-docs/**").permitAll();
+                        a.requestMatchers(docs).permitAll();
                     } else {
-                        a.requestMatchers("/v3/api-docs/**").denyAll();
+                        a.requestMatchers(docs).denyAll();
                     }
                     // Admins must reach enrolment before they hold a ROLE_ authority.
                     a.requestMatchers(HttpMethod.POST, "/api/me/totp/setup", "/api/me/totp/enable")
