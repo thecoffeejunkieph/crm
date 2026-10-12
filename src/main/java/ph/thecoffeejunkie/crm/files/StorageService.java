@@ -13,6 +13,8 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import ph.thecoffeejunkie.crm.shared.DomainException;
+import ph.thecoffeejunkie.crm.shared.ErrorCode;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -96,7 +98,8 @@ public class StorageService {
 
         String type = detectType(bytes);
         if (type == null || !allowedTypes.contains(type)) {
-            throw new IllegalArgumentException("Unsupported file type. Allowed types: " + describe(allowedTypes));
+            throw new DomainException(ErrorCode.VALIDATION_FAILED,
+                    "Unsupported file type. Allowed types: " + describe(allowedTypes));
         }
 
         String key = prefix + "/" + UUID.randomUUID() + TYPE_INFO.get(type)[0];

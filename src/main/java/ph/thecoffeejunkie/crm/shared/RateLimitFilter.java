@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.MDC;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -59,11 +60,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     : rateLimiter.retryAfterSeconds(rule.name(), client, rule.limit(), rule.window());
             if (retryAfter > 0) {
                 log.warn("Rate limit '{}' hit by {} on {}", rule.name(), request.getRemoteAddr(), path);
+                // Hand-written ProblemDetail JSON: filters run outside MVC message converters.
+                // requestId is safe to embed: RequestIdFilter only lets [A-Za-z0-9-] through or makes a UUID.
                 response.setStatus(429);
                 response.setHeader("Retry-After", String.valueOf(retryAfter));
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.getWriter().write("{\"status\":429,\"error\":\"Too Many Requests\",\"message\":\"Too many attempts. Try again in "
-                        + retryAfter + " seconds.\"}");
+                response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+                response.getWriter().write("{\"title\":\"Too Many Requests\",\"status\":429,"
+                        + "\"detail\":\"Too many attempts. Try again in " + retryAfter + " seconds.\","
+                        + "\"code\":\"" + ErrorCode.RATE_LIMITED.name() + "\","
+                        + "\"requestId\":\"" + MDC.get(RequestIdFilter.MDC_KEY) + "\"}");
                 return;
             }
             chain.doFilter(request, response);

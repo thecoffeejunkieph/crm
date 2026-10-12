@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.files;
 
+import ph.thecoffeejunkie.crm.shared.DomainException;
+import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
@@ -60,10 +62,11 @@ class StorageServiceIT {
         var pdf = new MockMultipartFile("file", "x.png", "image/png", "%PDF-1.7 ...".getBytes());
         var text = new MockMultipartFile("file", "x.jpg", "image/jpeg", "hello".getBytes());
 
-        var ex = assertThrows(IllegalArgumentException.class,
+        var ex = assertThrows(DomainException.class,
                 () -> storage.store("users/1/avatar", pdf, StorageService.IMAGE_TYPES));
+        assertEquals(ErrorCode.VALIDATION_FAILED, ex.code());
         assertEquals("Unsupported file type. Allowed types: JPEG, PNG, WEBP", ex.getMessage());
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(DomainException.class,
                 () -> storage.store("invoices/INV-2026-0001/payments", text, StorageService.PROOF_TYPES));
     }
 }

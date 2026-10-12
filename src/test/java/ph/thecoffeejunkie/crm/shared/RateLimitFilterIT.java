@@ -51,7 +51,7 @@ class RateLimitFilterIT {
         assertEquals(429, res.getStatus());
         int retryAfter = Integer.parseInt(res.getHeader("Retry-After"));
         assertTrue(retryAfter >= 1 && retryAfter <= 60, "Retry-After was " + retryAfter);
-        assertTrue(res.getContentAsString().contains("\"status\":429"));
+        assertTrue(res.getContentAsString().contains("\"code\":\"RATE_LIMITED\""));
         assertNull(chain.getRequest(), "chain must not run when limited");
     }
 
