@@ -26,13 +26,13 @@ public class Settings {
         this.audit = audit;
     }
 
-    @Cacheable("settings")
+    @Cacheable(value = "settings", key = "'d:' + #key")
     @Transactional(readOnly = true)
     public BigDecimal decimal(SettingKey key) {
         return new BigDecimal(raw(key).toString());
     }
 
-    @Cacheable("settings")
+    @Cacheable(value = "settings", key = "'t:' + #key")
     @Transactional(readOnly = true)
     public String text(SettingKey key) {
         return raw(key).toString();
@@ -56,11 +56,20 @@ public class Settings {
         valid.forEach((k, v) -> {
             AppSetting row = repo.findById(k.key()).orElseThrow();
             Object old = row.value;
+            if (same(old, v)) {
+                return;
+            }
             row.value = v;
             row.updatedAt = Instant.now();
             audit.record(AuditAction.SETTING_CHANGED, "SETTING", null, "Setting " + k.key() + " changed",
                     AuditChanges.diff().field(k.key(), old, v));
         });
+    }
+
+    // jsonb numbers come back as Integer/Double/BigDecimal, so compare numerically.
+    private static boolean same(Object old, Object v) {
+        return old instanceof Number n && v instanceof BigDecimal b
+                ? new BigDecimal(n.toString()).compareTo(b) == 0 : v.equals(old);
     }
 
     private Object raw(SettingKey key) {

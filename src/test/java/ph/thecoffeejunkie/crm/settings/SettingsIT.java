@@ -80,6 +80,17 @@ class SettingsIT {
     }
 
     @Test
+    void unchangedValuesNotAudited() throws Exception {
+        int before = jdbc.queryForObject(
+                "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class);
+        mvc.perform(putJson("{\"approval.discountPercentMax\": 15, \"approval.writeOffQtyMax\": 10.0,"
+                + " \"pos.quickAddAssignment\": \"SELF\"}")).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject(
+                "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class))
+                .isEqualTo(before);
+    }
+
+    @Test
     void negativeThresholdRejected() throws Exception {
         mvc.perform(putJson("{\"approval.discountPercentMax\": -1}"))
                 .andExpect(status().isBadRequest())
