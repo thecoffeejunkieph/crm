@@ -116,8 +116,12 @@ class TwoFactorIT {
     }
 
     private Cookie fullSession(String email, byte[] secret) throws Exception {
+        return fullSession(email, secret, code(email, secret));
+    }
+
+    private Cookie fullSession(String email, byte[] secret, String code) throws Exception {
         Cookie pre = session(login(email));
-        return session(send("POST", "/api/auth/totp", pre, "{\"code\":\"" + code(email, secret) + "\"}")
+        return session(send("POST", "/api/auth/totp", pre, "{\"code\":\"" + code + "\"}")
                 .andExpect(status().isOk()).andExpect(jsonPath("$.next").value("DONE")).andReturn());
     }
 
@@ -183,9 +187,9 @@ class TwoFactorIT {
     @Test
     void sameCodeCannotBeReused() throws Exception {
         byte[] secret = enrolled("replay@totp.it", Role.SALES);
-        fullSession("replay@totp.it", secret);
+        String used = code("replay@totp.it", secret);
+        fullSession("replay@totp.it", secret, used);
         Cookie pre = session(login("replay@totp.it"));
-        String used = String.format("%06d", Totp.codeAt(secret, Totp.stepAt(Instant.now())));
         send("POST", "/api/auth/totp", pre, "{\"code\":\"" + used + "\"}").andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("TOTP_INVALID"));
     }
@@ -294,5 +298,61 @@ class TwoFactorIT {
         byte[] secret = enrolled("peon@totp.it", Role.SALES);
         Cookie s = fullSession("peon@totp.it", secret);
         send("POST", "/api/admin/users/1/totp-reset", s, "").andExpect(status().isForbidden());
+    }
+
+    @Test
+    void pendingSecretCannotCrossUsers() throws Exception {
+        user("a@totp.it", Role.SALES);
+        user("b@totp.it", Role.SALES);
+        Cookie a = session(login("a@totp.it"));
+        String base32 = JsonPath.read(send("POST", "/api/me/totp/setup", a, "").andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.secret");
+        // Same session id logs in as B (login rotates the id but keeps attributes).
+        Cookie b = session(mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"b@totp.it\",\"password\":\"" + PW + "\"}").cookie(a).with(csrf(mvc)))
+                .andExpect(status().isOk()).andReturn());
+        String code = String.format("%06d", Totp.codeAt(Base32.decode(base32), Totp.stepAt(Instant.now())));
+        send("POST", "/api/me/totp/enable", b, "{\"code\":\"" + code + "\"}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        assertThat(jdbc.queryForObject("select totp_enabled_at is null from app_user where email = 'b@totp.it'",
+                Boolean.class)).isTrue();
+    }
+
+    @Test
+    void preTotpSessionCannotSetup() throws Exception {
+        enrolled("pre@totp.it", Role.SALES);
+        send("POST", "/api/me/totp/setup", session(login("pre@totp.it")), "").andExpect(status().isForbidden());
+    }
+
+    @Test
+    void parallelSameRecoveryCodeOnlyOneWins() throws Exception {
+        enrolled("recrace@totp.it", Role.SALES);
+        long id = users.findByEmailAndArchivedAtIsNull("recrace@totp.it").orElseThrow().id;
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest("abcde-fghij".getBytes(StandardCharsets.UTF_8)));
+        jdbc.update("insert into recovery_code (user_id, code_hash) values (?, ?)", id, hash);
+        Cookie a = session(login("recrace@totp.it"));
+        Cookie b = session(login("recrace@totp.it"));
+        var barrier = new CyclicBarrier(2);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Integer>> results = new ArrayList<>();
+            for (Cookie c : List.of(a, b)) {
+                var csrf = csrf(mvc);
+                results.add(pool.submit(() -> {
+                    barrier.await();
+                    return mvc.perform(post("/api/auth/totp").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"recoveryCode\":\"abcde-fghij\"}").cookie(c).with(csrf))
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            List<Integer> statuses = new ArrayList<>();
+            for (var f : results) {
+                statuses.add(f.get());
+            }
+            assertThat(statuses).containsExactlyInAnyOrder(200, 401);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 }

@@ -51,8 +51,10 @@ class TotpController {
 
     @PostMapping("/api/me/totp/setup")
     TotpSetupResponse setup(HttpServletRequest request) {
-        TotpSetupResponse r = service.setup(actor.scope().userId());
-        request.getSession().setAttribute(PENDING_SECRET, r.secret());
+        long userId = actor.scope().userId();
+        TotpSetupResponse r = service.setup(userId);
+        // Bound to the user: session attributes survive a re-login in the same session.
+        request.getSession().setAttribute(PENDING_SECRET, userId + ":" + r.secret());
         return r;
     }
 
@@ -60,8 +62,13 @@ class TotpController {
     RecoveryCodesResponse enable(@RequestBody TotpCodeRequest req, Authentication auth, HttpServletRequest request,
                                  HttpServletResponse response) {
         var session = request.getSession(false);
-        String pending = session == null ? null : (String) session.getAttribute(PENDING_SECRET);
-        RecoveryCodesResponse r = service.enable(actor.scope().userId(), pending, req.code());
+        long userId = actor.scope().userId();
+        String stored = session == null ? null : (String) session.getAttribute(PENDING_SECRET);
+        String prefix = userId + ":";
+        if (stored == null || !stored.startsWith(prefix)) {
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Start 2FA setup again.");
+        }
+        RecoveryCodesResponse r = service.enable(userId, stored.substring(prefix.length()), req.code());
         session.removeAttribute(PENDING_SECRET);
         // An ENROL_2FA session becomes a full one only now that the DB transaction has committed.
         String token = null;
