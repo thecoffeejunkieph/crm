@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.settings;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
@@ -34,16 +35,27 @@ class SettingsIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired CacheManager caches;
 
+    // app_setting.updated_by is a FK, so the acting user must exist.
+    long adminId;
+
+    @BeforeEach
+    void createActor() {
+        adminId = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
+                + "values ('actor@settings.it', 'Ann', 'Admin', 'ADMIN') returning id", Long.class);
+    }
+
     @AfterEach
     void restoreSeeds() {
+        jdbc.update("update app_setting set updated_by = null");
+        jdbc.update("delete from app_user where id = ?", adminId);
         jdbc.update("update app_setting set value = '15' where key = 'approval.discountPercentMax'");
         jdbc.update("update app_setting set value = '10' where key = 'approval.writeOffQtyMax'");
         jdbc.update("update app_setting set value = '\"SELF\"' where key = 'pos.quickAddAssignment'");
         caches.getCache("settings").clear();
     }
 
-    private static UsernamePasswordAuthenticationToken auth(Role role) {
-        var p = new StaffPrincipal(1L, "a@x.ph", "Ann Admin", role, Set.of());
+    private UsernamePasswordAuthenticationToken auth(Role role) {
+        var p = new StaffPrincipal(adminId, "a@x.ph", "Ann Admin", role, Set.of());
         return new UsernamePasswordAuthenticationToken(p, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
     }
 
@@ -72,6 +84,8 @@ class SettingsIT {
                 .andExpect(status().isOk());
         assertThat(settings.decimal(SettingKey.APPROVAL_DISCOUNT_PERCENT_MAX)).isEqualByComparingTo(new BigDecimal("20"));
         assertThat(settings.text(SettingKey.POS_QUICK_ADD_ASSIGNMENT)).isEqualTo("UNASSIGNED");
+        assertThat(jdbc.queryForObject("select updated_by from app_setting where key = 'approval.discountPercentMax'",
+                Long.class)).isEqualTo(adminId);
         assertThat(jdbc.queryForObject(
                 "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class))
                 .isEqualTo(before + 2);

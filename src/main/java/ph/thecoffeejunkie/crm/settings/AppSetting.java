@@ -19,6 +19,7 @@ class AppSetting {
     /** Number or string as stored in jsonb. */
     @JdbcTypeCode(SqlTypes.JSON)
     Object value;
-    // updated_by stays null until users exist (identity task); the FK targets app_user.
+    /** Acting staff user; null when changed outside a login. */
+    Long updatedBy;
     Instant updatedAt = Instant.now();
 }

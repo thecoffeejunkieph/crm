@@ -1,15 +1,29 @@
 package ph.thecoffeejunkie.crm.identity;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
-interface AppUserRepository extends JpaRepository<AppUser, Long> {
+interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpecificationExecutor<AppUser> {
 
     Optional<AppUser> findByEmailAndArchivedAtIsNull(String email);
+
+    /** Row-locks the active admins so concurrent demotions/archivals cannot both pass the last-admin guard. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<AppUser> findByRoleAndArchivedAtIsNull(Role role);
+
+    @Query("select u.id from AppUser u where u.role = :role and u.archivedAt is null order by u.id")
+    List<Long> activeIdsWithRole(Role role);
+
+    boolean existsByIdAndRoleAndArchivedAtIsNull(long id, Role role);
 
     // Login mirrors LoginThrottle into the row with single atomic UPDATEs: no read-modify-write, no version bump.
 
@@ -24,4 +38,8 @@ interface AppUserRepository extends JpaRepository<AppUser, Long> {
     @Modifying
     @Query("update AppUser u set u.failedLogins = 0, u.lockedUntil = null where u.id = :id")
     void resetFailedLogins(long id);
+
+    @Modifying
+    @Query("update AppUser u set u.inviteEmailStatus = :status where u.id = :id")
+    void setInviteEmailStatus(long id, String status);
 }

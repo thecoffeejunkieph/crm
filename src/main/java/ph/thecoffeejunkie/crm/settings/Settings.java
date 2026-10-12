@@ -8,6 +8,8 @@ import tools.jackson.databind.JsonNode;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditChanges;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
+import ph.thecoffeejunkie.crm.shared.CurrentActor;
+import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -20,10 +22,12 @@ public class Settings {
 
     private final AppSettingRepository repo;
     private final AuditLog audit;
+    private final CurrentActor actor;
 
-    Settings(AppSettingRepository repo, AuditLog audit) {
+    Settings(AppSettingRepository repo, AuditLog audit, CurrentActor actor) {
         this.repo = repo;
         this.audit = audit;
+        this.actor = actor;
     }
 
     @Cacheable(value = "settings", key = "'d:' + #key")
@@ -61,6 +65,7 @@ public class Settings {
             }
             row.value = v;
             row.updatedAt = Instant.now();
+            row.updatedBy = actor.staff().map(StaffPrincipal::userId).orElse(null);
             audit.record(AuditAction.SETTING_CHANGED, "SETTING", null, "Setting " + k.key() + " changed",
                     AuditChanges.diff().field(k.key(), old, v));
         });
