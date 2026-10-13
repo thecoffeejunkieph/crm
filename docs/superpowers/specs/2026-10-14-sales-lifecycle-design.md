@@ -51,7 +51,7 @@ multi-currency, recurring orders. Overdue reminder emails. Quote requests from t
 |---|---|
 | `catalog` | `product`, the `Catalog` facade, product API |
 | `sales` | Orders, revisions, invoices, payments, document counter, quote/invoice PDFs, missing-2307 report, sales API |
-| `portal` | Gains the portal order/invoice/payment endpoints, delegating to the `Sales` facade |
+| `portal` | Unchanged. Portal order endpoints live in `sales` (`/api/portal/orders/**`); `portal` keeps portal identity |
 | `customers` | Gains `tax_treatment` |
 
 `sales` depends on `catalog`, `customers`, `approvals`, `audit`, `settings`, `files` and `notifications` through
@@ -80,17 +80,23 @@ quantity `numeric(12,3)`, `text` + `CHECK` enums, `timestamptz`, `version` on ag
 
 - `sales_order(id, number, customer_id, rep_id, status, revision int default 0, payment_terms, quote_valid_until null,
   shipping_fee default 0, notes, terms, vatable_sales, vat, vat_exempt_sales, zero_rated_sales, total,
+  settled_amount default 0, due_date null,
   quoted_at, customer_accepted_at, confirmed_at, released_at, fulfilled_at, cancelled_at, cancel_reason,
   created_by, created_at, updated_at, version)`
   - `number` is `SO-<YY>-<5 digits>` from the Foundation sequence (gaps are acceptable for orders).
   - `status` in `DRAFT, QUOTED, CONFIRMED, RELEASED, FULFILLED, CANCELLED`.
   - `rep_id` is copied from the customer at creation. `payment_terms` is copied from the customer and editable.
   - Totals are cached, recomputed by `OrderTotals` on every line change.
+  - `settled_amount` (Σ verified cash + withholding) and `due_date` (from the active invoice) are cached so the
+    payment status can be filtered in SQL. Both are written under the order row lock.
 - `order_line(id, order_id, position, product_id, description, unit, qty, unit_price, discount_pct, tax_class,
   line_total)`
   - `description`, `unit`, `tax_class` are snapshots taken when the line is added; catalog edits don't rewrite
     orders.
   - `qty > 0`, `unit_price >= 0`, `discount_pct between 0 and 100`.
+  - A line's default `unit_price` is the catalog price. For a customer whose `tax_treatment` isn't `REGULAR`, the
+    default for a `VATABLE` product is the catalog price ÷ 1.12 (net of VAT), since no VAT is charged. The rep can
+    still type any price.
 - `order_revision(id, order_id, revision, snapshot jsonb, reason, created_by, created_at)` — the order's state
   *before* a revision of a confirmed or released order.
 - `invoice(id, number, order_id, order_revision, status, issued_at, due_date, customer_snapshot jsonb,
@@ -102,7 +108,7 @@ quantity `numeric(12,3)`, `text` + `CHECK` enums, `timestamptz`, `version` on ag
   - `number` is `SI-<5 digits>` from `document_counter`.
 - `document_counter(name text primary key, next_value bigint not null)` — seeded with `('INVOICE', 1)`.
 - `payment(id, order_id, status, method, cash_amount, withholding_amount default 0, received_on, reference,
-  proof_file_id null, form2307_file_id null, submitted_by_type, submitted_by_id, verified_by null,
+  proof_key null, form2307_key null, submitted_by_type, submitted_by_id, verified_by null,
   verified_at null, reject_reason null, created_at, updated_at, version)`
   - `status` in `PENDING, VERIFIED, REJECTED`.
   - `method` in `CASH, BANK_TRANSFER, CHECK, GCASH, CARD, OTHER`.
@@ -163,14 +169,18 @@ together:
   `total`.
 - Customers with no `credit_limit` are cash customers: the limit check is skipped at confirm; the Release gate
   covers them. The overdue check still applies.
-- Each check passes if `Approvals.isApproved(type, "ORDER", id, version)` is true. ADMINs pass all checks
+- **Approval subject version = the order's content fingerprint**, not its JPA `version`: the first 8 bytes of a
+  SHA-256 over customer, payment terms, shipping fee and every line (product, qty, unit price, discount). A revision
+  must be approved *before* it exists, which a JPA version can't express; the fingerprint can, and any change to the
+  content still invalidates old approvals.
+- Each check passes if an APPROVED request matches `(type, "ORDER", id, fingerprint)`. ADMINs pass all checks
   (audited "self-approved (admin)"), per Foundation §5.
 - Failure → 422 `APPROVAL_REQUIRED` with `approvals: [{type, requestedValue}]` alongside the Foundation fields. This
   extends the Foundation payload from one type to a list.
 
 ### Portal accept and decline
 
-- **Accept** (`QUOTED`, not expired): sets `customer_accepted_at`, then attempts confirm as `SYSTEM`.
+- **Accept** (`QUOTED`, not expired, body carries the order `version` the contact saw): sets `customer_accepted_at`, then attempts confirm as `SYSTEM`.
   - Checks pass → `CONFIRMED`.
   - Checks fail → the order stays `QUOTED` with `customer_accepted_at` set. The system creates one approval request
     per failing type (requested by the order's rep, reason "Customer accepted via portal") and notifies the rep.
@@ -184,7 +194,7 @@ together:
 `PUT /api/orders/{id}` on a `CONFIRMED` or `RELEASED` order is a revision and requires `reason`:
 
 1. Write `order_revision` with the current state.
-2. Apply the change, `revision += 1`, version bumps (old approvals stop matching).
+2. Apply the change, `revision += 1`. The fingerprint changes, so old approvals stop matching.
 3. Re-run the confirm checks. Failure → 422 `APPROVAL_REQUIRED`; nothing is saved.
 4. If an `ISSUED` invoice exists: requires `INVOICE_VOID` approval (ADMIN exempt), then voids it and issues a new
    one in the same transaction (§4).
@@ -196,7 +206,8 @@ together:
 `CONFIRMED → RELEASED`.
 
 - Credit customers (`credit_limit` set): allowed.
-- Cash customers: allowed when the balance is 0; otherwise requires `CREDIT_LIMIT` approval (`requestedValue`
+- Cash customers: allowed when the balance is 0; otherwise requires `CREDIT_LIMIT` approval on subject
+  `ORDER_RELEASE` (so a confirm-time credit approval can't double as a ship-before-payment one; `requestedValue`
   `{"reason": "SHIP_BEFORE_PAYMENT", "balance": …}`).
 
 In #2 release only sets the status. #3 turns released orders into delivery orders.
@@ -243,7 +254,8 @@ A pure class with no Spring or JPA dependency.
 
 - Triggered by revise, cancel, or `POST /api/orders/{id}/invoice/reissue {reason}` (fixes a wrong customer TIN or
   address without changing the order).
-- Requires `INVOICE_VOID` approval (subject = the order and its version), ADMIN exempt.
+- Requires `INVOICE_VOID` approval (subject `INVOICE` + invoice id, version = the order fingerprint after the
+  change), ADMIN exempt.
 - Sets the old invoice `VOID` with reason, `voided_by`, `voided_at`; issues the new invoice (next number) and sets
   `replaced_by_id`. Cancel voids without reissuing.
 - Payments are attached to the order, so balances carry over with no extra logic.
@@ -261,7 +273,7 @@ A pure class with no Spring or JPA dependency.
   clear it.
 - **Form 2307:** `PUT /api/payments/{id}/form-2307` attaches a file at any time, by a rep, or by the contact who
   submitted the payment.
-- **Missing-2307 report:** verified payments with `withholding_amount > 0` and no `form2307_file_id`, filterable by
+- **Missing-2307 report:** verified payments with `withholding_amount > 0` and no `form2307_key`, filterable by
   customer, rep and date range. Exportable as CSV (audited, per Foundation §6).
 
 ### Documents
@@ -291,7 +303,7 @@ A pure class with no Spring or JPA dependency.
 - Order scope follows the customer: reassigning a customer moves its orders to the new rep.
 - An order that returns to `DRAFT` (edited or declined quote) disappears from the portal until it is sent again.
 - Out of scope → 404 `NOT_FOUND`.
-- `cost` is omitted from the product DTO for non-ADMIN (separate response type, not a nulled field). Portal DTOs
+- `cost` is omitted from product JSON for non-ADMIN (`@JsonInclude(NON_NULL)`, never populated for them). Portal DTOs
   omit internal notes, rep details and approval information.
 - Mark fulfilled is ADMIN only. Everything else on orders is ADMIN or SALES within scope.
 
@@ -314,7 +326,8 @@ Staff:
 | `GET`, `POST` | `/api/orders/{id}/payments` |
 | `POST` | `/api/payments/{id}/verify`, `/api/payments/{id}/reject` |
 | `PUT` | `/api/payments/{id}/form-2307` |
-| `GET` | `/api/reports/missing-2307` (`?format=csv` for export) |
+| `GET` | `/api/reports/missing-2307`, `/api/reports/missing-2307.csv` |
+| `GET` | `/api/orders/{id}/invoices` (active + void) |
 | `GET` | `/api/customers/{id}/orders`, `/api/customers/{id}/invoices` |
 
 Portal:
