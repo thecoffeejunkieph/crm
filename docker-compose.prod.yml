@@ -4,10 +4,10 @@ services:
     environment:
       POSTGRES_DB: crm
       POSTGRES_USER: crm_owner
-      POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD:-crm_owner}
+      POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD:?DB_OWNER_PASSWORD is required}
       # Read by deploy/postgres/init/01-roles.sh on first start; there is no default.
-      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-crm_app}
-    ports: ["5432:5432"]
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?DB_APP_PASSWORD is required}
+    # Not published: use `docker exec` or an SSH tunnel for operator access.
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -28,6 +28,8 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       # Inside the compose network the api container reaches Postgres by service name, not localhost.
       DB_HOST: postgres
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?DB_OWNER_PASSWORD is required}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?DB_APP_PASSWORD is required}
       # Same idea for MinIO: the api calls it by service name, while presigned links
       # handed to the browser must point at the host-published port.
       MINIO_ENDPOINT: http://minio:9000

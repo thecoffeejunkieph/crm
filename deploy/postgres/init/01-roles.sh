@@ -2,6 +2,7 @@
 # Runs once on first start of an empty data dir. The entrypoint has already created the crm_owner role and the
 # crm database from POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB; this adds the least-privilege app role.
 # No default password: a missing DB_APP_PASSWORD aborts initialisation.
+# If it aborts, `docker compose down -v` before retrying: the data dir is already initialised and init will not rerun.
 set -eu
 : "${DB_APP_PASSWORD:?DB_APP_PASSWORD must be set}"
 

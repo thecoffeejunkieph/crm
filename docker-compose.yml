@@ -28,24 +28,24 @@ services:
       DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?}
       DB_APP_USERNAME: crm_app
       DB_APP_PASSWORD: ${DB_APP_PASSWORD:?}
-      ENCRYPTION_SALT: ${ENCRYPTION_SALT}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT:?ENCRYPTION_SALT is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       SESSION_COOKIE_SECURE: true
       # Subdomains of this host can read the XSRF-TOKEN cookie, so every subdomain must be trusted.
       CSRF_COOKIE_DOMAIN: ${CSRF_COOKIE_DOMAIN:-thecoffeejunkie.ph}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:?MINIO_PUBLIC_URL is required}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
       MINIO_BUCKET: crm
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      APP_BASE_URL: ${APP_BASE_URL}
-      APP_FRONTEND_URL: ${APP_FRONTEND_URL}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
-      MAIL_USERNAME: ${MAIL_USERNAME}
-      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:?APP_FRONTEND_URL is required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+      MAIL_USERNAME: ${MAIL_USERNAME:?MAIL_USERNAME is required}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?MAIL_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,8 +75,8 @@ services:
     command: server /data
     environment:
       # Same vars the api uses - the api logs in as root, so these must match.
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
     volumes:
       - minio_data:/data
     healthcheck:
@@ -91,7 +91,7 @@ services:
     # private; a link works only while its signature is valid. The console stays unexposed.
     labels:
       - traefik.enable=true
-      - traefik.http.routers.files.rule=Host(`${MINIO_PUBLIC_HOST}`)
+      - traefik.http.routers.files.rule=Host(`${MINIO_PUBLIC_HOST:?MINIO_PUBLIC_HOST is required}`)
       - traefik.http.routers.files.entrypoints=websecure
       - traefik.http.routers.files.tls.certresolver=letsencrypt
       - traefik.http.routers.files.tls=true
@@ -101,11 +101,11 @@ services:
     image: redis:7.4.2-alpine
     restart: unless-stopped
     # appendonly so a restart doesn't bring logged-out tokens back to life
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -119,7 +119,7 @@ services:
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z # ships the mc client
     profiles: ["migrate"]
     environment:
-      MC_HOST_crm: http://${MINIO_ACCESS_KEY}:${MINIO_SECRET_KEY}@minio:9000
+      MC_HOST_crm: http://${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}:${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}@minio:9000
     entrypoint: ["sh", "-c", "mc mb --ignore-existing crm/${MINIO_BUCKET} && mc mirror /old-storage crm/${MINIO_BUCKET}"]
     volumes:
       - api_storage:/old-storage:ro
