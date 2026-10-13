@@ -71,10 +71,30 @@ class ApprovalsIT {
                 .isInstanceOfSatisfying(DomainException.class, e -> {
                     assertThat(e.code()).isEqualTo(ErrorCode.APPROVAL_REQUIRED);
                     assertThat(e.properties()).containsEntry("subjectId", 7L).containsEntry("subjectVersion", 3L)
-                            .containsEntry("subjectType", SUBJECT).containsKey("requestedValue").containsKey("type");
+                            .containsEntry("subjectType", SUBJECT).containsKey("requestedValue").containsEntry("approvalType", ApprovalType.DISCOUNT).doesNotContainKey("type");
                 });
     }
 
+
+    @org.springframework.web.bind.annotation.RestController
+    static class Guarded {
+        final Approvals approvals;
+        Guarded(Approvals approvals) { this.approvals = approvals; }
+
+        @org.springframework.web.bind.annotation.GetMapping("/guarded")
+        void guarded() { approvals.ensureApproved(ApprovalType.DISCOUNT, SUBJECT, 7, 3, Map.of("pct", 15)); }
+    }
+
+    @Test
+    void problemBodyKeepsApprovalTypeApartFromProblemType() throws Exception {
+        login(sales, Role.SALES);
+        var standalone = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new Guarded(approvals))
+                .setControllerAdvice(new ph.thecoffeejunkie.crm.shared.ProblemDetailAdvice()).build();
+        standalone.perform(get("/guarded")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("APPROVAL_REQUIRED"))
+                .andExpect(jsonPath("$.approvalType").value("DISCOUNT"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"type\":\"DISCOUNT\""))));
+    }
     @Test
     void approvedMatchPasses() throws Exception {
         long id = requestVia(sales, 7, 3);

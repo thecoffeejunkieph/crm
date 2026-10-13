@@ -63,7 +63,7 @@ public class Approvals {
             return;
         }
         throw new DomainException(ErrorCode.APPROVAL_REQUIRED, "Approval required",
-                Map.of("type", type, "subjectType", subjectType, "subjectId", subjectId,
+                Map.of("approvalType", type, "subjectType", subjectType, "subjectId", subjectId,
                         "subjectVersion", subjectVersion, "requestedValue", requestedValue));
     }
 
