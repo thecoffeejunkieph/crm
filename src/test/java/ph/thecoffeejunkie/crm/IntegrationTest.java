@@ -27,9 +27,12 @@ public @interface IntegrationTest {
     class Containers implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
         private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine")
-                .withDatabaseName("postgres")
-                .withCopyFileToContainer(MountableFile.forHostPath("deploy/postgres/init/01-roles.sql"),
-                        "/docker-entrypoint-initdb.d/01-roles.sql");
+                .withDatabaseName("crm")
+                .withUsername("crm_owner")
+                .withPassword("crm_owner")
+                .withEnv("DB_APP_PASSWORD", "crm_app")
+                .withCopyFileToContainer(MountableFile.forHostPath("deploy/postgres/init/01-roles.sh", 0755),
+                        "/docker-entrypoint-initdb.d/01-roles.sh");
 
         @Override
         public void initialize(ConfigurableApplicationContext context) {

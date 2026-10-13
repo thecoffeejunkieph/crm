@@ -119,6 +119,11 @@ public class StorageService {
         return key;
     }
 
+    /** For the health check only. */
+    boolean bucketExists() throws Exception {
+        return client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
+    }
+
     public String presignedUrl(String key) {
         try {
             return presignClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()

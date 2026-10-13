@@ -1,16 +1,18 @@
 services:
-  mysql:
-    image: mysql:8
+  postgres:
+    image: postgres:17-alpine
     environment:
-      MYSQL_USER: ${DB_USERNAME:-admin}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-admin}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-admin}
-      MYSQL_DATABASE: crm_db
-    ports: ["3306:3306"]
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm_owner
+      POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD:-crm_owner}
+      # Read by deploy/postgres/init/01-roles.sh on first start; there is no default.
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-crm_app}
+    ports: ["5432:5432"]
     volumes:
-      - mysql_data:/var/lib/mysql
+      - pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-admin}"]
+      test: ["CMD-SHELL", "pg_isready -U crm_owner -d crm"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -24,9 +26,8 @@ services:
         required: false
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
-      # Overrides .env.dev's DB_URL: inside the compose network the api container
-      # reaches MySQL via the service name "mysql", not localhost.
-      DB_URL: jdbc:mysql://mysql:3306/crm_db
+      # Inside the compose network the api container reaches Postgres by service name, not localhost.
+      DB_HOST: postgres
       # Same idea for MinIO: the api calls it by service name, while presigned links
       # handed to the browser must point at the host-published port.
       MINIO_ENDPOINT: http://minio:9000
@@ -34,7 +35,7 @@ services:
       REDIS_HOST: redis
     ports: ["8080:8080"] # exposed for the frontend (dev server on :5173) to call
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -71,7 +72,7 @@ services:
       retries: 10
 
 volumes:
-  mysql_data:
+  pg_data:
   minio_data:
   redis_data:
 
