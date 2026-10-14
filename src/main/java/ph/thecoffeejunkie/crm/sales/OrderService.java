@@ -67,10 +67,12 @@ class OrderService {
     private final SalesMailer mailer;
     private final ApprovalChecks checks;
     private final Approvals approvals;
+    private final InvoiceRepository invoices;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
-                 Approvals approvals) {
+                 Approvals approvals, InvoiceRepository invoices) {
+        this.invoices = invoices;
         this.repo = repo;
         this.quotes = quotes;
         this.mailer = mailer;
@@ -274,7 +276,8 @@ class OrderService {
                     l.qty, l.unitPrice, l.discountPct, l.taxClass, l.lineTotal, admin ? belowCost(l, p) : null);
         }).toList();
         String repName = o.repId == null ? null : users.displayNames(List.of(o.repId)).get(o.repId);
-        InvoiceSummary invoice = null;
+        InvoiceSummary invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
+                .map(Invoice::toSummary).orElse(null);
         BigDecimal withholding = Balances.suggestedWithholding(o.totals(),
                 settings.decimal(SettingKey.SALES_WITHHOLDING_SUGGEST_PERCENT), c.type());
         return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), o.repId, repName, o.status,
