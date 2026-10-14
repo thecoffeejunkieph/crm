@@ -36,6 +36,7 @@ class CustomersIT {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired Customers customers;
 
     private final String tag = "CU" + UUID.randomUUID().toString().substring(0, 8);
 
@@ -261,5 +262,59 @@ class CustomersIT {
         mvc.perform(put("/api/customers/" + id + "/assignment").with(me).with(csrf(mvc))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"repId\":" + admin + "}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("repId"));
+    }
+
+    @Test
+    void taxTreatmentDefaultsToRegular() throws Exception {
+        long admin = user("adm", "ADMIN");
+        create(admin, Role.ADMIN, json("tt", "111", null, null)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.taxTreatment").value("REGULAR"));
+    }
+
+    @Test
+    void taxTreatmentChangeAudited() throws Exception {
+        long rep = user("rep", "SALES");
+        long id = createdId(rep, Role.SALES, "ttc");
+        String body = json("ttc", "111", null, 0L).replace("}", ",\"taxTreatment\":\"ZERO_RATED\"}");
+        mvc.perform(put("/api/customers/" + id).with(authentication(as(rep, Role.SALES))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.taxTreatment").value("ZERO_RATED"));
+        String hist = mvc.perform(get("/api/customers/" + id + "/history").with(authentication(as(rep, Role.SALES))))
+                .andReturn().getResponse().getContentAsString();
+        List<List<String>> tt = JsonPath.read(hist, "$.content[?(@.action=='UPDATED')].changes.taxTreatment");
+        assertThat(tt).containsExactly(List.of("REGULAR", "ZERO_RATED"));
+    }
+
+    @Test
+    void visibleIdsForSalesOnlyOwnIncludingArchived() throws Exception {
+        long rep = user("rep", "SALES"), other = user("oth", "SALES");
+        long own = createdId(rep, Role.SALES, "v1");
+        long archived = createdId(rep, Role.SALES, "v2");
+        long foreign = createdId(other, Role.SALES, "v3");
+        jdbc.update("update customer set archived_at = now() where id = ?", archived);
+        var ids = customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Role.SALES, Set.of()));
+        assertThat(ids).hasValueSatisfying(set -> assertThat(set).contains(own, archived).doesNotContain(foreign));
+        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Role.WAREHOUSE, Set.of())))
+                .contains(Set.of());
+    }
+
+    @Test
+    void visibleIdsForAdminUnrestricted() {
+        long admin = user("adm", "ADMIN");
+        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(admin, Role.ADMIN, Set.of())))
+                .isEmpty();
+    }
+
+    @Test
+    void portalContactEmailsSkipsDisabledAndArchived() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long id = createdId(admin, Role.ADMIN, "pce");
+        String t = tag.toLowerCase();
+        addContact(admin, Role.ADMIN, id, t + "a@pce.ph").andExpect(status().isOk());
+        addContact(admin, Role.ADMIN, id, t + "b@pce.ph").andExpect(status().isOk());
+        addContact(admin, Role.ADMIN, id, t + "c@pce.ph").andExpect(status().isOk());
+        jdbc.update("update customer_contact set portal_enabled = false where email = ?", t + "b@pce.ph");
+        jdbc.update("update customer_contact set archived_at = now() where email = ?", t + "c@pce.ph");
+        assertThat(customers.portalContactEmails(id)).containsExactly(t + "a@pce.ph");
     }
 }

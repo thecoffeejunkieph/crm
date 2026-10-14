@@ -285,6 +285,10 @@
           "source" : {
             "type" : "string"
           },
+          "taxTreatment" : {
+            "enum" : [ "REGULAR", "ZERO_RATED", "VAT_EXEMPT" ],
+            "type" : "string"
+          },
           "tin" : {
             "type" : "string"
           },
@@ -349,6 +353,10 @@
             "type" : "string"
           },
           "source" : {
+            "type" : "string"
+          },
+          "taxTreatment" : {
+            "enum" : [ "REGULAR", "ZERO_RATED", "VAT_EXEMPT" ],
             "type" : "string"
           },
           "tin" : {

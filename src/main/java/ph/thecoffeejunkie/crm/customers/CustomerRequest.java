@@ -10,10 +10,12 @@ import java.math.BigDecimal;
 public record CustomerRequest(@NotNull CustomerType type, @NotBlank String displayName, String businessName,
                               String tin, String address, String phone, @Email String email,
                               @PositiveOrZero BigDecimal creditLimit, @NotNull PaymentTerms paymentTerms,
-                              String source, String notes, Long version) {
+                              String source, String notes, Long version,
+                              TaxTreatment taxTreatment) {
 
     // Trim before @Email runs, so padded input is accepted and stored normalised.
     public CustomerRequest {
         email = email == null ? null : email.trim();
+        taxTreatment = taxTreatment == null ? TaxTreatment.REGULAR : taxTreatment;
     }
 }

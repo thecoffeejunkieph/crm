@@ -30,6 +30,8 @@ class Customer {
     BigDecimal creditLimit;
     @Enumerated(EnumType.STRING)
     PaymentTerms paymentTerms;
+    @Enumerated(EnumType.STRING)
+    TaxTreatment taxTreatment = TaxTreatment.REGULAR;
     Long assignedRepId;
     String source;
     String notes;

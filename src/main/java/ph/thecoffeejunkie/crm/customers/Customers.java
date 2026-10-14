@@ -99,6 +99,7 @@ public class Customers {
                 .field("email", c.email, normaliseOrNull(req.email()))
                 .field("creditLimit", c.creditLimit, req.creditLimit())
                 .field("paymentTerms", c.paymentTerms, req.paymentTerms())
+                .field("taxTreatment", c.taxTreatment, req.taxTreatment())
                 .field("source", c.source, req.source())
                 .field("notes", c.notes, req.notes());
         apply(c, req);
@@ -234,6 +235,49 @@ public class Customers {
                 .flatMap(k -> repo.findById(k.customerId)).filter(c -> c.archivedAt == null).isPresent();
     }
 
+    @Transactional(readOnly = true)
+    public Optional<CustomerSalesProfile> salesProfileVisible(Scope s, long id) {
+        return repo.findOne(CustomerScopes.idEquals(id).and(CustomerScopes.visibleTo(s, true)))
+                .map(Customers::toSalesProfile);
+    }
+
+    /** Unscoped: for system and portal paths that have already established access. */
+    @Transactional(readOnly = true)
+    public CustomerSalesProfile salesProfile(long id) {
+        return repo.findById(id).map(Customers::toSalesProfile)
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+    }
+
+    /** Empty = no restriction (ADMIN). Archived customers count, so their orders stay visible. */
+    // ponytail: IN-list of a rep's customers; switch to a SQL join if a rep ever has thousands.
+    @Transactional(readOnly = true)
+    public Optional<Set<Long>> visibleCustomerIds(Scope s) {
+        if (s.isAdmin()) {
+            return Optional.empty();
+        }
+        return Optional.of(repo.findAll(CustomerScopes.visibleTo(s, true)).stream().map(c -> c.id)
+                .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, String> displayNames(Collection<Long> ids) {
+        Map<Long, String> out = new java.util.HashMap<>();
+        repo.findAllById(new HashSet<>(ids)).forEach(c -> out.put(c.id, c.displayName));
+        return out;
+    }
+
+    /** Active, portal-enabled contacts: the people a quote can be sent to. */
+    @Transactional(readOnly = true)
+    public List<String> portalContactEmails(long customerId) {
+        return contacts.findByCustomerIdAndArchivedAtIsNullOrderById(customerId).stream()
+                .filter(k -> k.portalEnabled).map(k -> k.email).toList();
+    }
+
+    private static CustomerSalesProfile toSalesProfile(Customer c) {
+        return new CustomerSalesProfile(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.creditLimit,
+                c.paymentTerms, c.taxTreatment, c.assignedRepId, c.archivedAt != null);
+    }
+
     private Customer findVisible(long id, Scope s, boolean includeArchived) {
         return repo.findOne(CustomerScopes.idEquals(id).and(CustomerScopes.visibleTo(s, includeArchived)))
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
@@ -293,6 +337,7 @@ public class Customers {
         c.phone = r.phone();
         c.email = normaliseOrNull(r.email());
         c.paymentTerms = r.paymentTerms();
+        c.taxTreatment = r.taxTreatment();
         c.source = r.source();
         c.notes = r.notes();
         if (c.id != null) {
@@ -329,7 +374,7 @@ public class Customers {
                 .map(Customers::toResponse).toList();
         String rep = c.assignedRepId == null ? null : repNames(List.of(c.assignedRepId)).get(c.assignedRepId);
         return new CustomerResponse(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.phone, c.email,
-                c.creditLimit, c.paymentTerms, c.assignedRepId, rep, c.source, c.notes, cs, c.archivedAt, c.version);
+                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.source, c.notes, cs, c.archivedAt, c.version);
     }
 
     private static ContactResponse toResponse(CustomerContact k) {
