@@ -33,6 +33,18 @@ class ApprovalChecks {
         this.settings = settings;
     }
 
+    /**
+     * Cash customers (no credit limit) ship before payment only with a CREDIT_LIMIT approval on its own subject,
+     * so a confirm-time credit approval can't double as one.
+     */
+    List<RequiredApproval> forRelease(SalesOrder o, CustomerSalesProfile c) {
+        if (c.creditLimit() != null || o.balance().signum() <= 0) {
+            return List.of();
+        }
+        return List.of(new RequiredApproval(ApprovalType.CREDIT_LIMIT, "ORDER_RELEASE", o.id, OrderFingerprint.of(o),
+                Map.of("reason", "SHIP_BEFORE_PAYMENT", "balance", o.balance())));
+    }
+
     List<RequiredApproval> forConfirm(SalesOrder o, CustomerSalesProfile c, Map<Long, ProductInfo> products,
                                       LocalDate today) {
         long version = OrderFingerprint.of(o);

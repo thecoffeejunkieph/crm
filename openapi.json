@@ -1741,7 +1741,7 @@
           "name" : "action",
           "required" : true,
           "schema" : {
-            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED" ],
+            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED" ],
             "type" : "string"
           }
         }, {
@@ -2149,7 +2149,7 @@
     },
     "/api/approvals/{id}/cancel" : {
       "post" : {
-        "operationId" : "cancel",
+        "operationId" : "cancel_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3182,9 +3182,83 @@
         "tags" : [ "order-controller" ]
       }
     },
+    "/api/orders/{id}/cancel" : {
+      "post" : {
+        "operationId" : "cancel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      }
+    },
     "/api/orders/{id}/confirm" : {
       "post" : {
         "operationId" : "confirm",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      }
+    },
+    "/api/orders/{id}/fulfil" : {
+      "post" : {
+        "operationId" : "fulfil",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3471,6 +3545,43 @@
                 "schema" : {
                   "format" : "byte",
                   "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      }
+    },
+    "/api/orders/{id}/release" : {
+      "post" : {
+        "operationId" : "release",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderResponse"
                 }
               }
             },

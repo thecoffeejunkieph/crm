@@ -73,6 +73,24 @@ class OrderController {
         return orders.confirm(actor.scope(), id, req);
     }
 
+    @PostMapping("/{id}/release")
+    @PreAuthorize("@salesPermissions.canWrite()")
+    OrderResponse release(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {
+        return orders.release(actor.scope(), id, req);
+    }
+
+    @PostMapping("/{id}/fulfil")
+    @PreAuthorize("@salesPermissions.canFulfil()")
+    OrderResponse fulfil(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {
+        return orders.fulfil(actor.scope(), id, req);
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("@salesPermissions.canWrite()")
+    OrderResponse cancel(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {
+        return orders.cancel(actor.scope(), id, req);
+    }
+
     @GetMapping("/{id}/quote.pdf")
     @PreAuthorize("@salesPermissions.canRead()")
     ResponseEntity<byte[]> quotePdf(@PathVariable long id) {

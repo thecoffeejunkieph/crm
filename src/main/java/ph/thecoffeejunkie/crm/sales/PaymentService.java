@@ -29,17 +29,17 @@ class PaymentService {
 
     private final PaymentRepository repo;
     private final SalesOrderRepository orderRepo;
-    private final OrderService orders;
+    private final OrderAccess access;
     private final StorageService storage;
     private final AuditLog audit;
     private final Users users;
     private final Customers customers;
 
-    PaymentService(PaymentRepository repo, SalesOrderRepository orderRepo, OrderService orders, StorageService storage,
+    PaymentService(PaymentRepository repo, SalesOrderRepository orderRepo, OrderAccess access, StorageService storage,
                    AuditLog audit, Users users, Customers customers) {
         this.repo = repo;
         this.orderRepo = orderRepo;
-        this.orders = orders;
+        this.access = access;
         this.storage = storage;
         this.audit = audit;
         this.users = users;
@@ -49,7 +49,7 @@ class PaymentService {
     /** Recorded by staff: VERIFIED at once. */
     @Transactional
     PaymentResponse record(Scope s, long orderId, PaymentRequest req, MultipartFile proof) {
-        SalesOrder o = orders.findVisibleForUpdate(orderId, s);
+        SalesOrder o = access.findVisibleForUpdate(orderId, s);
         OrderStateMachine.require(o.status, OrderAction.RECORD_PAYMENT);
         Payment p = newPayment(o, req);
         settle(o, p.amount());
@@ -87,7 +87,7 @@ class PaymentService {
     @Transactional
     PaymentResponse verify(Scope s, long paymentId, long version) {
         Payment p = find(paymentId);
-        SalesOrder o = orders.findVisibleForUpdate(p.orderId, s);
+        SalesOrder o = access.findVisibleForUpdate(p.orderId, s);
         requirePending(p, version);
         OrderStateMachine.require(o.status, OrderAction.RECORD_PAYMENT);
         settle(o, p.amount());
@@ -104,7 +104,7 @@ class PaymentService {
     @Transactional
     PaymentResponse reject(Scope s, long paymentId, RejectRequest req) {
         Payment p = find(paymentId);
-        SalesOrder o = orders.findVisibleForUpdate(p.orderId, s);
+        SalesOrder o = access.findVisibleForUpdate(p.orderId, s);
         requirePending(p, req.version());
         markRejected(p, req.reason().trim());
         audit.record(AuditAction.PAYMENT_REJECTED, OrderService.ENTITY, o.id,
@@ -115,7 +115,7 @@ class PaymentService {
     @Transactional
     PaymentResponse attach2307(Scope s, long paymentId, MultipartFile file) {
         Payment p = find(paymentId);
-        SalesOrder o = orders.findVisibleForUpdate(p.orderId, s);
+        SalesOrder o = access.findVisibleForUpdate(p.orderId, s);
         attach2307(p, o, file);
         return toResponse(p);
     }
@@ -139,7 +139,7 @@ class PaymentService {
 
     @Transactional(readOnly = true)
     List<PaymentResponse> list(Scope s, long orderId) {
-        orders.findVisible(orderId, s);
+        access.findVisible(orderId, s);
         return repo.findByOrderIdOrderByIdDesc(orderId).stream().map(this::toResponse).toList();
     }
 

@@ -46,7 +46,7 @@ import static ph.thecoffeejunkie.crm.sales.OrderAction.FULFIL;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.ISSUE_INVOICE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.REISSUE_INVOICE;
 
-/** Every staff read/write of an order goes through {@link #findVisible}, so scope cannot be forgotten. */
+/** Orders: create, edit, transitions. Scoped lookups go through {@link OrderAccess}. */
 @Service
 class OrderService {
 
@@ -68,11 +68,18 @@ class OrderService {
     private final ApprovalChecks checks;
     private final Approvals approvals;
     private final InvoiceRepository invoices;
+    private final OrderAccess access;
+    private final InvoiceService invoiceService;
+    private final PaymentService payments;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
-                 Approvals approvals, InvoiceRepository invoices) {
+                 Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
+                 PaymentService payments) {
         this.invoices = invoices;
+        this.access = access;
+        this.invoiceService = invoiceService;
+        this.payments = payments;
         this.repo = repo;
         this.quotes = quotes;
         this.mailer = mailer;
@@ -111,7 +118,7 @@ class OrderService {
 
     @Transactional(readOnly = true)
     OrderResponse get(Scope s, long id) {
-        return toResponse(findVisible(id, s), s);
+        return toResponse(access.findVisible(id, s), s);
     }
 
     @Transactional
@@ -138,7 +145,7 @@ class OrderService {
 
     @Transactional
     OrderResponse update(Scope s, long id, OrderRequest req) {
-        SalesOrder o = findVisible(id, s);
+        SalesOrder o = access.findVisible(id, s);
         requireVersion(o, req.version());
         OrderStateMachine.require(o.status, OrderAction.EDIT);
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
@@ -163,7 +170,7 @@ class OrderService {
     /** DRAFT|QUOTED → QUOTED. Mails the PDF to the portal contacts after commit; none → still quoted, nobody mailed. */
     @Transactional
     SendQuoteResponse sendQuote(Scope s, long id, TransitionRequest req) {
-        SalesOrder o = findVisibleForUpdate(id, s);
+        SalesOrder o = access.findVisibleForUpdate(id, s);
         requireVersion(o, req.version());
         OrderStateMachine.require(o.status, OrderAction.SEND_QUOTE);
         if (o.lines.isEmpty()) {
@@ -189,7 +196,7 @@ class OrderService {
     /** DRAFT|QUOTED → CONFIRMED by staff. Every failing approval check is reported in one 422. */
     @Transactional
     OrderResponse confirm(Scope s, long id, TransitionRequest req) {
-        SalesOrder o = findVisibleForUpdate(id, s);
+        SalesOrder o = access.findVisibleForUpdate(id, s);
         requireVersion(o, req.version());
         OrderStateMachine.require(o.status, OrderAction.CONFIRM);
         requireConfirmable(o);
@@ -216,6 +223,68 @@ class OrderService {
         return missing;
     }
 
+    /** CONFIRMED → RELEASED. #3 turns released orders into delivery orders. */
+    @Transactional
+    OrderResponse release(Scope s, long id, TransitionRequest req) {
+        SalesOrder o = transition(s, id, req, OrderAction.RELEASE);
+        approvals.ensureAllApproved(checks.forRelease(o, customers.salesProfile(o.customerId)));
+        o.status = OrderStatus.RELEASED;
+        o.releasedAt = Instant.now();
+        save(o, o.releasedAt);
+        audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number, null);
+        return toResponse(o, s);
+    }
+
+    /** RELEASED → FULFILLED, ADMIN only (controller); #3 replaces it with delivery completion. */
+    @Transactional
+    OrderResponse fulfil(Scope s, long id, TransitionRequest req) {
+        SalesOrder o = transition(s, id, req, OrderAction.FULFIL);
+        o.status = OrderStatus.FULFILLED;
+        o.fulfilledAt = Instant.now();
+        save(o, o.fulfilledAt);
+        audit.record(AuditAction.FULFILLED, ENTITY, id, "Marked order " + o.number + " fulfilled", null);
+        return toResponse(o, s);
+    }
+
+    /** Refunds happen outside the system, so verified payments block it. An active invoice is voided, not reissued. */
+    @Transactional
+    OrderResponse cancel(Scope s, long id, TransitionRequest req) {
+        if (req.reason() == null || req.reason().isBlank()) {
+            throw invalid("reason", "Say why the order is cancelled.");
+        }
+        String reason = req.reason().trim();
+        SalesOrder o = transition(s, id, req, OrderAction.CANCEL);
+        if (payments.hasVerified(o)) {
+            throw new DomainException(ErrorCode.HAS_PAYMENTS,
+                    "This order has verified payments. Refund them outside the system first.");
+        }
+        var invoice = invoiceService.active(o);
+        if (invoice.isPresent()) {
+            approvals.ensureAllApproved(List.of(InvoiceService.voidApproval(invoice.get(), OrderFingerprint.of(o),
+                    reason)));
+            invoiceService.voidActive(o, reason);
+        }
+        payments.rejectPendingFor(o, "Order cancelled");
+        o.status = OrderStatus.CANCELLED;
+        o.cancelledAt = Instant.now();
+        o.cancelReason = reason;
+        save(o, o.cancelledAt);
+        audit.record(AuditAction.CANCELLED, ENTITY, id, "Cancelled order " + o.number + ": " + reason, null);
+        return toResponse(o, s);
+    }
+
+    private SalesOrder transition(Scope s, long id, TransitionRequest req, OrderAction action) {
+        SalesOrder o = access.findVisibleForUpdate(id, s);
+        requireVersion(o, req.version());
+        OrderStateMachine.require(o.status, action);
+        return o;
+    }
+
+    private void save(SalesOrder o, Instant at) {
+        o.updatedAt = at;
+        repo.saveAndFlush(o);
+    }
+
     List<RequiredApproval> requiredForConfirm(SalesOrder o) {
         return checks.forConfirm(o, customers.salesProfile(o.customerId),
                 catalog.info(o.lines.stream().map(l -> l.productId).toList()), SalesTime.today(clock));
@@ -240,29 +309,14 @@ class OrderService {
 
     @Transactional(readOnly = true)
     PdfFile quotePdf(Scope s, long id) {
-        SalesOrder o = findVisible(id, s);
+        SalesOrder o = access.findVisible(id, s);
         return new PdfFile(o.number + ".pdf", quotes.render(o));
     }
 
     @Transactional(readOnly = true)
     PageResponse<AuditEventResponse> history(Scope s, long id, PageQuery page) {
-        findVisible(id, s);
+        access.findVisible(id, s);
         return audit.history(ENTITY, id, page);
-    }
-
-    SalesOrder findVisible(long id, Scope s) {
-        return repo.findOne(Specification.allOf((r, q, cb) -> cb.equal(r.get("id"), id),
-                        OrderScopes.visibleTo(customers.visibleCustomerIds(s))))
-                .orElseThrow(OrderService::notFound);
-    }
-
-    /** Scope check, then the row lock every state change and money write takes. */
-    SalesOrder findVisibleForUpdate(long id, Scope s) {
-        if (!repo.exists(Specification.allOf((r, q, cb) -> cb.equal(r.get("id"), id),
-                OrderScopes.visibleTo(customers.visibleCustomerIds(s))))) {
-            throw notFound();
-        }
-        return repo.findByIdForUpdate(id).orElseThrow(OrderService::notFound);
     }
 
     OrderResponse toResponse(SalesOrder o, Scope s) {

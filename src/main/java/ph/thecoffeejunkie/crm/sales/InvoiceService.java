@@ -35,7 +35,7 @@ class InvoiceService {
 
     private final InvoiceRepository repo;
     private final SalesOrderRepository orderRepo;
-    private final OrderService orders;
+    private final OrderAccess access;
     private final Customers customers;
     private final Catalog catalog;
     private final Settings settings;
@@ -46,12 +46,12 @@ class InvoiceService {
     private final InvoiceDocument document;
     private final Clock clock;
 
-    InvoiceService(InvoiceRepository repo, SalesOrderRepository orderRepo, OrderService orders, Customers customers,
+    InvoiceService(InvoiceRepository repo, SalesOrderRepository orderRepo, OrderAccess access, Customers customers,
                    Catalog catalog, Settings settings, Approvals approvals, AuditLog audit, CurrentActor actor,
                    JdbcTemplate jdbc, InvoiceDocument document, Clock clock) {
         this.repo = repo;
         this.orderRepo = orderRepo;
-        this.orders = orders;
+        this.access = access;
         this.customers = customers;
         this.catalog = catalog;
         this.settings = settings;
@@ -65,7 +65,7 @@ class InvoiceService {
 
     @Transactional
     InvoiceResponse issue(Scope s, long orderId, TransitionRequest req) {
-        SalesOrder o = orders.findVisibleForUpdate(orderId, s);
+        SalesOrder o = access.findVisibleForUpdate(orderId, s);
         OrderService.requireVersion(o, req.version());
         OrderStateMachine.require(o.status, OrderAction.ISSUE_INVOICE);
         if (active(o).isPresent()) {
@@ -76,7 +76,7 @@ class InvoiceService {
 
     @Transactional
     InvoiceResponse reissue(Scope s, long orderId, ReissueRequest req) {
-        SalesOrder o = orders.findVisibleForUpdate(orderId, s);
+        SalesOrder o = access.findVisibleForUpdate(orderId, s);
         OrderService.requireVersion(o, req.version());
         OrderStateMachine.require(o.status, OrderAction.REISSUE_INVOICE);
         Invoice current = active(o).orElseThrow(() ->
@@ -87,7 +87,7 @@ class InvoiceService {
 
     @Transactional(readOnly = true)
     List<InvoiceResponse> list(Scope s, long orderId) {
-        orders.findVisible(orderId, s);
+        access.findVisible(orderId, s);
         return repo.findByOrderIdOrderByIdDesc(orderId).stream().map(Invoice::toResponse).toList();
     }
 
@@ -96,7 +96,7 @@ class InvoiceService {
         Invoice i = repo.findById(invoiceId)
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Invoice not found"));
         try {
-            orders.findVisible(i.orderId, s);
+            access.findVisible(i.orderId, s);
         } catch (DomainException e) {
             throw new DomainException(ErrorCode.NOT_FOUND, "Invoice not found");
         }
