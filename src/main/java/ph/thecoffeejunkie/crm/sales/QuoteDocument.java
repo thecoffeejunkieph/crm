@@ -1,0 +1,68 @@
+package ph.thecoffeejunkie.crm.sales;
+
+import org.springframework.stereotype.Component;
+import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
+import ph.thecoffeejunkie.crm.customers.Customers;
+import ph.thecoffeejunkie.crm.settings.SettingKey;
+import ph.thecoffeejunkie.crm.settings.Settings;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/** The quote PDF renders from the live order (spec §4 Documents). */
+@Component
+class QuoteDocument {
+
+    private final PdfRenderer pdf;
+    private final Settings settings;
+    private final Customers customers;
+    private final Clock clock;
+
+    QuoteDocument(PdfRenderer pdf, Settings settings, Customers customers, Clock clock) {
+        this.pdf = pdf;
+        this.settings = settings;
+        this.customers = customers;
+        this.clock = clock;
+    }
+
+    byte[] render(SalesOrder o) {
+        CustomerSalesProfile c = customers.salesProfile(o.customerId);
+        Instant date = o.quotedAt == null ? clock.instant() : o.quotedAt;
+        Map<String, Object> vars = vars(
+                "heading", "QUOTATION",
+                "number", o.number,
+                "date", date.atZone(SalesTime.MANILA).toLocalDate(),
+                "validUntil", o.quoteValidUntil,
+                "company", company(settings),
+                "customer", vars("name", c.businessName() == null || c.businessName().isBlank()
+                        ? c.displayName() : c.businessName(), "tin", c.tin(), "address", c.address()),
+                "paymentTerms", o.paymentTerms.getLabel(),
+                "terms", o.terms,
+                "notes", o.notes,
+                "lines", o.lines.stream().map(l -> vars("description", l.description,
+                        "qty", l.qty.stripTrailingZeros().toPlainString(), "unit", l.unit, "unitPrice", l.unitPrice,
+                        "discountPct", l.discountPct, "lineTotal", l.lineTotal)).toList(),
+                "totals", vars("vatableSales", o.vatableSales, "vat", o.vat, "vatExemptSales", o.vatExemptSales,
+                        "zeroRatedSales", o.zeroRatedSales, "shippingFee", o.shippingFee, "total", o.total));
+        return pdf.render("quote", vars);
+    }
+
+    static Map<String, Object> company(Settings settings) {
+        return vars("name", settings.text(SettingKey.COMPANY_NAME), "tin", settings.text(SettingKey.COMPANY_TIN),
+                "address", settings.text(SettingKey.COMPANY_ADDRESS));
+    }
+
+    /** Template variables from key/value pairs; null values become "" so templates need no null checks. */
+    static Map<String, Object> vars(Object... kv) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (int i = 0; i < kv.length; i += 2) {
+            Object v = kv[i + 1];
+            m.put((String) kv[i], v == null ? "" : v instanceof List<?> || v instanceof Map<?, ?> || v instanceof Number
+                    ? v : v.toString());
+        }
+        return m;
+    }
+}

@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.sales;
 
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +59,18 @@ class OrderController {
     @PreAuthorize("@salesPermissions.canWrite()")
     OrderResponse update(@PathVariable long id, @Valid @RequestBody OrderRequest req) {
         return orders.update(actor.scope(), id, req);
+    }
+
+    @PostMapping("/{id}/send-quote")
+    @PreAuthorize("@salesPermissions.canWrite()")
+    SendQuoteResponse sendQuote(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {
+        return orders.sendQuote(actor.scope(), id, req);
+    }
+
+    @GetMapping("/{id}/quote.pdf")
+    @PreAuthorize("@salesPermissions.canRead()")
+    ResponseEntity<byte[]> quotePdf(@PathVariable long id) {
+        return orders.quotePdf(actor.scope(), id).inline();
     }
 
     @GetMapping("/{id}/history")

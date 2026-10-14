@@ -5,6 +5,7 @@ import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -15,6 +16,7 @@ import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /** Renders templates/mail/{template}.html and sends it as HTML. Callers decide threading and failure handling. */
@@ -48,8 +50,17 @@ public class HtmlMail {
         return company;
     }
 
+    public record Attachment(String filename, String contentType, byte[] bytes) {
+    }
+
     /** {@code vars} are template variables; {@code company} is always added. */
     public void send(String to, String subject, String template, Map<String, Object> vars) {
+        send(to, subject, template, vars, List.of());
+    }
+
+    /** Multipart only when there are attachments. */
+    public void send(String to, String subject, String template, Map<String, Object> vars,
+                     List<Attachment> attachments) {
         var ctx = new Context();
         ctx.setVariables(vars);
         ctx.setVariable("company", company);
@@ -59,11 +70,14 @@ public class HtmlMail {
         String html = templates.process(template, ctx);
         try {
             MimeMessage message = sender.createMimeMessage();
-            var helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
+            var helper = new MimeMessageHelper(message, !attachments.isEmpty(), StandardCharsets.UTF_8.name());
             helper.setFrom(from);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(html, true);
+            for (Attachment a : attachments) {
+                helper.addAttachment(a.filename(), new ByteArrayResource(a.bytes()), a.contentType());
+            }
             sender.send(message);
         } catch (MessagingException e) {
             throw new MailPreparationException(e);

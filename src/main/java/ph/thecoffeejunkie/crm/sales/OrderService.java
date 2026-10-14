@@ -61,9 +61,13 @@ class OrderService {
     private final Settings settings;
     private final AuditLog audit;
     private final Clock clock;
+    private final QuoteDocument quotes;
+    private final SalesMailer mailer;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
-                 AuditLog audit, Clock clock) {
+                 AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer) {
+        this.quotes = quotes;
+        this.mailer = mailer;
         this.repo = repo;
         this.customers = customers;
         this.catalog = catalog;
@@ -147,6 +151,38 @@ class OrderService {
         return toResponse(o, s);
     }
 
+    /** DRAFT|QUOTED → QUOTED. Mails the PDF to the portal contacts after commit; none → still quoted, nobody mailed. */
+    @Transactional
+    SendQuoteResponse sendQuote(Scope s, long id, TransitionRequest req) {
+        SalesOrder o = findVisibleForUpdate(id, s);
+        requireVersion(o, req.version());
+        OrderStateMachine.require(o.status, OrderAction.SEND_QUOTE);
+        if (o.lines.isEmpty()) {
+            throw invalid("lines", "Add at least one line before sending a quote.");
+        }
+        OrderStatus before = o.status;
+        o.status = OrderStatus.QUOTED;
+        o.quotedAt = Instant.now();
+        o.quoteValidUntil = SalesTime.today(clock)
+                .plusDays(settings.decimal(SettingKey.SALES_QUOTE_VALIDITY_DAYS).longValue());
+        o.customerAcceptedAt = null;
+        o.updatedAt = o.quotedAt;
+        repo.saveAndFlush(o);
+        audit.record(AuditAction.QUOTE_SENT, ENTITY, id, "Sent quote " + o.number + ", valid until " + o.quoteValidUntil,
+                AuditChanges.diff().field("status", before, o.status));
+        List<String> to = customers.portalContactEmails(o.customerId);
+        if (!to.isEmpty()) {
+            mailer.quoteAfterCommit(to, o.number, o.quoteValidUntil, quotes.render(o));
+        }
+        return new SendQuoteResponse(toResponse(o, s), to);
+    }
+
+    @Transactional(readOnly = true)
+    PdfFile quotePdf(Scope s, long id) {
+        SalesOrder o = findVisible(id, s);
+        return new PdfFile(o.number + ".pdf", quotes.render(o));
+    }
+
     @Transactional(readOnly = true)
     PageResponse<AuditEventResponse> history(Scope s, long id, PageQuery page) {
         findVisible(id, s);
@@ -161,7 +197,10 @@ class OrderService {
 
     /** Scope check, then the row lock every state change and money write takes. */
     SalesOrder findVisibleForUpdate(long id, Scope s) {
-        findVisible(id, s);
+        if (!repo.exists(Specification.allOf((r, q, cb) -> cb.equal(r.get("id"), id),
+                OrderScopes.visibleTo(customers.visibleCustomerIds(s))))) {
+            throw notFound();
+        }
         return repo.findByIdForUpdate(id).orElseThrow(OrderService::notFound);
     }
 
