@@ -459,6 +459,29 @@
         "required" : [ "email", "firstName", "lastName", "role" ],
         "type" : "object"
       },
+      "InvoiceSummary" : {
+        "properties" : {
+          "dueDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "issuedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "total" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "JsonNode" : {
         "properties" : {
           "array" : {
@@ -534,6 +557,78 @@
           },
           "valueNode" : {
             "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "LineRequest" : {
+        "properties" : {
+          "description" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "discountPct" : {
+            "maximum" : 100,
+            "minimum" : 0,
+            "type" : "number"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "unitPrice" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "productId", "qty" ],
+        "type" : "object"
+      },
+      "LineResponse" : {
+        "properties" : {
+          "belowCost" : {
+            "type" : "boolean"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "discountPct" : {
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lineTotal" : {
+            "type" : "number"
+          },
+          "position" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "taxClass" : {
+            "enum" : [ "VATABLE", "VAT_EXEMPT", "ZERO_RATED" ],
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          },
+          "unitPrice" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -628,6 +723,214 @@
           },
           "type" : {
             "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "OrderRequest" : {
+        "properties" : {
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LineRequest"
+            },
+            "maxItems" : 200,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "paymentTerms" : {
+            "enum" : [ "DUE_ON_RECEIPT", "NET_15", "NET_30", "NET_60" ],
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "shippingFee" : {
+            "type" : "number"
+          },
+          "terms" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "lines" ],
+        "type" : "object"
+      },
+      "OrderResponse" : {
+        "properties" : {
+          "activeInvoice" : {
+            "$ref" : "#/components/schemas/InvoiceSummary"
+          },
+          "allowedActions" : {
+            "items" : {
+              "enum" : [ "EDIT", "SEND_QUOTE", "CONFIRM", "ACCEPT", "DECLINE", "REVISE", "RELEASE", "FULFIL", "CANCEL", "ISSUE_INVOICE", "REISSUE_INVOICE", "RECORD_PAYMENT" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
+          },
+          "approvalVersion" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "balance" : {
+            "type" : "number"
+          },
+          "cancelReason" : {
+            "type" : "string"
+          },
+          "cancelledAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "confirmedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "customerAcceptedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "customerName" : {
+            "type" : "string"
+          },
+          "customerType" : {
+            "enum" : [ "BUSINESS", "INDIVIDUAL" ],
+            "type" : "string"
+          },
+          "fulfilledAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LineResponse"
+            },
+            "type" : "array"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "paymentStatus" : {
+            "enum" : [ "UNPAID", "PARTIAL", "PAID", "OVERDUE" ],
+            "type" : "string"
+          },
+          "paymentTerms" : {
+            "enum" : [ "DUE_ON_RECEIPT", "NET_15", "NET_30", "NET_60" ],
+            "type" : "string"
+          },
+          "quoteExpired" : {
+            "type" : "boolean"
+          },
+          "quoteValidUntil" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "quotedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "releasedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "repId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "repName" : {
+            "type" : "string"
+          },
+          "revision" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "settled" : {
+            "type" : "number"
+          },
+          "shippingFee" : {
+            "type" : "number"
+          },
+          "status" : {
+            "enum" : [ "DRAFT", "QUOTED", "CONFIRMED", "RELEASED", "FULFILLED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "suggestedWithholding" : {
+            "type" : "number"
+          },
+          "terms" : {
+            "type" : "string"
+          },
+          "totals" : {
+            "$ref" : "#/components/schemas/TotalsResponse"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "OrderSummary" : {
+        "properties" : {
+          "balance" : {
+            "type" : "number"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "customerName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "paymentStatus" : {
+            "enum" : [ "UNPAID", "PARTIAL", "PAID", "OVERDUE" ],
+            "type" : "string"
+          },
+          "repName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "DRAFT", "QUOTED", "CONFIRMED", "RELEASED", "FULFILLED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "total" : {
+            "type" : "number"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
             "type" : "string"
           }
         },
@@ -738,6 +1041,33 @@
           "content" : {
             "items" : {
               "$ref" : "#/components/schemas/NotificationResponse"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "PageResponseOrderSummary" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OrderSummary"
             },
             "type" : "array"
           },
@@ -994,6 +1324,26 @@
           "timeout" : {
             "format" : "int64",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "TotalsResponse" : {
+        "properties" : {
+          "total" : {
+            "type" : "number"
+          },
+          "vat" : {
+            "type" : "number"
+          },
+          "vatExemptSales" : {
+            "type" : "number"
+          },
+          "vatableSales" : {
+            "type" : "number"
+          },
+          "zeroRatedSales" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -1256,7 +1606,7 @@
     },
     "/api/admin/settings" : {
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "responses" : {
           "200" : {
             "content" : {
@@ -1305,7 +1655,7 @@
     },
     "/api/admin/users" : {
       "get" : {
-        "operationId" : "list_4",
+        "operationId" : "list_5",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -1380,7 +1730,7 @@
     },
     "/api/admin/users/{id}" : {
       "put" : {
-        "operationId" : "update_4",
+        "operationId" : "update_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1552,7 +1902,7 @@
     },
     "/api/approvals" : {
       "get" : {
-        "operationId" : "list_3",
+        "operationId" : "list_4",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -1826,7 +2176,7 @@
     },
     "/api/customers" : {
       "get" : {
-        "operationId" : "list_2",
+        "operationId" : "list_3",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -1865,7 +2215,7 @@
         "tags" : [ "customer-controller" ]
       },
       "post" : {
-        "operationId" : "create_2",
+        "operationId" : "create_3",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1922,7 +2272,7 @@
     },
     "/api/customers/{id}" : {
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1947,7 +2297,7 @@
         "tags" : [ "customer-controller" ]
       },
       "put" : {
-        "operationId" : "update_3",
+        "operationId" : "update_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2151,7 +2501,7 @@
     },
     "/api/customers/{id}/history" : {
       "get" : {
-        "operationId" : "history",
+        "operationId" : "history_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2201,7 +2551,7 @@
         "tags" : [ "me-controller" ]
       },
       "put" : {
-        "operationId" : "update_2",
+        "operationId" : "update_3",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -2366,7 +2716,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -2459,6 +2809,204 @@
           }
         },
         "tags" : [ "notification-controller" ]
+      }
+    },
+    "/api/orders" : {
+      "get" : {
+        "operationId" : "list_2",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "enum" : [ "DRAFT", "QUOTED", "CONFIRMED", "RELEASED", "FULFILLED", "CANCELLED" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "paymentStatus",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "UNPAID", "PARTIAL", "PAID", "OVERDUE" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "customerId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "repId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "awaitingConfirmation",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseOrderSummary"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_2",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OrderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      }
+    },
+    "/api/orders/{id}" : {
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      },
+      "put" : {
+        "operationId" : "update_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OrderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      }
+    },
+    "/api/orders/{id}/history" : {
+      "get" : {
+        "operationId" : "history",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseAuditEventResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
       }
     },
     "/api/portal/auth/logout" : {
