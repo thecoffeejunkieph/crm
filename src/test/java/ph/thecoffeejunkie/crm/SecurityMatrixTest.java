@@ -123,6 +123,11 @@ class SecurityMatrixTest {
             Map.entry("POST /api/orders/{id}/invoice/reissue", AS),
             Map.entry("GET /api/orders/{id}/invoices", AS),
             Map.entry("GET /api/invoices/{id}.pdf", AS),
+            Map.entry("GET /api/orders/{id}/payments", AS),
+            Map.entry("POST /api/orders/{id}/payments", AS),
+            Map.entry("POST /api/payments/{id}/verify", AS),
+            Map.entry("POST /api/payments/{id}/reject", AS),
+            Map.entry("PUT /api/payments/{id}/form-2307", AS),
             Map.entry("GET /api/orders/{id}/quote.pdf", AS),
 
             Map.entry("GET /api/approvals", STAFF),

@@ -266,6 +266,14 @@ public class Customers {
         return out;
     }
 
+    /** Archived contacts included: payments keep showing who submitted them. */
+    @Transactional(readOnly = true)
+    public Map<Long, String> contactNames(Collection<Long> ids) {
+        Map<Long, String> out = new java.util.HashMap<>();
+        contacts.findAllById(new HashSet<>(ids)).forEach(k -> out.put(k.id, k.name));
+        return out;
+    }
+
     /** Active, portal-enabled contacts: the people a quote can be sent to. */
     @Transactional(readOnly = true)
     public List<String> portalContactEmails(long customerId) {

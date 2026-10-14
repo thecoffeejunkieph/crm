@@ -7,6 +7,7 @@ import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
+import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.MountableFile;
 
@@ -33,12 +34,17 @@ public @interface IntegrationTest {
                 .withEnv("DB_APP_PASSWORD", "crm_app")
                 .withCopyFileToContainer(MountableFile.forHostPath("deploy/postgres/init/01-roles.sh", 0755),
                         "/docker-entrypoint-initdb.d/01-roles.sh");
+        // Payment proofs and 2307 forms are really stored; the bucket is created on ApplicationReadyEvent.
+        private static final MinIOContainer MINIO = new MinIOContainer("minio/minio:RELEASE.2025-09-07T16-13-09Z");
 
         @Override
         public void initialize(ConfigurableApplicationContext context) {
             synchronized (POSTGRES) {
                 if (!POSTGRES.isRunning()) {
                     POSTGRES.start();
+                }
+                if (!MINIO.isRunning()) {
+                    MINIO.start();
                 }
             }
             String url = "jdbc:postgresql://" + POSTGRES.getHost() + ":" + POSTGRES.getMappedPort(5432) + "/crm";
@@ -49,7 +55,11 @@ public @interface IntegrationTest {
                     "spring.flyway.user=crm_owner",
                     "spring.flyway.password=crm_owner",
                     "spring.data.redis.host=" + RedisTestSupport.host(),
-                    "spring.data.redis.port=" + RedisTestSupport.port()
+                    "spring.data.redis.port=" + RedisTestSupport.port(),
+                    "app.minio.endpoint=" + MINIO.getS3URL(),
+                    "app.minio.public-endpoint=" + MINIO.getS3URL(),
+                    "app.minio.access-key=" + MINIO.getUserName(),
+                    "app.minio.secret-key=" + MINIO.getPassword()
             ).applyTo(context);
         }
     }
