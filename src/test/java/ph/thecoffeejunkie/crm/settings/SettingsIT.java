@@ -51,6 +51,8 @@ class SettingsIT {
         jdbc.update("update app_setting set value = '15' where key = 'approval.discountPercentMax'");
         jdbc.update("update app_setting set value = '10' where key = 'approval.writeOffQtyMax'");
         jdbc.update("update app_setting set value = '\"SELF\"' where key = 'pos.quickAddAssignment'");
+        jdbc.update("update app_setting set value = '15' where key = 'sales.quoteValidityDays'");
+        jdbc.update("update app_setting set value = '\"\"' where key = 'company.name'");
         caches.getCache("settings").clear();
     }
 
@@ -138,5 +140,27 @@ class SettingsIT {
                 .andExpect(status().isForbidden());
         mvc.perform(put("/api/admin/settings").with(authentication(auth(Role.SALES))).with(csrf(mvc))
                 .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void textSettingTooLongRejected() throws Exception {
+        mvc.perform(putJson("{\"company.tin\": \"" + "1".repeat(33) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void quoteValidityZeroRejected() throws Exception {
+        mvc.perform(putJson("{\"sales.quoteValidityDays\": 0}")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void companyNameRoundTrips() throws Exception {
+        assertThat(settings.text(SettingKey.COMPANY_NAME)).isEmpty();
+        mvc.perform(putJson("{\"company.name\": \"  The Coffee Junkie Inc.  \"}")).andExpect(status().isOk());
+        assertThat(settings.text(SettingKey.COMPANY_NAME)).isEqualTo("The Coffee Junkie Inc.");
+        mvc.perform(get("/api/admin/settings").with(authentication(auth(Role.ADMIN))))
+                .andExpect(jsonPath("$['company.name']").value("The Coffee Junkie Inc."))
+                .andExpect(jsonPath("$['sales.quoteValidityDays']").value(15));
     }
 }

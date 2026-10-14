@@ -13,7 +13,13 @@ import java.util.stream.Stream;
 public enum SettingKey {
     APPROVAL_DISCOUNT_PERCENT_MAX("approval.discountPercentMax", number(BigDecimal.ZERO, new BigDecimal(100))),
     APPROVAL_WRITE_OFF_QTY_MAX("approval.writeOffQtyMax", number(BigDecimal.ZERO, null)),
-    POS_QUICK_ADD_ASSIGNMENT("pos.quickAddAssignment", oneOf("SELF", "UNASSIGNED"));
+    POS_QUICK_ADD_ASSIGNMENT("pos.quickAddAssignment", oneOf("SELF", "UNASSIGNED")),
+    SALES_QUOTE_VALIDITY_DAYS("sales.quoteValidityDays", number(BigDecimal.ONE, new BigDecimal(365))),
+    SALES_WITHHOLDING_SUGGEST_PERCENT("sales.withholdingSuggestPercent", number(BigDecimal.ZERO, new BigDecimal(100))),
+    COMPANY_NAME("company.name", text(200)),
+    COMPANY_TIN("company.tin", text(32)),
+    COMPANY_ADDRESS("company.address", text(500)),
+    INVOICE_FOOTER_TEXT("invoice.footerText", text(1000));
 
     private final String key;
     private final Validator validator;
@@ -60,6 +66,19 @@ public enum SettingKey {
                 throw invalid(k, "must be one of " + String.join(", ", allowed));
             }
             return n.asString();
+        };
+    }
+
+    private static Validator text(int maxLength) {
+        return (k, n) -> {
+            if (n == null || !n.isString()) {
+                throw invalid(k, "must be text");
+            }
+            String v = n.asString().trim();
+            if (v.length() > maxLength) {
+                throw invalid(k, "must be at most " + maxLength + " characters");
+            }
+            return v;
         };
     }
 
