@@ -34,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
 
 @IntegrationTest
+@org.springframework.test.context.event.RecordApplicationEvents
 class ApprovalsIT {
 
     static final String SUBJECT = "apr-it-quote";
@@ -42,6 +43,7 @@ class ApprovalsIT {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired TransactionTemplate tx;
+    @Autowired org.springframework.test.context.event.ApplicationEvents events;
 
     long admin;
     long sales;
@@ -209,6 +211,77 @@ class ApprovalsIT {
         }
         pool.shutdown();
         assertThat(ids).hasSize(1);
+    }
+
+    private static RequiredApproval req(ApprovalType type, long version) {
+        return new RequiredApproval(type, SUBJECT, 7, version, Map.of("v", version));
+    }
+
+    private void approvedRow(ApprovalType type, long version) {
+        jdbc.update("insert into approval_request (type, subject_type, subject_id, subject_version, requested_value, "
+                + "reason, status, requested_by) values (?, ?, 7, ?, '{}', 'r', 'APPROVED', ?)",
+                type.name(), SUBJECT, version, sales);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void ensureAllListsEveryMissing() {
+        approvedRow(ApprovalType.DISCOUNT, 5);
+        login(sales, Role.SALES);
+        var required = List.of(req(ApprovalType.DISCOUNT, 5), req(ApprovalType.BELOW_COST, 5), req(ApprovalType.CREDIT_LIMIT, 5));
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> approvals.ensureAllApproved(required)))
+                .isInstanceOfSatisfying(DomainException.class, e -> {
+                    assertThat(e.code()).isEqualTo(ErrorCode.APPROVAL_REQUIRED);
+                    assertThat(e.properties()).containsEntry("approvalType", ApprovalType.BELOW_COST)
+                            .containsEntry("subjectVersion", 5L);
+                    var list = (List<Map<String, Object>>) e.properties().get("approvals");
+                    assertThat(list).hasSize(2);
+                    assertThat(list.get(1)).containsEntry("approvalType", ApprovalType.CREDIT_LIMIT)
+                            .containsEntry("subjectType", SUBJECT).containsEntry("subjectId", 7L)
+                            .containsEntry("requestedValue", Map.of("v", 5L));
+                });
+    }
+
+    @Test
+    void adminSelfApprovesEach() {
+        login(admin, Role.ADMIN);
+        tx.executeWithoutResult(s -> approvals.ensureAllApproved(
+                List.of(req(ApprovalType.DISCOUNT, 1), req(ApprovalType.BELOW_COST, 1))));
+        assertThat(jdbc.queryForObject("select count(*) from audit_event where action = 'SELF_APPROVED' "
+                + "and entity_type = ? and actor_id = ?", Integer.class, SUBJECT, admin)).isEqualTo(2);
+    }
+
+    @Test
+    void missingIgnoresAdmin() {
+        login(admin, Role.ADMIN);
+        var required = List.of(req(ApprovalType.DISCOUNT, 1), req(ApprovalType.BELOW_COST, 1));
+        List<RequiredApproval> missing = tx.execute(s -> approvals.missing(required));
+        assertThat(missing).isEqualTo(required);
+    }
+
+    @Test
+    void requestOnBehalfStoresGivenRequester() {
+        login(admin, Role.ADMIN);
+        var r = approvals.requestOnBehalf(new CreateApprovalRequest(ApprovalType.DISCOUNT, SUBJECT, 7, 1,
+                Map.of("pct", 20), "Customer accepted via portal"), sales);
+        assertThat(jdbc.queryForObject("select requested_by from approval_request where id = ?", Long.class, r.id()))
+                .isEqualTo(sales);
+    }
+
+    @Test
+    void decidePublishesEvent() throws Exception {
+        long id = requestVia(sales, 7, 3);
+        decide(id, true).andExpect(status().isOk());
+        assertThat(events.stream(ApprovalDecided.class).toList())
+                .containsExactly(new ApprovalDecided(id, ApprovalType.DISCOUNT, SUBJECT, 7, 3, ApprovalStatus.APPROVED));
+    }
+
+    @Test
+    void invoiceVoidTypeAccepted() throws Exception {
+        login(sales, Role.SALES);
+        var r = approvals.request(new CreateApprovalRequest(ApprovalType.INVOICE_VOID, SUBJECT, 7, 1,
+                Map.of("invoice", "SI-00001"), "wrong TIN"));
+        assertThat(r.id()).isPositive();
     }
 
     private long requestVia(long userId, long subjectId, long subjectVersion) throws Exception {

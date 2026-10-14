@@ -69,7 +69,7 @@
             "type" : "integer"
           },
           "type" : {
-            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF" ],
+            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF", "INVOICE_VOID" ],
             "type" : "string"
           }
         },
@@ -214,7 +214,7 @@
             "type" : "integer"
           },
           "type" : {
-            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF" ],
+            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF", "INVOICE_VOID" ],
             "type" : "string"
           }
         },
