@@ -67,6 +67,12 @@ class OrderController {
         return orders.sendQuote(actor.scope(), id, req);
     }
 
+    @PostMapping("/{id}/confirm")
+    @PreAuthorize("@salesPermissions.canWrite()")
+    OrderResponse confirm(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {
+        return orders.confirm(actor.scope(), id, req);
+    }
+
     @GetMapping("/{id}/quote.pdf")
     @PreAuthorize("@salesPermissions.canRead()")
     ResponseEntity<byte[]> quotePdf(@PathVariable long id) {

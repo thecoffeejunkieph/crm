@@ -6,6 +6,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ph.thecoffeejunkie.crm.approvals.Approvals;
+import ph.thecoffeejunkie.crm.approvals.RequiredApproval;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditChanges;
 import ph.thecoffeejunkie.crm.audit.AuditEventResponse;
@@ -63,12 +65,17 @@ class OrderService {
     private final Clock clock;
     private final QuoteDocument quotes;
     private final SalesMailer mailer;
+    private final ApprovalChecks checks;
+    private final Approvals approvals;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
-                 AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer) {
+                 AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
+                 Approvals approvals) {
+        this.repo = repo;
         this.quotes = quotes;
         this.mailer = mailer;
-        this.repo = repo;
+        this.checks = checks;
+        this.approvals = approvals;
         this.customers = customers;
         this.catalog = catalog;
         this.users = users;
@@ -175,6 +182,58 @@ class OrderService {
             mailer.quoteAfterCommit(to, o.number, o.quoteValidUntil, quotes.render(o));
         }
         return new SendQuoteResponse(toResponse(o, s), to);
+    }
+
+    /** DRAFT|QUOTED → CONFIRMED by staff. Every failing approval check is reported in one 422. */
+    @Transactional
+    OrderResponse confirm(Scope s, long id, TransitionRequest req) {
+        SalesOrder o = findVisibleForUpdate(id, s);
+        requireVersion(o, req.version());
+        OrderStateMachine.require(o.status, OrderAction.CONFIRM);
+        requireConfirmable(o);
+        approvals.ensureAllApproved(requiredForConfirm(o));
+        markConfirmed(o);
+        audit.record(AuditAction.CONFIRMED, ENTITY, id, "Confirmed order " + o.number, null);
+        return toResponse(o, s);
+    }
+
+    /**
+     * Confirm on behalf of the system (portal accept, approval decided). No admin bypass: whoever is the security
+     * principal, only APPROVED requests count. Confirms only when nothing is missing; returns what is.
+     */
+    @Transactional
+    List<RequiredApproval> confirmAsSystem(long id) {
+        SalesOrder o = repo.findByIdForUpdate(id).orElseThrow(OrderService::notFound);
+        OrderStateMachine.require(o.status, OrderAction.CONFIRM);
+        requireConfirmable(o);
+        List<RequiredApproval> missing = approvals.missing(requiredForConfirm(o));
+        if (missing.isEmpty()) {
+            markConfirmed(o);
+            audit.recordFor("SYSTEM", null, "System", AuditAction.CONFIRMED, ENTITY, id, "Auto-confirmed after approval");
+        }
+        return missing;
+    }
+
+    List<RequiredApproval> requiredForConfirm(SalesOrder o) {
+        return checks.forConfirm(o, customers.salesProfile(o.customerId),
+                catalog.info(o.lines.stream().map(l -> l.productId).toList()), SalesTime.today(clock));
+    }
+
+    private void requireConfirmable(SalesOrder o) {
+        if (o.lines.isEmpty()) {
+            throw invalid("lines", "Add at least one line before confirming.");
+        }
+        if (quoteExpired(o, SalesTime.today(clock))) {
+            throw new DomainException(ErrorCode.QUOTE_EXPIRED, "This quote expired on " + o.quoteValidUntil
+                    + ". Send it again first.");
+        }
+    }
+
+    private void markConfirmed(SalesOrder o) {
+        o.status = OrderStatus.CONFIRMED;
+        o.confirmedAt = Instant.now();
+        o.updatedAt = o.confirmedAt;
+        repo.saveAndFlush(o);
     }
 
     @Transactional(readOnly = true)
