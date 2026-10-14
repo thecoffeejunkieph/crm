@@ -414,6 +414,21 @@
         "required" : [ "approve" ],
         "type" : "object"
       },
+      "DeclineRequest" : {
+        "properties" : {
+          "reason" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "version" ],
+        "type" : "object"
+      },
       "ForgotPasswordRequest" : {
         "properties" : {
           "email" : {
@@ -764,7 +779,7 @@
             "type" : "string"
           },
           "type" : {
-            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED" ],
+            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED" ],
             "type" : "string"
           }
         },
@@ -1132,6 +1147,33 @@
         },
         "type" : "object"
       },
+      "PageResponsePortalOrderSummary" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PortalOrderSummary"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "PageResponseProductResponse" : {
         "properties" : {
           "content" : {
@@ -1268,6 +1310,30 @@
         },
         "type" : "object"
       },
+      "PortalLine" : {
+        "properties" : {
+          "description" : {
+            "type" : "string"
+          },
+          "discountPct" : {
+            "type" : "number"
+          },
+          "lineTotal" : {
+            "type" : "number"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          },
+          "unitPrice" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "PortalLinkRequest" : {
         "properties" : {
           "email" : {
@@ -1296,6 +1362,145 @@
           },
           "name" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PortalOrderResponse" : {
+        "properties" : {
+          "activeInvoice" : {
+            "$ref" : "#/components/schemas/InvoiceSummary"
+          },
+          "balance" : {
+            "type" : "number"
+          },
+          "canAccept" : {
+            "type" : "boolean"
+          },
+          "customerAcceptedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PortalLine"
+            },
+            "type" : "array"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "paymentStatus" : {
+            "enum" : [ "UNPAID", "PARTIAL", "PAID", "OVERDUE" ],
+            "type" : "string"
+          },
+          "paymentTerms" : {
+            "enum" : [ "DUE_ON_RECEIPT", "NET_15", "NET_30", "NET_60" ],
+            "type" : "string"
+          },
+          "quoteExpired" : {
+            "type" : "boolean"
+          },
+          "quoteValidUntil" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "settled" : {
+            "type" : "number"
+          },
+          "shippingFee" : {
+            "type" : "number"
+          },
+          "status" : {
+            "enum" : [ "DRAFT", "QUOTED", "CONFIRMED", "RELEASED", "FULFILLED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "terms" : {
+            "type" : "string"
+          },
+          "totals" : {
+            "$ref" : "#/components/schemas/TotalsResponse"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "PortalOrderSummary" : {
+        "properties" : {
+          "balance" : {
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "paymentStatus" : {
+            "enum" : [ "UNPAID", "PARTIAL", "PAID", "OVERDUE" ],
+            "type" : "string"
+          },
+          "quoteValidUntil" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "quotedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "DRAFT", "QUOTED", "CONFIRMED", "RELEASED", "FULFILLED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "total" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "PortalPaymentResponse" : {
+        "properties" : {
+          "cashAmount" : {
+            "type" : "number"
+          },
+          "hasForm2307" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "method" : {
+            "enum" : [ "CASH", "BANK_TRANSFER", "CHECK", "GCASH", "CARD", "OTHER" ],
+            "type" : "string"
+          },
+          "mine" : {
+            "type" : "boolean"
+          },
+          "receivedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "reference" : {
+            "type" : "string"
+          },
+          "rejectReason" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "VERIFIED", "REJECTED" ],
+            "type" : "string"
+          },
+          "withholdingAmount" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -1764,7 +1969,7 @@
           "name" : "action",
           "required" : true,
           "schema" : {
-            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED" ],
+            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED" ],
             "type" : "string"
           }
         }, {
@@ -2248,7 +2453,7 @@
     },
     "/api/auth/invites/accept" : {
       "post" : {
-        "operationId" : "accept",
+        "operationId" : "accept_1",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -2946,7 +3151,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -3440,7 +3645,7 @@
     },
     "/api/orders/{id}/invoices" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3551,7 +3756,7 @@
     },
     "/api/orders/{id}/quote.pdf" : {
       "get" : {
-        "operationId" : "quotePdf",
+        "operationId" : "quotePdf_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3683,7 +3888,7 @@
     },
     "/api/payments/{id}/form-2307" : {
       "put" : {
-        "operationId" : "attach2307",
+        "operationId" : "attach2307_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3858,6 +4063,34 @@
         "tags" : [ "portal-auth-controller" ]
       }
     },
+    "/api/portal/invoices/{id}.pdf" : {
+      "get" : {
+        "operationId" : "invoicePdf",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
     "/api/portal/me" : {
       "get" : {
         "operationId" : "me_1",
@@ -3874,6 +4107,278 @@
           }
         },
         "tags" : [ "portal-auth-controller" ]
+      }
+    },
+    "/api/portal/orders" : {
+      "get" : {
+        "operationId" : "list_7",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponsePortalOrderSummary"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/orders/{id}" : {
+      "get" : {
+        "operationId" : "get_5",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortalOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/orders/{id}/accept" : {
+      "post" : {
+        "operationId" : "accept",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortalOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/orders/{id}/decline" : {
+      "post" : {
+        "operationId" : "decline",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DeclineRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/orders/{id}/payments" : {
+      "get" : {
+        "operationId" : "payments",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PortalPaymentResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      },
+      "post" : {
+        "operationId" : "submitPayment",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "payment" : {
+                    "$ref" : "#/components/schemas/PaymentRequest"
+                  },
+                  "proof" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "payment" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortalPaymentResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/orders/{id}/quote.pdf" : {
+      "get" : {
+        "operationId" : "quotePdf",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/payments/{id}/form-2307" : {
+      "put" : {
+        "operationId" : "attach2307",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortalPaymentResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
       }
     },
     "/api/products" : {
