@@ -34,6 +34,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,11 +72,13 @@ class OrderService {
     private final OrderAccess access;
     private final InvoiceService invoiceService;
     private final PaymentService payments;
+    private final OrderRevisionRepository revisions;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
                  Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
-                 PaymentService payments) {
+                 PaymentService payments, OrderRevisionRepository revisions) {
+        this.revisions = revisions;
         this.invoices = invoices;
         this.access = access;
         this.invoiceService = invoiceService;
@@ -145,8 +148,11 @@ class OrderService {
 
     @Transactional
     OrderResponse update(Scope s, long id, OrderRequest req) {
-        SalesOrder o = access.findVisible(id, s);
+        SalesOrder o = access.findVisibleForUpdate(id, s);
         requireVersion(o, req.version());
+        if (o.status == OrderStatus.CONFIRMED || o.status == OrderStatus.RELEASED) {
+            return revise(s, o, req);
+        }
         OrderStateMachine.require(o.status, OrderAction.EDIT);
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
         AuditChanges changes = AuditChanges.diff();
@@ -165,6 +171,87 @@ class OrderService {
         repo.saveAndFlush(o);
         audit.record(AuditAction.UPDATED, ENTITY, id, "Updated order " + o.number, changes);
         return toResponse(o, s);
+    }
+
+    /**
+     * PUT on a CONFIRMED/RELEASED order (spec §3 Revise): snapshot the current state, apply, re-run the confirm
+     * checks plus INVOICE_VOID when invoiced, then void and reissue. One transaction: any refusal saves nothing.
+     */
+    private OrderResponse revise(Scope s, SalesOrder o, OrderRequest req) {
+        if (req.reason() == null || req.reason().isBlank()) {
+            throw invalid("reason", "Say why the confirmed order is being revised.");
+        }
+        String reason = req.reason().trim();
+        OrderStateMachine.require(o.status, OrderAction.REVISE);
+        CustomerSalesProfile c = customers.salesProfile(o.customerId);
+        Map<String, Object> snapshot = snapshot(o);
+        String before = linesSummary(o);
+        AuditChanges changes = AuditChanges.diff();
+        headerChanges(changes, o, req, c);
+        applyHeader(o, req, c);
+        applyLines(o, req.lines(), c, new HashSet<>(o.lines.stream().map(l -> l.productId).toList()));
+        changes.field("lines", before, linesSummary(o));
+        if (o.total.compareTo(o.settledAmount) < 0) {
+            throw new DomainException(ErrorCode.OVERPAYMENT, "The revised total is less than what was already paid ("
+                    + o.settledAmount.toPlainString() + ").");
+        }
+        List<RequiredApproval> required = new ArrayList<>(requiredForConfirm(o));
+        var invoice = invoiceService.active(o);
+        invoice.ifPresent(i -> required.add(InvoiceService.voidApproval(i, OrderFingerprint.of(o), reason)));
+        approvals.ensureAllApproved(required);
+
+        OrderRevision r = new OrderRevision();
+        r.orderId = o.id;
+        r.revision = o.revision;
+        r.snapshot = snapshot;
+        r.reason = reason;
+        r.createdBy = s.userId();
+        revisions.save(r);
+        changes.field("revision", o.revision, o.revision + 1);
+        o.revision += 1;
+        save(o, Instant.now());
+        if (invoice.isPresent()) {
+            invoiceService.voidAndReplace(o, reason);
+        }
+        audit.record(AuditAction.REVISED, ENTITY, o.id, "Revised order " + o.number + ": " + reason, changes);
+        return toResponse(o, s);
+    }
+
+    @Transactional(readOnly = true)
+    List<RevisionResponse> revisions(Scope s, long id) {
+        access.findVisible(id, s);
+        List<OrderRevision> rows = revisions.findByOrderIdOrderByRevisionDesc(id);
+        Map<Long, String> names = users.displayNames(rows.stream().map(r -> r.createdBy).toList());
+        return rows.stream().map(r -> new RevisionResponse(r.revision, r.snapshot, r.reason, names.get(r.createdBy),
+                r.createdAt)).toList();
+    }
+
+    private Map<String, Object> snapshot(SalesOrder o) {
+        Map<Long, ProductInfo> products = catalog.info(o.lines.stream().map(l -> l.productId).toList());
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (OrderLine l : o.lines) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            ProductInfo p = products.get(l.productId);
+            m.put("productId", l.productId);
+            m.put("sku", p == null ? null : p.sku());
+            m.put("description", l.description);
+            m.put("unit", l.unit.name());
+            m.put("qty", l.qty);
+            m.put("unitPrice", l.unitPrice);
+            m.put("discountPct", l.discountPct);
+            m.put("taxClass", l.taxClass.name());
+            m.put("lineTotal", l.lineTotal);
+            lines.add(m);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("paymentTerms", o.paymentTerms.name());
+        out.put("shippingFee", o.shippingFee);
+        out.put("notes", o.notes);
+        out.put("terms", o.terms);
+        out.put("lines", lines);
+        out.put("totals", Map.of("vatableSales", o.vatableSales, "vat", o.vat, "vatExemptSales", o.vatExemptSales,
+                "zeroRatedSales", o.zeroRatedSales, "total", o.total));
+        return out;
     }
 
     /** DRAFT|QUOTED → QUOTED. Mails the PDF to the portal contacts after commit; none → still quoted, nobody mailed. */

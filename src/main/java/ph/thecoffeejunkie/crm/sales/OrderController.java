@@ -91,6 +91,12 @@ class OrderController {
         return orders.cancel(actor.scope(), id, req);
     }
 
+    @GetMapping("/{id}/revisions")
+    @PreAuthorize("@salesPermissions.canRead()")
+    List<RevisionResponse> revisions(@PathVariable long id) {
+        return orders.revisions(actor.scope(), id);
+    }
+
     @GetMapping("/{id}/quote.pdf")
     @PreAuthorize("@salesPermissions.canRead()")
     ResponseEntity<byte[]> quotePdf(@PathVariable long id) {
