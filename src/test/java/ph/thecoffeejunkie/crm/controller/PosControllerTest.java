@@ -69,7 +69,7 @@ class PosControllerTest {
 
     private static PosSaleResponse sale(String customerEmail) {
         CustomerResponse customer = new CustomerResponse(12L, "Ana", "Cruz", customerEmail,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
         InvoiceResponse invoice = new InvoiceResponse(77L, "INV-1", null, null, List.of(), customer, null,
                 InvoiceStatus.PAID, "Paid", new BigDecimal("600.00"), null, null, null, null, null, null, null,
                 null, null, null, List.of(), List.of(), null, SalesChannel.POS);

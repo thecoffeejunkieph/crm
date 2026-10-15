@@ -40,6 +40,7 @@ public class CustomerService {
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setAddress(request.getAddress());
+        customer.setSocialMedia(request.getSocialMedia());
         customer.setPreferredShippingMethod(request.getPreferredShippingMethod());
         customer.setSource(request.getSource());
         customer.setCustomerType(request.getCustomerType());
@@ -99,6 +100,7 @@ public class CustomerService {
         customer.setLastName(request.getLastName());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setAddress(request.getAddress());
+        customer.setSocialMedia(request.getSocialMedia());
         customer.setPreferredShippingMethod(request.getPreferredShippingMethod());
         customer.setSource(request.getSource());
         customer.setCustomerType(request.getCustomerType());

@@ -41,7 +41,7 @@ class InvoiceEmailServiceReceiptTest {
             mock(InvoicePaymentPortalService.class), mailSender, mock(CustomerActivityService.class), logoAsset);
 
     private final CustomerResponse customer = new CustomerResponse(12L, "Ana", "Cruz", "ana@example.com",
-            null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, null);
 
     @BeforeEach
     void setUp() {

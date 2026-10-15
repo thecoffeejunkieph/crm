@@ -13,6 +13,7 @@ public record CustomerResponse (
         String email,
         String address,
         String phoneNumber,
+        String socialMedia,
         String preferredShippingMethod,
         String source,
         CustomerType customerType,

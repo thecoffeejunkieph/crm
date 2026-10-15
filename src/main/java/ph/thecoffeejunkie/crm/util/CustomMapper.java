@@ -203,6 +203,7 @@ public final class CustomMapper {
                 customer.getEmail(),
                 customer.getAddress(),
                 customer.getPhoneNumber(),
+                customer.getSocialMedia(),
                 customer.getPreferredShippingMethod(),
                 customer.getSource(),
                 customer.getCustomerType(),

@@ -58,7 +58,7 @@ class InvoicePdfServiceReceiptTest {
 
     private static InvoiceResponse response(SalesChannel channel, List<InvoicePaymentResponse> payments) {
         CustomerResponse customer = new CustomerResponse(12L, "Ana", "Cruz", "ana@example.com",
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
         return new InvoiceResponse(77L, "INV-1", null, null, List.of(), customer, null, InvoiceStatus.PAID, "Paid",
                 new BigDecimal("500.00"), null, null, null, LocalDate.of(2026, 10, 11), LocalDate.of(2026, 10, 11),
                 PaymentTerms.DUE_ON_RECEIPT, "Due on receipt", null, null, null, List.of(), payments, null, channel);

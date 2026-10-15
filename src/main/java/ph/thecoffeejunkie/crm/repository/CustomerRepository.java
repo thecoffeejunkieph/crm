@@ -18,7 +18,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     Page<Customer> findByActiveTrue(Pageable pageable);
 
-    @Query("SELECT c FROM Customer c WHERE c.active = true AND LOWER(CONCAT(c.firstName, ' ', c.lastName)) LIKE LOWER(CONCAT('%', :name, '%'))")
+    @Query("SELECT c FROM Customer c WHERE c.active = true AND (LOWER(CONCAT(c.firstName, ' ', c.lastName)) LIKE LOWER(CONCAT('%', :name, '%')) OR LOWER(c.socialMedia) LIKE LOWER(CONCAT('%', :name, '%')))")
     Page<Customer> searchActiveByName(@Param("name") String name, Pageable pageable);
 
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
