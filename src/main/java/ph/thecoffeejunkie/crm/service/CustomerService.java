@@ -98,6 +98,7 @@ public class CustomerService {
 
         customer.setFirstName(request.getFirstName());
         customer.setLastName(request.getLastName());
+        customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setAddress(request.getAddress());
         customer.setSocialMedia(request.getSocialMedia());
@@ -106,7 +107,8 @@ public class CustomerService {
         customer.setCustomerType(request.getCustomerType());
         customer.setBusinessInformation(resolveBusinessInformation(request));
 
-        return CustomMapper.toCustomerResponse(repository.save(customer));
+        // flush so a duplicate email hits the unique constraint here and maps to 409
+        return CustomMapper.toCustomerResponse(repository.saveAndFlush(customer));
     }
 
     public void delete(Long id) {
