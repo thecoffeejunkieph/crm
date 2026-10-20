@@ -10,6 +10,10 @@ interface StockReservationRepository extends JpaRepository<StockReservation, Lon
 
     List<StockReservation> findBySalesOrderId(long salesOrderId);
 
+    /** (productId, warehouseId) pairs, read without loading entities so a later read after locking is fresh. */
+    @Query("select distinct r.productId, r.warehouseId from StockReservation r where r.salesOrderId = :salesOrderId")
+    List<Object[]> levelKeys(long salesOrderId);
+
     /** Allocation order: the linked order first, then oldest confirmed, then order, then line. */
     @Query("select r from StockReservation r where r.productId = :productId and r.warehouseId = :warehouseId "
             + "and r.shortQty > 0 order by case when r.salesOrderId = :linkedOrderId then 0 else 1 end, "

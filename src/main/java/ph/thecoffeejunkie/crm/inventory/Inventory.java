@@ -54,9 +54,10 @@ public class Inventory {
      * increasing, so stock this order already held stays with it.
      */
     public void adjust(OrderStock o) {
-        List<StockReservation> existing = reservations.findBySalesOrderId(o.orderId());
-        lockAll(Stream.concat(existing.stream().map(r -> new Key(r.productId, r.warehouseId)),
+        lockAll(Stream.concat(keysOf(o.orderId()),
                 o.lines().stream().map(l -> new Key(l.productId(), o.warehouseId()))));
+        // Read after locking: a concurrent allocate may have filled this order's short rows meanwhile.
+        List<StockReservation> existing = reservations.findBySalesOrderId(o.orderId());
         if (existing.stream().anyMatch(r -> r.warehouseId != o.warehouseId())) {
             release(o.orderId());
             reserve(o);
@@ -104,8 +105,8 @@ public class Inventory {
 
     /** Deletes the order's reservations, lowers reserved and re-allocates what was freed. */
     public void release(long orderId) {
+        lockAll(keysOf(orderId));
         List<StockReservation> existing = reservations.findBySalesOrderId(orderId);
-        lockAll(existing.stream().map(r -> new Key(r.productId, r.warehouseId)));
         TreeSet<Key> freed = new TreeSet<>();
         for (StockReservation r : existing) {
             drop(r, freed);
@@ -159,6 +160,11 @@ public class Inventory {
             ledger.changeReserved(level, fromReserved.negate());
             freed.add(new Key(r.productId, r.warehouseId));
         }
+    }
+
+    /** Only this order's own adjust moves its reservations between warehouses, so the keys cannot change. */
+    private Stream<Key> keysOf(long orderId) {
+        return reservations.levelKeys(orderId).stream().map(k -> new Key((Long) k[0], (Long) k[1]));
     }
 
     private void lockAll(Stream<Key> keys) {

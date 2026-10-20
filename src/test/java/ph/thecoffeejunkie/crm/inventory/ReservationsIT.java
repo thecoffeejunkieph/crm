@@ -176,6 +176,70 @@ class ReservationsIT {
         assertThat(f.notificationTitles(rep)).containsExactly("Order " + b.orderNumber() + " is fully reserved");
     }
 
+    @Test
+    void releaseAfterConcurrentAllocateUsesFreshRows() throws Exception {
+        f.receive(p, wh, "2");
+        OrderStock b = f.order(rep, wh, t0, l(p, "5"));
+        OrderStock c = f.order(rep, wh, t0.plusSeconds(60), l(p, "4"));
+        inventory.reserve(b);
+        inventory.reserve(c);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch aLocked = new CountDownLatch(1);
+        CountDownLatch bBlocked = new CountDownLatch(1);
+        try {
+            // A holds the level lock until B is waiting on it, then receives 3, which fills b's short rows.
+            Future<Object> a = pool.submit(() -> {
+                tx.executeWithoutResult(s -> {
+                    ledger.lock(p, wh);
+                    aLocked.countDown();
+                    await(bBlocked);
+                    ledger.post(MovementType.RECEIPT, p, wh, new BigDecimal("3"), "TEST", 0, null, null);
+                });
+                return null;
+            });
+            await(aLocked);
+            Future<Object> rel = pool.submit(() -> {
+                inventory.release(b.orderId());
+                return null;
+            });
+            waitForBlockedLevelLock();
+            bBlocked.countDown();
+            a.get(30, TimeUnit.SECONDS);
+            rel.get(30, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(inventory.stockFor(b.orderId())).isEmpty();
+        assertLine(c, 0, "4", "0");
+        assertThat(f.reserved(p, wh)).isEqualByComparingTo(jdbc.queryForObject("select coalesce(sum(reserved_qty), 0) "
+                + "from stock_reservation where product_id = ? and warehouse_id = ?", BigDecimal.class, p, wh));
+        assertThat(f.reserved(p, wh)).isEqualByComparingTo("4");
+    }
+
+    /** Polls until another session waits on a row lock taken by a stock_level FOR UPDATE. */
+    private void waitForBlockedLevelLock() throws InterruptedException {
+        for (int i = 0; i < 300; i++) {
+            Integer waiting = jdbc.queryForObject("select count(*) from pg_stat_activity where wait_event_type = 'Lock' "
+                    + "and query ilike '%from stock_level%for%update%'", Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            TimeUnit.MILLISECONDS.sleep(100);
+        }
+        throw new AssertionError("release never blocked on the level lock");
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(30, TimeUnit.SECONDS)) {
+                throw new AssertionError("latch timed out");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private void assertLine(OrderStock o, int index, String reserved, String shortQty) {
         LineStock s = inventory.stockFor(o.orderId()).get(o.lines().get(index).orderLineId());
         assertThat(s.reservedQty()).as("reserved").isEqualByComparingTo(reserved);
