@@ -39,6 +39,7 @@ class SecurityMatrixTest {
 
     private static final Set<Who> A = EnumSet.of(Who.ADMIN);
     private static final Set<Who> AS = EnumSet.of(Who.ADMIN, Who.SALES);
+    private static final Set<Who> AW = EnumSet.of(Who.ADMIN, Who.WAREHOUSE);
     private static final Set<Who> STAFF = EnumSet.of(Who.ADMIN, Who.SALES, Who.WAREHOUSE);
     private static final Set<Who> PUBLIC = EnumSet.allOf(Who.class);
     private static final Set<Who> CUSTOMER = EnumSet.of(Who.CUSTOMER);
@@ -108,6 +109,13 @@ class SecurityMatrixTest {
             Map.entry("POST /api/products", A),
             Map.entry("PUT /api/products/{id}", A),
             Map.entry("POST /api/products/{id}/archive", A),
+
+            Map.entry("GET /api/products/{id}/availability", AS),
+            Map.entry("GET /api/stock", STAFF),
+            Map.entry("GET /api/stock/{productId}/movements", STAFF),
+            Map.entry("POST /api/stock/receipts", AW),
+            Map.entry("GET /api/stock/receipts", AW),
+            Map.entry("GET /api/stock/receipts/{id}", AW),
 
             Map.entry("GET /api/customers", AS),
             Map.entry("GET /api/customers/lookup", AS),

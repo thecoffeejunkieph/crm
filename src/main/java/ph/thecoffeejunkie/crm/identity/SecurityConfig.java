@@ -75,6 +75,8 @@ class SecurityConfig {
                             .requestMatchers(HttpMethod.PUT, "/api/warehouses/**").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.POST, "/api/products/**", "/api/orders/*/fulfil").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
+                            .requestMatchers("/api/stock/receipts/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.GET, "/api/products/*/availability").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers("/api/customers/**", "/api/orders/**", "/api/payments/**", "/api/invoices/**",
                                     "/api/reports/**").hasAnyRole("ADMIN", "SALES");
                     a.requestMatchers("/api/portal/**").hasRole("CUSTOMER")

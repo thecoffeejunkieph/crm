@@ -1,6 +1,11 @@
 package ph.thecoffeejunkie.crm.inventory;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import ph.thecoffeejunkie.crm.shared.Role;
+import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -8,6 +13,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -32,6 +38,18 @@ final class InventoryFixture {
         this.ledger = ledger;
         customer = jdbc.queryForObject("insert into customer (type, display_name, tin, address, payment_terms) "
                 + "values ('BUSINESS', ?, '111-222-333', 'Makati', 'NET_30') returning id", Long.class, tag);
+    }
+
+    /** A staff session for MockMvc; warehouseIds only matter for WAREHOUSE. */
+    static RequestPostProcessor as(long userId, Role role, Long... warehouseIds) {
+        return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                .authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(userId,
+                        "u" + userId + "@if.it", "Staff " + userId, role, Set.of(warehouseIds)), null,
+                        java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
+    }
+
+    void archive(long productId) {
+        jdbc.update("update product set archived_at = now() where id = ?", productId);
     }
 
     static Line l(long productId, String qty) {
@@ -100,6 +118,8 @@ final class InventoryFixture {
     void cleanUp() {
         String orderIds = "select id from sales_order where customer_id = " + customer;
         String products = "select id from product where sku like '" + tag + "%'";
+        String warehouses = "select id from warehouse where code like '" + tag + "%'";
+        jdbc.update("delete from stock_receipt where warehouse_id in (" + warehouses + ")");
         jdbc.update("delete from stock_reservation where sales_order_id in (" + orderIds + ")");
         jdbc.update("delete from stock_level where product_id in (" + products + ")");
         jdbc.update("delete from notification where recipient_user_id in (select id from app_user where email like ?)",
@@ -107,7 +127,10 @@ final class InventoryFixture {
         jdbc.update("delete from order_line where order_id in (" + orderIds + ")");
         jdbc.update("delete from sales_order where customer_id = ?", customer);
         jdbc.update("delete from customer where id = ?", customer);
-        jdbc.update("delete from app_user where email like ?", tag + "%");
+        // The append-only ledger may reference the user (created_by): archive those instead of deleting them.
+        jdbc.update("update app_user set archived_at = now() where email like ? "
+                + "and id in (select created_by from stock_movement where created_by is not null)", tag + "%");
+        jdbc.update("delete from app_user where email like ? and archived_at is null", tag + "%");
         jdbc.update("update product set archived_at = now() where sku like ?", tag + "%");
         jdbc.update("update warehouse set archived_at = now() where code like ?", tag + "%");
     }

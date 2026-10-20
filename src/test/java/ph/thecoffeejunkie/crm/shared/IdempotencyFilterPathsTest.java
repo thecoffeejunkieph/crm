@@ -26,7 +26,7 @@ class IdempotencyFilterPathsTest {
     @ParameterizedTest
     @ValueSource(strings = {"/api/customers", "/api/customers/5/contacts", "/api/approvals", "/api/admin/users",
             "/api/warehouses", "/api/orders/5/invoice", "/api/orders/5/invoice/reissue",
-            "/api/orders/5/payments", "/api/portal/orders/5/payments"})
+            "/api/orders/5/payments", "/api/portal/orders/5/payments", "/api/stock/receipts"})
     void createEndpointsAreIdempotentByDefault(String path) {
         IdempotencyFilter filter = new IdempotencyFilter(mock(StringRedisTemplate.class));
 
