@@ -34,6 +34,9 @@ final class SalesFixture {
     SalesFixture(JdbcTemplate jdbc, MockMvc mvc) {
         this.jdbc = jdbc;
         this.mvc = mvc;
+        // New orders ship from the default warehouse, so one must exist; ours is removed again in cleanUp.
+        jdbc.update("insert into warehouse (code, name, is_default) select ?, 'Fixture', true "
+                + "where not exists (select 1 from warehouse where is_default and archived_at is null)", tag + "WH");
     }
 
     long user(String name, Role role) {
@@ -151,6 +154,7 @@ final class SalesFixture {
                 tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
         jdbc.update("delete from product where sku like ?", tag + "%");
+        jdbc.update("delete from warehouse where code = ?", tag + "WH");
         jdbc.update("delete from app_user where email like ?", tag + "%");
     }
 }

@@ -12,7 +12,7 @@ import java.util.stream.Stream;
 
 public enum SettingKey {
     APPROVAL_DISCOUNT_PERCENT_MAX("approval.discountPercentMax", number(BigDecimal.ZERO, new BigDecimal(100))),
-    APPROVAL_WRITE_OFF_QTY_MAX("approval.writeOffQtyMax", number(BigDecimal.ZERO, null)),
+    APPROVAL_WRITE_OFF_VALUE_MAX("approval.writeOffValueMax", number(BigDecimal.ZERO, null)),
     POS_QUICK_ADD_ASSIGNMENT("pos.quickAddAssignment", oneOf("SELF", "UNASSIGNED")),
     SALES_QUOTE_VALIDITY_DAYS("sales.quoteValidityDays", number(BigDecimal.ONE, new BigDecimal(365))),
     SALES_WITHHOLDING_SUGGEST_PERCENT("sales.withholdingSuggestPercent", number(BigDecimal.ZERO, new BigDecimal(100))),

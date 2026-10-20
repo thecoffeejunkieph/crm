@@ -1,6 +1,5 @@
 package ph.thecoffeejunkie.crm.sales;
 
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.approvals.ApprovalType;
@@ -15,6 +14,7 @@ import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.settings.SettingKey;
 import ph.thecoffeejunkie.crm.settings.Settings;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
+import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.Scope;
@@ -42,13 +42,13 @@ class InvoiceService {
     private final Approvals approvals;
     private final AuditLog audit;
     private final CurrentActor actor;
-    private final JdbcTemplate jdbc;
+    private final DocumentCounters counters;
     private final InvoiceDocument document;
     private final Clock clock;
 
     InvoiceService(InvoiceRepository repo, SalesOrderRepository orderRepo, OrderAccess access, Customers customers,
                    Catalog catalog, Settings settings, Approvals approvals, AuditLog audit, CurrentActor actor,
-                   JdbcTemplate jdbc, InvoiceDocument document, Clock clock) {
+                   DocumentCounters counters, InvoiceDocument document, Clock clock) {
         this.repo = repo;
         this.orderRepo = orderRepo;
         this.access = access;
@@ -58,7 +58,7 @@ class InvoiceService {
         this.approvals = approvals;
         this.audit = audit;
         this.actor = actor;
-        this.jdbc = jdbc;
+        this.counters = counters;
         this.document = document;
         this.clock = clock;
     }
@@ -145,8 +145,7 @@ class InvoiceService {
      */
     private Invoice issueFor(SalesOrder o) {
         requireCompanySettings();
-        long serial = jdbc.queryForObject("update document_counter set next_value = next_value + 1 "
-                + "where name = 'INVOICE' returning next_value - 1", Long.class);
+        long serial = counters.next("INVOICE");
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
         Map<Long, ProductInfo> products = catalog.info(o.lines.stream().map(l -> l.productId).toList());
         LocalDate today = SalesTime.today(clock);

@@ -30,6 +30,9 @@ class SalesSchemaIT {
                 + "values (?, 'S', 'R', 'SALES') returning id", Long.class, UUID.randomUUID() + "@schema.it");
         long customerId = jdbc.queryForObject(
                 "insert into customer (type, display_name) values ('BUSINESS', 'Acme') returning id", Long.class);
+        jdbc.update("insert into warehouse (code, name, is_default) select ?, 'W', true "
+                + "where not exists (select 1 from warehouse where is_default and archived_at is null)",
+                UUID.randomUUID().toString());
         orderId = jdbc.queryForObject("insert into sales_order (number, customer_id, rep_id, status, payment_terms, "
                 + "created_by) values (?, ?, ?, 'CONFIRMED', 'NET_30', ?) returning id", Long.class,
                 "SO-" + UUID.randomUUID(), customerId, userId, userId);

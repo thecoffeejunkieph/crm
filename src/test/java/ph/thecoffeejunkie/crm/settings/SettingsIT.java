@@ -49,7 +49,7 @@ class SettingsIT {
         jdbc.update("update app_setting set updated_by = null");
         jdbc.update("delete from app_user where id = ?", adminId);
         jdbc.update("update app_setting set value = '15' where key = 'approval.discountPercentMax'");
-        jdbc.update("update app_setting set value = '10' where key = 'approval.writeOffQtyMax'");
+        jdbc.update("update app_setting set value = '5000' where key = 'approval.writeOffValueMax'");
         jdbc.update("update app_setting set value = '\"SELF\"' where key = 'pos.quickAddAssignment'");
         jdbc.update("update app_setting set value = '15' where key = 'sales.quoteValidityDays'");
         jdbc.update("update app_setting set value = '\"\"' where key = 'company.name'");
@@ -69,7 +69,7 @@ class SettingsIT {
     @Test
     void seededDefaultsReadable() throws Exception {
         assertThat(settings.decimal(SettingKey.APPROVAL_DISCOUNT_PERCENT_MAX)).isEqualByComparingTo("15");
-        assertThat(settings.decimal(SettingKey.APPROVAL_WRITE_OFF_QTY_MAX)).isEqualByComparingTo("10");
+        assertThat(settings.decimal(SettingKey.APPROVAL_WRITE_OFF_VALUE_MAX)).isEqualByComparingTo("5000");
         assertThat(settings.text(SettingKey.POS_QUICK_ADD_ASSIGNMENT)).isEqualTo("SELF");
         mvc.perform(get("/api/admin/settings").with(authentication(auth(Role.ADMIN))))
                 .andExpect(status().isOk())
@@ -99,7 +99,7 @@ class SettingsIT {
     void unchangedValuesNotAudited() throws Exception {
         int before = jdbc.queryForObject(
                 "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class);
-        mvc.perform(putJson("{\"approval.discountPercentMax\": 15, \"approval.writeOffQtyMax\": 10.0,"
+        mvc.perform(putJson("{\"approval.discountPercentMax\": 15, \"approval.writeOffValueMax\": 5000.0,"
                 + " \"pos.quickAddAssignment\": \"SELF\"}")).andExpect(status().isOk());
         assertThat(jdbc.queryForObject(
                 "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class))
@@ -116,9 +116,9 @@ class SettingsIT {
 
     @Test
     void invalidValueWritesNothing() throws Exception {
-        mvc.perform(putJson("{\"approval.writeOffQtyMax\": 5, \"approval.discountPercentMax\": 101}"))
+        mvc.perform(putJson("{\"approval.writeOffValueMax\": 6000, \"approval.discountPercentMax\": 101}"))
                 .andExpect(status().isBadRequest());
-        assertThat(settings.decimal(SettingKey.APPROVAL_WRITE_OFF_QTY_MAX)).isEqualByComparingTo("10");
+        assertThat(settings.decimal(SettingKey.APPROVAL_WRITE_OFF_VALUE_MAX)).isEqualByComparingTo("5000");
     }
 
     @Test
