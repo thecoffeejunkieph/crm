@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 interface StockLevelRepository extends JpaRepository<StockLevel, Long> {
@@ -14,6 +16,8 @@ interface StockLevelRepository extends JpaRepository<StockLevel, Long> {
     @Query(value = "insert into stock_level (product_id, warehouse_id) values (:productId, :warehouseId) "
             + "on conflict do nothing", nativeQuery = true)
     void insertIfMissing(long productId, long warehouseId);
+
+    List<StockLevel> findByProductIdIn(Collection<Long> productIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<StockLevel> findByProductIdAndWarehouseId(long productId, long warehouseId);

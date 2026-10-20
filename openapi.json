@@ -1581,6 +1581,33 @@
         },
         "type" : "object"
       },
+      "PageResponseTransferResponse" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TransferResponse"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "PageResponseUserResponse" : {
         "properties" : {
           "content" : {
@@ -2080,6 +2107,32 @@
         },
         "type" : "object"
       },
+      "ReceiveLineRequest" : {
+        "properties" : {
+          "lineId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "receivedQty" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "lineId", "receivedQty" ],
+        "type" : "object"
+      },
+      "ReceiveRequest" : {
+        "properties" : {
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReceiveLineRequest"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "lines" ],
+        "type" : "object"
+      },
       "RecoveryCodesResponse" : {
         "properties" : {
           "codes" : {
@@ -2289,6 +2342,136 @@
           },
           "secret" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TransferLineRequest" : {
+        "properties" : {
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "productId", "qty" ],
+        "type" : "object"
+      },
+      "TransferLineResponse" : {
+        "properties" : {
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "receivedQty" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TransferRequest" : {
+        "properties" : {
+          "fromWarehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TransferLineRequest"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "salesOrderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "toWarehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "fromWarehouseId", "lines", "toWarehouseId" ],
+        "type" : "object"
+      },
+      "TransferResponse" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdByName" : {
+            "type" : "string"
+          },
+          "dispatchedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "fromWarehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TransferLineResponse"
+            },
+            "type" : "array"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "receivedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "salesOrderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "status" : {
+            "enum" : [ "DRAFT", "DISPATCHED", "RECEIVED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "toWarehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -2539,7 +2722,7 @@
     },
     "/api/admin/settings" : {
       "get" : {
-        "operationId" : "get_4",
+        "operationId" : "get_5",
         "responses" : {
           "200" : {
             "content" : {
@@ -2588,7 +2771,7 @@
     },
     "/api/admin/users" : {
       "get" : {
-        "operationId" : "list_6",
+        "operationId" : "list_7",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -2663,7 +2846,7 @@
     },
     "/api/admin/users/{id}" : {
       "put" : {
-        "operationId" : "update_5",
+        "operationId" : "update_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2835,7 +3018,7 @@
     },
     "/api/approvals" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -2903,7 +3086,7 @@
     },
     "/api/approvals/{id}/cancel" : {
       "post" : {
-        "operationId" : "cancel_1",
+        "operationId" : "cancel_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3109,7 +3292,7 @@
     },
     "/api/customers" : {
       "get" : {
-        "operationId" : "list_4",
+        "operationId" : "list_5",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -3148,7 +3331,7 @@
         "tags" : [ "customer-controller" ]
       },
       "post" : {
-        "operationId" : "create_3",
+        "operationId" : "create_4",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -3205,7 +3388,7 @@
     },
     "/api/customers/{id}" : {
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3230,7 +3413,7 @@
         "tags" : [ "customer-controller" ]
       },
       "put" : {
-        "operationId" : "update_4",
+        "operationId" : "update_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3580,7 +3763,7 @@
         "tags" : [ "me-controller" ]
       },
       "put" : {
-        "operationId" : "update_3",
+        "operationId" : "update_4",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -3745,7 +3928,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_9",
+        "operationId" : "list_10",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -3842,7 +4025,7 @@
     },
     "/api/orders" : {
       "get" : {
-        "operationId" : "list_2",
+        "operationId" : "list_3",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -3916,7 +4099,7 @@
         "tags" : [ "order-controller" ]
       },
       "post" : {
-        "operationId" : "create_2",
+        "operationId" : "create_3",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -3944,7 +4127,7 @@
     },
     "/api/orders/{id}" : {
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3969,7 +4152,7 @@
         "tags" : [ "order-controller" ]
       },
       "put" : {
-        "operationId" : "update_2",
+        "operationId" : "update_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4006,7 +4189,7 @@
     },
     "/api/orders/{id}/cancel" : {
       "post" : {
-        "operationId" : "cancel",
+        "operationId" : "cancel_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4239,7 +4422,7 @@
     },
     "/api/orders/{id}/invoices" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4269,7 +4452,7 @@
     },
     "/api/orders/{id}/payments" : {
       "get" : {
-        "operationId" : "list_3",
+        "operationId" : "list_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4705,7 +4888,7 @@
     },
     "/api/portal/orders" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -4731,7 +4914,7 @@
     },
     "/api/portal/orders/{id}" : {
       "get" : {
-        "operationId" : "get_5",
+        "operationId" : "get_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4977,7 +5160,7 @@
     },
     "/api/products" : {
       "get" : {
-        "operationId" : "list_1",
+        "operationId" : "list_2",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -5016,7 +5199,7 @@
         "tags" : [ "product-controller" ]
       },
       "post" : {
-        "operationId" : "create_1",
+        "operationId" : "create_2",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -5044,7 +5227,7 @@
     },
     "/api/products/{id}" : {
       "get" : {
-        "operationId" : "get_1",
+        "operationId" : "get_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5069,7 +5252,7 @@
         "tags" : [ "product-controller" ]
       },
       "put" : {
-        "operationId" : "update_1",
+        "operationId" : "update_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5415,7 +5598,7 @@
         "tags" : [ "stock-controller" ]
       },
       "post" : {
-        "operationId" : "receive",
+        "operationId" : "receive_1",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -5508,6 +5691,227 @@
           }
         },
         "tags" : [ "stock-controller" ]
+      }
+    },
+    "/api/transfers" : {
+      "get" : {
+        "operationId" : "list_1",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "DRAFT", "DISPATCHED", "RECEIVED", "CANCELLED" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "warehouseId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseTransferResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "transfer-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransferRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "transfer-controller" ]
+      }
+    },
+    "/api/transfers/{id}" : {
+      "get" : {
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "transfer-controller" ]
+      },
+      "put" : {
+        "operationId" : "update_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransferRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "transfer-controller" ]
+      }
+    },
+    "/api/transfers/{id}/cancel" : {
+      "post" : {
+        "operationId" : "cancel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "transfer-controller" ]
+      }
+    },
+    "/api/transfers/{id}/dispatch" : {
+      "post" : {
+        "operationId" : "dispatch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "transfer-controller" ]
+      }
+    },
+    "/api/transfers/{id}/receive" : {
+      "post" : {
+        "operationId" : "receive",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReceiveRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "transfer-controller" ]
       }
     },
     "/api/warehouses" : {

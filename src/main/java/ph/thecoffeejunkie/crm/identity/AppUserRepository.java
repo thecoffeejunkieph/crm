@@ -26,6 +26,10 @@ interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpecificati
     @Query("select u.id from AppUser u where u.role = :role and u.archivedAt is null order by u.id")
     List<Long> activeIdsWithRole(Role role);
 
+    @Query("select u.id from AppUser u join u.warehouseIds w where w = :warehouseId and u.role = :role "
+            + "and u.archivedAt is null order by u.id")
+    List<Long> activeIdsForWarehouse(Role role, long warehouseId);
+
     boolean existsByIdAndRoleAndArchivedAtIsNull(long id, Role role);
 
     boolean existsByRoleAndArchivedAtIsNullAndPasswordHashIsNotNull(Role role);

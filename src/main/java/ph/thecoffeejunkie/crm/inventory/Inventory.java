@@ -28,9 +28,13 @@ public class Inventory {
     private final StockReservationRepository reservations;
 
     private final AdjustmentService adjustments;
+    private final TransferService transfers;
+    private final StockLevelRepository levels;
 
     Inventory(StockLedger ledger, Allocator allocator, StockReservationRepository reservations,
-              AdjustmentService adjustments) {
+              AdjustmentService adjustments, TransferService transfers, StockLevelRepository levels) {
+        this.transfers = transfers;
+        this.levels = levels;
         this.adjustments = adjustments;
         this.ledger = ledger;
         this.allocator = allocator;
@@ -128,6 +132,29 @@ public class Inventory {
     public long postSystemAdjustment(long warehouseId, long productId, BigDecimal delta, AdjustmentSource source,
                                      String reason, String refType, long refId) {
         return adjustments.postSystem(warehouseId, productId, delta, source, reason, refType, refId);
+    }
+
+    /**
+     * One linked DRAFT transfer per source warehouse that can cover part of the order's shortage, sent to the
+     * order's warehouse. No shortage, or no stock elsewhere, gives an empty list. The caller owns the permission check.
+     */
+    public List<TransferResponse> coverShortage(long orderId, long actorId) {
+        List<StockReservation> rs = reservations.findBySalesOrderId(orderId);
+        if (rs.isEmpty()) {
+            return List.of();
+        }
+        long shipFrom = rs.get(0).warehouseId;
+        Map<Long, BigDecimal> shortByProduct = rs.stream().filter(r -> r.shortQty.signum() > 0)
+                .collect(Collectors.toMap(r -> r.productId, r -> r.shortQty, BigDecimal::add));
+        if (shortByProduct.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Map<Long, BigDecimal>> available = new HashMap<>();
+        for (StockLevel l : levels.findByProductIdIn(shortByProduct.keySet())) {
+            available.computeIfAbsent(l.productId, k -> new HashMap<>()).put(l.warehouseId, l.available());
+        }
+        return CoverShortage.plan(shortByProduct, available, shipFrom).entrySet().stream()
+                .map(e -> transfers.createLinked(e.getKey(), shipFrom, orderId, e.getValue(), actorId)).toList();
     }
 
     @Transactional(readOnly = true)

@@ -35,6 +35,12 @@ public class Users {
         return repo.activeIdsWithRole(role);
     }
 
+    /** Active WAREHOUSE users assigned to the warehouse. */
+    @Transactional(readOnly = true)
+    public List<Long> idsForWarehouse(long warehouseId) {
+        return repo.activeIdsForWarehouse(Role.WAREHOUSE, warehouseId);
+    }
+
     /** Includes archived users: history still needs their names. Unknown ids are absent. */
     @Transactional(readOnly = true)
     public Map<Long, String> displayNames(Collection<Long> ids) {

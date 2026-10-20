@@ -118,6 +118,13 @@ class SecurityMatrixTest {
             Map.entry("GET /api/stock/receipts/{id}", AW),
             Map.entry("POST /api/stock/adjustments", AW),
             Map.entry("GET /api/stock/adjustments", AW),
+            Map.entry("GET /api/transfers", STAFF),
+            Map.entry("GET /api/transfers/{id}", STAFF),
+            Map.entry("POST /api/transfers", AW),
+            Map.entry("PUT /api/transfers/{id}", AW),
+            Map.entry("POST /api/transfers/{id}/dispatch", AW),
+            Map.entry("POST /api/transfers/{id}/receive", AW),
+            Map.entry("POST /api/transfers/{id}/cancel", AW),
 
             Map.entry("GET /api/customers", AS),
             Map.entry("GET /api/customers/lookup", AS),
