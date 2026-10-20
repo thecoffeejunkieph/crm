@@ -15,6 +15,92 @@
         "required" : [ "password", "token" ],
         "type" : "object"
       },
+      "AdjustmentRequest" : {
+        "properties" : {
+          "countedQty" : {
+            "type" : "number"
+          },
+          "delta" : {
+            "type" : "number"
+          },
+          "mode" : {
+            "enum" : [ "COUNTED", "DELTA" ],
+            "type" : "string"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reason" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "warehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "mode", "productId", "reason", "warehouseId" ],
+        "type" : "object"
+      },
+      "AdjustmentResponse" : {
+        "properties" : {
+          "countedQty" : {
+            "type" : "number"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdByName" : {
+            "type" : "string"
+          },
+          "delta" : {
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "mode" : {
+            "enum" : [ "COUNTED", "DELTA" ],
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "productName" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "source" : {
+            "enum" : [ "MANUAL", "SHORT_PICK", "TRANSIT_LOSS" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "POSTED", "PENDING_APPROVAL", "REJECTED" ],
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          },
+          "warehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ApprovalResponse" : {
         "properties" : {
           "decidedAt" : {
@@ -1140,6 +1226,33 @@
           },
           "sort" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageResponseAdjustmentResponse" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AdjustmentResponse"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -5195,6 +5308,74 @@
               }
             },
             "description" : "OK"
+          }
+        },
+        "tags" : [ "stock-controller" ]
+      }
+    },
+    "/api/stock/adjustments" : {
+      "get" : {
+        "operationId" : "adjustments",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "warehouseId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "POSTED", "PENDING_APPROVAL", "REJECTED" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseAdjustmentResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "stock-controller" ]
+      },
+      "post" : {
+        "operationId" : "adjust",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdjustmentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdjustmentResponse"
+                }
+              }
+            },
+            "description" : "Created"
           }
         },
         "tags" : [ "stock-controller" ]

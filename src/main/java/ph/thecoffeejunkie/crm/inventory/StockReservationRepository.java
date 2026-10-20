@@ -20,6 +20,11 @@ interface StockReservationRepository extends JpaRepository<StockReservation, Lon
             + "r.confirmedAt, r.salesOrderId, r.orderLineId")
     List<StockReservation> findShort(long productId, long warehouseId, Long linkedOrderId);
 
+    /** Take-back order: youngest confirmed first. */
+    @Query("select r from StockReservation r where r.productId = :productId and r.warehouseId = :warehouseId "
+            + "and r.reservedQty > 0 order by r.confirmedAt desc, r.salesOrderId desc, r.orderLineId desc")
+    List<StockReservation> findReservedYoungestFirst(long productId, long warehouseId);
+
     @Query("select coalesce(sum(r.shortQty), 0) from StockReservation r where r.salesOrderId = :salesOrderId")
     BigDecimal totalShort(long salesOrderId);
 }

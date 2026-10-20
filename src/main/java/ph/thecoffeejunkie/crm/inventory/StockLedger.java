@@ -43,6 +43,13 @@ class StockLedger {
     void post(MovementType type, long productId, long warehouseId, BigDecimal qty, String refType, long refId,
               String reason, Long linkedOrderId) {
         StockLevel level = lock(productId, warehouseId);
+        if (type == MovementType.ADJUSTMENT && qty.signum() < 0) {
+            // A count may cut on_hand below reserved: take the excess from the youngest orders first.
+            BigDecimal excess = level.reserved.subtract(level.onHand.add(qty));
+            if (excess.signum() > 0) {
+                allocator.takeBack(level, excess);
+            }
+        }
         StockMovement m = new StockMovement();
         m.productId = productId;
         m.warehouseId = warehouseId;

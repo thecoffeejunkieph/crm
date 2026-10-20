@@ -21,7 +21,10 @@ class StockController {
     private final StockViews views;
     private final ReceiptService receipts;
 
-    StockController(StockViews views, ReceiptService receipts) {
+    private final AdjustmentService adjustments;
+
+    StockController(StockViews views, ReceiptService receipts, AdjustmentService adjustments) {
+        this.adjustments = adjustments;
         this.views = views;
         this.receipts = receipts;
     }
@@ -58,5 +61,18 @@ class StockController {
     @GetMapping("/api/stock/receipts/{id}")
     ReceiptResponse receipt(@PathVariable long id) {
         return receipts.get(id);
+    }
+
+    @PostMapping("/api/stock/adjustments")
+    @ResponseStatus(HttpStatus.CREATED)
+    AdjustmentResponse adjust(@Valid @RequestBody AdjustmentRequest req) {
+        return adjustments.create(req);
+    }
+
+    @GetMapping("/api/stock/adjustments")
+    PageResponse<AdjustmentResponse> adjustments(@RequestParam(required = false) Long warehouseId,
+                                                 @RequestParam(required = false) AdjustmentStatus status,
+                                                 PageQuery page) {
+        return adjustments.list(warehouseId, status, page);
     }
 }

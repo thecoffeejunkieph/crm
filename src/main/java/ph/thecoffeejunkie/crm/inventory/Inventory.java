@@ -27,7 +27,11 @@ public class Inventory {
     private final Allocator allocator;
     private final StockReservationRepository reservations;
 
-    Inventory(StockLedger ledger, Allocator allocator, StockReservationRepository reservations) {
+    private final AdjustmentService adjustments;
+
+    Inventory(StockLedger ledger, Allocator allocator, StockReservationRepository reservations,
+              AdjustmentService adjustments) {
+        this.adjustments = adjustments;
         this.ledger = ledger;
         this.allocator = allocator;
         this.reservations = reservations;
@@ -114,6 +118,16 @@ public class Inventory {
         // Flush the deletes now: a following reserve() re-inserts the same order_line_id.
         reservations.flush();
         freed.forEach(k -> allocator.allocate(k.productId(), k.warehouseId(), null));
+    }
+
+    /**
+     * A POSTED adjustment made by the system (short pick, transit loss), no approval. For a decrease the caller
+     * must already have lowered reserved by anything it held, so nothing is taken from other orders.
+     * TRANSIT_LOSS records without moving stock. Returns the adjustment id.
+     */
+    public long postSystemAdjustment(long warehouseId, long productId, BigDecimal delta, AdjustmentSource source,
+                                     String reason, String refType, long refId) {
+        return adjustments.postSystem(warehouseId, productId, delta, source, reason, refType, refId);
     }
 
     @Transactional(readOnly = true)
