@@ -175,6 +175,40 @@ class AdjustmentsIT {
     }
 
     @Test
+    void pendingDeltaBeyondOnHand422() throws Exception {
+        f.receive(p, wh1, "100");
+        delta("-200", warehouse1).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+        assertThat(jdbc.queryForObject("select count(*) from stock_adjustment where warehouse_id = ?", Integer.class,
+                wh1)).isZero();
+        assertThat(f.onHand(p, wh1)).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void approvedButCannotPostEndsRejected() throws Exception {
+        f.receive(p, wh1, "100");
+        delta("-60", warehouse1).andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
+        long pendingId = adjustmentId();
+        // Stock drops to 50 behind the pending request (50 * 100 = 5000, not over the threshold, so it posts).
+        delta("-50", warehouse1).andExpect(jsonPath("$.status").value("POSTED"));
+        long approval = jdbc.queryForObject("select approval_request_id from stock_adjustment where id = ?",
+                Long.class, pendingId);
+        mvc.perform(post("/api/approvals/" + approval + "/decision").contentType("application/json")
+                .content("{\"approve\":true}").with(csrf(mvc)).with(admin)).andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject("select status from stock_adjustment where id = ?", String.class, pendingId))
+                .isEqualTo("REJECTED");
+        assertThat(jdbc.queryForObject("select reason from stock_adjustment where id = ?", String.class, pendingId))
+                .startsWith("Could not post:");
+        assertThat(f.onHand(p, wh1)).isEqualByComparingTo("50");
+        long requester = jdbc.queryForObject("select created_by from stock_adjustment where id = ?", Long.class,
+                pendingId);
+        assertThat(jdbc.queryForObject("select count(*) from notification where recipient_user_id = ? "
+                + "and type = 'APPROVAL_DECIDED' and title like '%could not be posted'", Integer.class, requester))
+                .isEqualTo(1);
+    }
+
+    @Test
     void pendingResponseOmitsCostForWarehouse() throws Exception {
         f.receive(p, wh1, "100");
         String body = delta("-60", warehouse1).andReturn().getResponse().getContentAsString();

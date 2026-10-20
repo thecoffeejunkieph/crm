@@ -14,6 +14,9 @@ import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.identity.Users;
+import ph.thecoffeejunkie.crm.notifications.NotificationType;
+import ph.thecoffeejunkie.crm.notifications.Notifications;
+import ph.thecoffeejunkie.crm.notifications.NotificationType;
 import ph.thecoffeejunkie.crm.settings.SettingKey;
 import ph.thecoffeejunkie.crm.settings.Settings;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
@@ -52,10 +55,12 @@ class AdjustmentService {
     private final CurrentActor actor;
     private final Approvals approvals;
     private final Settings settings;
+    private final Notifications notifications;
 
     AdjustmentService(StockAdjustmentRepository adjustments, StockLedger ledger, InventoryPermissions perms,
                       Warehouses warehouses, Catalog catalog, Users users, DocumentCounters counters, AuditLog audit,
-                      CurrentActor actor, Approvals approvals, Settings settings) {
+                      CurrentActor actor, Approvals approvals, Settings settings, Notifications notifications) {
+        this.notifications = notifications;
         this.adjustments = adjustments;
         this.ledger = ledger;
         this.perms = perms;
@@ -85,6 +90,9 @@ class AdjustmentService {
         StockLevel level = ledger.lock(req.productId(), req.warehouseId());
         BigDecimal delta = req.mode() == AdjustmentMode.COUNTED ? req.countedQty().subtract(level.onHand) : req.delta();
         delta = delta.setScale(3, RoundingMode.UNNECESSARY);
+        if (level.onHand.add(delta).signum() < 0) {
+            throw new DomainException(ErrorCode.INSUFFICIENT_STOCK, "Not enough stock for this change.");
+        }
         BigDecimal cost = product.cost() == null ? BigDecimal.ZERO : product.cost();
         BigDecimal value = delta.abs().multiply(cost);
         boolean pending = delta.signum() < 0
@@ -124,11 +132,25 @@ class AdjustmentService {
             a.updatedAt = Instant.now();
             return;
         }
+        StockLevel level = ledger.lock(a.productId, a.warehouseId);
         BigDecimal delta = a.delta;
         if (a.mode == AdjustmentMode.COUNTED) {
-            delta = a.countedQty.subtract(ledger.lock(a.productId, a.warehouseId).onHand)
-                    .setScale(3, RoundingMode.UNNECESSARY);
+            delta = a.countedQty.subtract(level.onHand).setScale(3, RoundingMode.UNNECESSARY);
             a.delta = delta;
+        }
+        if (level.onHand.add(delta).signum() < 0) {
+            // Checked here instead of letting the ledger throw: an exception would mark this transaction
+            // rollback-only and the rejection below would never commit.
+            a.status = AdjustmentStatus.REJECTED;
+            a.reason = "Could not post: insufficient stock (on hand " + level.onHand.stripTrailingZeros().toPlainString()
+                    + ", change " + delta.stripTrailingZeros().toPlainString() + ")";
+            a.updatedAt = Instant.now();
+            audit.record(AuditAction.STOCK_ADJUSTED, ENTITY, a.id, "Rejected " + a.number + ": " + a.reason, null);
+            if (a.createdBy != null) {
+                notifications.toUser(a.createdBy, NotificationType.APPROVAL_DECIDED, ENTITY, a.id,
+                        "Adjustment " + a.number + " could not be posted", a.reason);
+            }
+            return;
         }
         post(a, delta);
     }
