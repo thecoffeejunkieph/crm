@@ -72,7 +72,7 @@ class TransferService {
     }
 
     TransferResponse create(TransferRequest req) {
-        if (!perms.canAct(req.fromWarehouseId()) && !perms.canAct(req.toWarehouseId())) {
+        if (!perms.canAct(req.fromWarehouseId())) {
             throw new DomainException(ErrorCode.NOT_FOUND, "Warehouse not found");
         }
         StockTransfer t = new StockTransfer();
@@ -93,14 +93,14 @@ class TransferService {
             throw invalid("version", "must not be null");
         }
         StockTransfer t = lock(id, true);
+        if (!perms.canAct(t.fromWarehouseId) || !perms.canAct(req.fromWarehouseId())) {
+            throw notFound();
+        }
         if (t.version != req.version()) {
             throw new DomainException(ErrorCode.STALE_VERSION,
                     "This record was changed by someone else. Reload and retry.");
         }
         requireDraft(t);
-        if (!perms.canAct(req.fromWarehouseId()) && !perms.canAct(req.toWarehouseId())) {
-            throw new DomainException(ErrorCode.NOT_FOUND, "Warehouse not found");
-        }
         t.lines.clear();
         transfers.flush();
         return toResponse(save(t, req));

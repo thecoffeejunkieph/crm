@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
@@ -184,6 +185,35 @@ class TransfersIT {
         long id = create("2", null);
         act(id, "dispatch", null, dstUser).andExpect(status().isNotFound());
         assertThat(f.onHand(p, src)).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void destinationOnlyUserCannotCreate404() throws Exception {
+        f.receive(p, src, "10");
+        String body = "{\"fromWarehouseId\":" + src + ",\"toWarehouseId\":" + dst
+                + ",\"lines\":[{\"productId\":" + p + ",\"qty\":2}]}";
+        mvc.perform(post("/api/transfers").contentType("application/json").content(body).with(csrf(mvc)).with(dstUser))
+                .andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("select count(*) from stock_transfer where from_warehouse_id = ?",
+                Integer.class, src)).isZero();
+        assertThat(f.onHand(p, src)).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void destinationOnlyUserCannotRepointUpdate404() throws Exception {
+        long id = create("2", null);
+        long v = jdbc.queryForObject("select version from stock_transfer where id = ?", Long.class, id);
+        // dstUser has only dst: it cannot edit a transfer sourced from src, nor repoint one to source from dst
+        for (long from : new long[] {src, dst}) {
+            String body = "{\"fromWarehouseId\":" + from + ",\"toWarehouseId\":" + other + ",\"version\":" + v
+                    + ",\"lines\":[{\"productId\":" + p + ",\"qty\":9}]}";
+            mvc.perform(put("/api/transfers/" + id).contentType("application/json").content(body)
+                    .with(csrf(mvc)).with(dstUser)).andExpect(status().isNotFound());
+        }
+        assertThat(jdbc.queryForObject("select from_warehouse_id from stock_transfer where id = ?", Long.class, id))
+                .isEqualTo(src);
+        assertThat(jdbc.queryForObject("select qty from stock_transfer_line where transfer_id = ?",
+                BigDecimal.class, id)).isEqualByComparingTo("2");
     }
 
     @Test
