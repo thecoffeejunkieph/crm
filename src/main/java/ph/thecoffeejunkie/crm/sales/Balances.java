@@ -23,11 +23,15 @@ final class Balances {
         return settled.signum() == 0 ? PaymentStatus.UNPAID : PaymentStatus.PARTIAL;
     }
 
-    static BigDecimal suggestedWithholding(OrderTotals.Result t, BigDecimal percent, CustomerType type) {
+    /** What is left to withhold: the order's share less what earlier payments withheld, never more than the balance. */
+    static BigDecimal suggestedWithholding(OrderTotals.Result t, BigDecimal percent, CustomerType type,
+                                           BigDecimal withheld, BigDecimal balance) {
+        BigDecimal zero = new BigDecimal("0.00");
         if (type != CustomerType.BUSINESS) {
-            return new BigDecimal("0.00");
+            return zero;
         }
         BigDecimal base = t.vatableSales().add(t.vatExemptSales()).add(t.zeroRatedSales());
-        return base.multiply(percent).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
+        BigDecimal left = base.multiply(percent).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP).subtract(withheld);
+        return left.min(balance).max(zero).setScale(2, RoundingMode.HALF_UP);
     }
 }

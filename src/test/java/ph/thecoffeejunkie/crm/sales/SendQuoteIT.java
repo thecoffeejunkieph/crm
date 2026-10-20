@@ -151,4 +151,13 @@ class SendQuoteIT {
                 .andExpect(content().contentType("application/pdf"))
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith("inline")));
     }
+
+    @Test
+    void quotePdfLeavesOutInternalNotes() throws Exception {
+        long id = f.createdOrder(asRep, customer, line(product, "1"));
+        jdbc.update("update sales_order set notes = 'INTERNAL-ONLY', terms = 'PAY-IN-30' where id = ?", id);
+        byte[] pdf = mvc.perform(get("/api/orders/" + id + "/quote.pdf").with(asRep)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(PdfText.of(pdf)).contains("PAY-IN-30").doesNotContain("INTERNAL-ONLY");
+    }
 }

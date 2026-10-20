@@ -70,7 +70,8 @@ class PortalOrderService {
         LocalDate today = SalesTime.today(clock);
         Specification<SalesOrder> spec = Specification.allOf(
                 (r, q, cb) -> cb.equal(r.get("customerId"), c.customerId()),
-                (r, q, cb) -> cb.notEqual(r.get("status"), OrderStatus.DRAFT));
+                (r, q, cb) -> cb.and(cb.notEqual(r.get("status"), OrderStatus.DRAFT),
+                        cb.or(cb.notEqual(r.get("status"), OrderStatus.CANCELLED), cb.isNotNull(r.get("quotedAt")))));
         return PageResponse.of(repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT)).map(o ->
                 new PortalOrderSummary(o.id, o.number, o.status, OrderService.paymentStatus(o, today), o.total,
                         o.balance(), o.quoteValidUntil, o.quotedAt)));
@@ -178,8 +179,10 @@ class PortalOrderService {
         return actor.contact().orElseThrow(() -> new DomainException(ErrorCode.UNAUTHORIZED, "Login required"));
     }
 
+    /** QUOTED or later: a draft cancelled before it was ever sent stays internal. */
     private static boolean isVisible(ContactPrincipal c, SalesOrder o) {
-        return o.customerId == c.customerId() && o.status != OrderStatus.DRAFT;
+        return o.customerId == c.customerId() && o.status != OrderStatus.DRAFT
+                && (o.status != OrderStatus.CANCELLED || o.quotedAt != null);
     }
 
     private SalesOrder visible(ContactPrincipal c, long id) {

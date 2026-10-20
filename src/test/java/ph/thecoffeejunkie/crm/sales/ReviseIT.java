@@ -155,4 +155,11 @@ class ReviseIT {
         f.update(asRep, order, REASON, line(product, "2")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("INVALID_STATE"));
     }
+
+    @Test
+    void reviseToNoLines400() throws Exception {
+        f.update(asRep, order, REASON).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        assertThat(revision()).isZero();
+    }
 }

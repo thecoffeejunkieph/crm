@@ -40,13 +40,27 @@ class BalancesTest {
 
     @Test
     void withholdingOnePercentBusiness() {
-        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS))
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("0"), d("1000")))
                 .isEqualTo("3.50");
     }
 
     @Test
     void withholdingZeroForIndividual() {
-        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.INDIVIDUAL))
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.INDIVIDUAL, d("0"), d("1000")))
                 .isEqualTo("0.00");
+    }
+
+    @Test
+    void withholdingNetsEarlierWithholdingAndNeverGoesNegative() {
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("2.00"), d("1000")))
+                .isEqualTo("1.50");
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("5.00"), d("1000")))
+                .isEqualTo("0.00");
+    }
+
+    @Test
+    void withholdingCappedAtBalance() {
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("0"), d("0.40")))
+                .isEqualTo("0.40");
     }
 }

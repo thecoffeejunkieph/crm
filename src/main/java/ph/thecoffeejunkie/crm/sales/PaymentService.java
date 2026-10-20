@@ -13,6 +13,8 @@ import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -34,9 +36,10 @@ class PaymentService {
     private final AuditLog audit;
     private final Users users;
     private final Customers customers;
+    private final Clock clock;
 
     PaymentService(PaymentRepository repo, SalesOrderRepository orderRepo, OrderAccess access, StorageService storage,
-                   AuditLog audit, Users users, Customers customers) {
+                   AuditLog audit, Users users, Customers customers, Clock clock) {
         this.repo = repo;
         this.orderRepo = orderRepo;
         this.access = access;
@@ -44,6 +47,7 @@ class PaymentService {
         this.audit = audit;
         this.users = users;
         this.customers = customers;
+        this.clock = clock;
     }
 
     /** Recorded by staff: VERIFIED at once. */
@@ -152,6 +156,14 @@ class PaymentService {
         }
     }
 
+    /** Withholding on payments not rejected; a pending one already claims its share of the suggestion. */
+    BigDecimal withheld(SalesOrder o) {
+        return repo.findByOrderIdOrderByIdDesc(o.id).stream()
+                .filter(p -> p.status != PaymentVerification.REJECTED)
+                .map(p -> p.withholdingAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     boolean hasVerified(SalesOrder o) {
         return repo.existsByOrderIdAndStatus(o.id, PaymentVerification.VERIFIED);
     }
@@ -171,9 +183,16 @@ class PaymentService {
         if (p.amount().signum() <= 0) {
             throw OrderService.invalid("cashAmount", "Enter an amount.");
         }
+        requireNotFuture(req.receivedOn(), clock);
         p.receivedOn = req.receivedOn();
         p.reference = req.reference();
         return p;
+    }
+
+    static void requireNotFuture(LocalDate receivedOn, Clock clock) {
+        if (receivedOn.isAfter(SalesTime.today(clock))) {
+            throw OrderService.invalid("receivedOn", "The date received can't be in the future.");
+        }
     }
 
     private void settle(SalesOrder o, BigDecimal amount) {

@@ -199,4 +199,17 @@ class InvoicesIT {
         mvc.perform(get("/api/orders/" + id + "/invoices").with(as(other, Role.SALES)))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void reprintKeepsSellerAndFooterFromIssue() throws Exception {
+        jdbc.update("update app_setting set value = to_jsonb('PTU-OLD'::text) where key = 'invoice.footerText'");
+        caches.getCache("settings").clear();
+        long invoiceId = SalesFixture.id(issue(asRep, confirmedOrder()).andExpect(status().isOk()));
+        companySettings(jdbc, caches, "New Name Corp.", "999-999-999-000", "Taguig City");
+        jdbc.update("update app_setting set value = to_jsonb('PTU-NEW'::text) where key = 'invoice.footerText'");
+        caches.getCache("settings").clear();
+        assertThat(pdfText(asRep, invoiceId)).contains("The Coffee Junkie Inc.", "123-456-789-000", "Makati City", "PTU-OLD")
+                .doesNotContain("New Name Corp.").doesNotContain("Taguig City").doesNotContain("PTU-NEW");
+        jdbc.update("update app_setting set value = to_jsonb(''::text) where key = 'invoice.footerText'");
+    }
 }

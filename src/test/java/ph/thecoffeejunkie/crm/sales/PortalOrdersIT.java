@@ -211,4 +211,12 @@ class PortalOrdersIT {
         assertThat(PdfText.of(pdf)).contains("VOID");
         mvc.perform(get("/api/portal/orders/" + id + "/quote.pdf").with(me)).andExpect(status().isOk());
     }
+
+    @Test
+    void cancelledUnsentDraftStaysHidden() throws Exception {
+        long id = f.createdOrder(asRep, customer, line(product, "1"));
+        jdbc.update("update sales_order set status = 'CANCELLED', cancelled_at = now() where id = ?", id);
+        mvc.perform(get("/api/portal/orders").with(me)).andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get("/api/portal/orders/" + id).with(me)).andExpect(status().isNotFound());
+    }
 }

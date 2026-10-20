@@ -163,6 +163,7 @@ class InvoiceService {
         customer.put("address", c.address());
         customer.put("paymentTerms", o.paymentTerms.getLabel());
         i.customerSnapshot = customer;
+        i.sellerSnapshot = InvoiceDocument.seller(settings);
         List<Map<String, Object>> lines = new ArrayList<>();
         for (OrderLine l : o.lines) {
             Map<String, Object> m = new LinkedHashMap<>();

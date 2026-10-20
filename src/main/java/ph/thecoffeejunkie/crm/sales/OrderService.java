@@ -183,6 +183,9 @@ class OrderService {
         }
         String reason = req.reason().trim();
         OrderStateMachine.require(o.status, OrderAction.REVISE);
+        if (req.lines() == null || req.lines().isEmpty()) {
+            throw invalid("lines", "A confirmed order needs at least one line.");
+        }
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
         Map<String, Object> snapshot = snapshot(o);
         String before = linesSummary(o);
@@ -420,7 +423,7 @@ class OrderService {
         InvoiceSummary invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
                 .map(Invoice::toSummary).orElse(null);
         BigDecimal withholding = Balances.suggestedWithholding(o.totals(),
-                settings.decimal(SettingKey.SALES_WITHHOLDING_SUGGEST_PERCENT), c.type());
+                settings.decimal(SettingKey.SALES_WITHHOLDING_SUGGEST_PERCENT), c.type(), payments.withheld(o), o.balance());
         return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), o.repId, repName, o.status,
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),

@@ -41,7 +41,6 @@ class QuoteDocument {
                         ? c.displayName() : c.businessName(), "tin", c.tin(), "address", c.address()),
                 "paymentTerms", o.paymentTerms.getLabel(),
                 "terms", o.terms,
-                "notes", o.notes,
                 "lines", o.lines.stream().map(l -> vars("description", l.description,
                         "qty", l.qty.stripTrailingZeros().toPlainString(), "unit", l.unit, "unitPrice", l.unitPrice,
                         "discountPct", l.discountPct, "lineTotal", l.lineTotal)).toList(),

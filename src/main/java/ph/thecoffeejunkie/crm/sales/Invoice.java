@@ -34,6 +34,8 @@ class Invoice {
     @JdbcTypeCode(SqlTypes.JSON)
     Map<String, Object> customerSnapshot;
     @JdbcTypeCode(SqlTypes.JSON)
+    Map<String, Object> sellerSnapshot;
+    @JdbcTypeCode(SqlTypes.JSON)
     List<Map<String, Object>> linesSnapshot;
     BigDecimal vatableSales;
     BigDecimal vat;

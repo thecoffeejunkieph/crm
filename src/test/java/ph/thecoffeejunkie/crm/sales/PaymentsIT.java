@@ -198,4 +198,12 @@ class PaymentsIT {
         jdbc.update("update customer set type = 'INDIVIDUAL' where id = ?", customer);
         orderJson().andExpect(jsonPath("$.suggestedWithholding").value(0.00));
     }
+
+    @Test
+    void suggestedWithholdingNetsWhatWasWithheldAndCapsAtBalance() throws Exception {
+        record(order, payment("100", "2"), null).andExpect(status().isOk());
+        orderJson().andExpect(jsonPath("$.suggestedWithholding").value(1.00));
+        record(order, payment("233.50", "0"), null).andExpect(status().isOk());
+        orderJson().andExpect(jsonPath("$.suggestedWithholding").value(0.50));
+    }
 }
