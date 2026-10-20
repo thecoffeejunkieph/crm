@@ -685,19 +685,6 @@
         },
         "type" : "object"
       },
-      "Line" : {
-        "properties" : {
-          "productId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "qty" : {
-            "type" : "number"
-          }
-        },
-        "required" : [ "productId", "qty" ],
-        "type" : "object"
-      },
       "LineRequest" : {
         "properties" : {
           "description" : {
@@ -1872,11 +1859,46 @@
         },
         "type" : "object"
       },
+      "ReceiptLineRequest" : {
+        "properties" : {
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "productId", "qty" ],
+        "type" : "object"
+      },
+      "ReceiptLineResponse" : {
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ReceiptRequest" : {
         "properties" : {
           "lines" : {
             "items" : {
-              "$ref" : "#/components/schemas/Line"
+              "$ref" : "#/components/schemas/ReceiptLineRequest"
             },
             "minItems" : 1,
             "type" : "array"
@@ -1918,7 +1940,7 @@
           },
           "lines" : {
             "items" : {
-              "$ref" : "#/components/schemas/Line"
+              "$ref" : "#/components/schemas/ReceiptLineResponse"
             },
             "type" : "array"
           },

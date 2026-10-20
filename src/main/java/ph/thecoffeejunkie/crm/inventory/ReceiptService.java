@@ -59,7 +59,7 @@ class ReceiptService {
     ReceiptResponse receive(ReceiptRequest req) {
         perms.require(req.warehouseId(), true);
         warehouses.get(req.warehouseId()); // 404 for an unknown or archived warehouse
-        Map<Long, ProductInfo> products = catalog.info(req.lines().stream().map(ReceiptRequest.Line::productId).toList());
+        Map<Long, ProductInfo> products = catalog.info(req.lines().stream().map(ReceiptRequest.ReceiptLineRequest::productId).toList());
         for (int i = 0; i < req.lines().size(); i++) {
             ProductInfo p = products.get(req.lines().get(i).productId());
             if (p == null || p.archived()) {
@@ -76,7 +76,7 @@ class ReceiptService {
         r.receivedOn = req.receivedOn();
         r.notes = req.notes();
         r.createdBy = actor.scope().userId();
-        for (ReceiptRequest.Line l : req.lines()) {
+        for (ReceiptRequest.ReceiptLineRequest l : req.lines()) {
             StockReceiptLine line = new StockReceiptLine();
             line.receipt = r;
             line.productId = l.productId();
@@ -115,7 +115,7 @@ class ReceiptService {
         return rs.stream().map(r -> new ReceiptResponse(r.id, r.number, r.warehouseId, r.supplierName, r.reference,
                 r.receivedOn, r.notes, names.get(r.createdBy), r.createdAt, r.lines.stream().map(l -> {
                     ProductInfo p = products.get(l.productId);
-                    return new ReceiptResponse.Line(l.productId, p.sku(), p.name(), p.unit(),
+                    return new ReceiptResponse.ReceiptLineResponse(l.productId, p.sku(), p.name(), p.unit(),
                             l.qty.setScale(3, RoundingMode.UNNECESSARY));
                 }).toList())).toList();
     }

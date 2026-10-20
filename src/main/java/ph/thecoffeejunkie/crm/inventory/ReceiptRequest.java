@@ -12,8 +12,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record ReceiptRequest(@NotNull Long warehouseId, @NotBlank String supplierName, String reference,
-                             @NotNull LocalDate receivedOn, String notes, @NotEmpty List<@Valid Line> lines) {
+                             @NotNull LocalDate receivedOn, String notes, @NotEmpty List<@Valid ReceiptLineRequest> lines) {
 
-    public record Line(@NotNull Long productId, @NotNull @Positive @Digits(integer = 9, fraction = 3) BigDecimal qty) {
+    public record ReceiptLineRequest(@NotNull Long productId, @NotNull @Positive @Digits(integer = 9, fraction = 3) BigDecimal qty) {
     }
 }

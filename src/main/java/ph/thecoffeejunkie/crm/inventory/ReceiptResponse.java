@@ -9,8 +9,8 @@ import java.util.List;
 
 public record ReceiptResponse(long id, String number, long warehouseId, String supplierName, String reference,
                               LocalDate receivedOn, String notes, String createdByName, Instant createdAt,
-                              List<Line> lines) {
+                              List<ReceiptLineResponse> lines) {
 
-    public record Line(long productId, String sku, String name, ProductUnit unit, BigDecimal qty) {
+    public record ReceiptLineResponse(long productId, String sku, String name, ProductUnit unit, BigDecimal qty) {
     }
 }
