@@ -51,6 +51,7 @@ INSERT INTO warehouse (code, name, is_default)
     AND NOT EXISTS (SELECT 1 FROM warehouse WHERE is_default AND archived_at IS NULL);
 UPDATE sales_order SET ship_from_warehouse_id = (SELECT id FROM warehouse WHERE is_default AND archived_at IS NULL);
 ALTER TABLE sales_order ALTER COLUMN ship_from_warehouse_id SET NOT NULL;
+-- Temporary: Task 7 (sales integration) sets ship_from_warehouse_id in OrderService and drops this trigger in V6.
 -- New orders default to the default warehouse unless the caller names one.
 CREATE FUNCTION sales_order_default_ship_from() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

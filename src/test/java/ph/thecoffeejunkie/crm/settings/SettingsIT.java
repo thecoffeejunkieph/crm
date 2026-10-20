@@ -78,6 +78,17 @@ class SettingsIT {
     }
 
     @Test
+    void writeOffValueMaxDefaults5000() {
+        assertThat(settings.decimal(SettingKey.APPROVAL_WRITE_OFF_VALUE_MAX)).isEqualByComparingTo("5000");
+    }
+
+    @Test
+    void oldWriteOffQtyKeyGone() throws Exception {
+        mvc.perform(putJson("{\"approval.writeOffQtyMax\": 5}")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
     void updateIsAudited() throws Exception {
         assertThat(settings.decimal(SettingKey.APPROVAL_DISCOUNT_PERCENT_MAX)).isEqualByComparingTo("15"); // warm cache
         int before = jdbc.queryForObject(

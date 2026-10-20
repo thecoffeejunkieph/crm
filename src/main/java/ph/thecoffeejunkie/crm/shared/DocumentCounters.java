@@ -9,7 +9,7 @@ import java.time.ZoneId;
 
 /** Gapless document serials backed by {@code document_counter}. */
 @Component
-public class DocumentCounters {
+public final class DocumentCounters {
 
     private static final ZoneId MANILA = ZoneId.of("Asia/Manila");
 
