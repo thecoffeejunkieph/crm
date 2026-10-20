@@ -27,6 +27,7 @@ class Customer {
     String address;
     String phone;
     String email;
+    String socialMedia;
     BigDecimal creditLimit;
     @Enumerated(EnumType.STRING)
     PaymentTerms paymentTerms;

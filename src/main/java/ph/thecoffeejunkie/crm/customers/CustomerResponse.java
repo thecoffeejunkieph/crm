@@ -7,5 +7,5 @@ import java.util.List;
 public record CustomerResponse(long id, CustomerType type, String displayName, String businessName, String tin,
                                String address, String phone, String email, BigDecimal creditLimit,
                                PaymentTerms paymentTerms, TaxTreatment taxTreatment, Long assignedRepId, String assignedRepName, String source,
-                               String notes, List<ContactResponse> contacts, Instant archivedAt, long version) {
+                               String notes, String socialMedia, List<ContactResponse> contacts, Instant archivedAt, long version) {
 }

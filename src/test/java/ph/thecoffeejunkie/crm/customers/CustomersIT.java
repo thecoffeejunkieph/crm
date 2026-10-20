@@ -317,4 +317,19 @@ class CustomersIT {
         jdbc.update("update customer_contact set archived_at = now() where email = ?", t + "c@pce.ph");
         assertThat(customers.portalContactEmails(id)).containsExactly(t + "a@pce.ph");
     }
+
+    @Test
+    void socialMediaSavedSearchableAndCapped() throws Exception {
+        long rep = user("rep", "SALES");
+        String handle = tag + "-ana.c";
+        create(rep, Role.SALES, json("sm", "111", null, null).replace("}",
+                ",\"socialMedia\":\"facebook.com/" + handle + "\\ninstagram.com/anac\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.socialMedia").value("facebook.com/" + handle + "\ninstagram.com/anac"));
+        mvc.perform(get("/api/customers").param("q", handle).with(authentication(as(rep, Role.SALES))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].displayName").value(tag + "sm"));
+        create(rep, Role.SALES, json("sm2", "111", null, null).replace("}", ",\"socialMedia\":\"" + "x".repeat(1001) + "\"}"))
+                .andExpect(status().isBadRequest());
+    }
 }

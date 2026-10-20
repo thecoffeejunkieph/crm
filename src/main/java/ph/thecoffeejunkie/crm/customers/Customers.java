@@ -101,7 +101,8 @@ public class Customers {
                 .field("paymentTerms", c.paymentTerms, req.paymentTerms())
                 .field("taxTreatment", c.taxTreatment, req.taxTreatment())
                 .field("source", c.source, req.source())
-                .field("notes", c.notes, req.notes());
+                .field("notes", c.notes, req.notes())
+                .field("socialMedia", c.socialMedia, req.socialMedia());
         apply(c, req);
         c.updatedAt = Instant.now();
         repo.saveAndFlush(c);
@@ -348,6 +349,7 @@ public class Customers {
         c.taxTreatment = r.taxTreatment();
         c.source = r.source();
         c.notes = r.notes();
+        c.socialMedia = r.socialMedia();
         if (c.id != null) {
             c.creditLimit = r.creditLimit();
         }
@@ -382,7 +384,7 @@ public class Customers {
                 .map(Customers::toResponse).toList();
         String rep = c.assignedRepId == null ? null : repNames(List.of(c.assignedRepId)).get(c.assignedRepId);
         return new CustomerResponse(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.phone, c.email,
-                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.source, c.notes, cs, c.archivedAt, c.version);
+                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.source, c.notes, c.socialMedia, cs, c.archivedAt, c.version);
     }
 
     private static ContactResponse toResponse(CustomerContact k) {

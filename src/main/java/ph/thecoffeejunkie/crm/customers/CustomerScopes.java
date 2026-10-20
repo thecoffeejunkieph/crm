@@ -43,6 +43,7 @@ final class CustomerScopes {
                 cb.like(cb.lower(r.get("displayName")), like, '\\'),
                 cb.like(cb.lower(cb.coalesce(r.<String>get("businessName"), "")), like, '\\'),
                 cb.like(cb.lower(cb.coalesce(r.<String>get("email"), "")), like, '\\'),
-                cb.like(cb.lower(cb.coalesce(r.<String>get("phone"), "")), like, '\\'));
+                cb.like(cb.lower(cb.coalesce(r.<String>get("phone"), "")), like, '\\'),
+                cb.like(cb.lower(cb.coalesce(r.<String>get("socialMedia"), "")), like, '\\'));
     }
 }

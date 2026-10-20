@@ -320,6 +320,11 @@
           "phone" : {
             "type" : "string"
           },
+          "socialMedia" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
           "source" : {
             "type" : "string"
           },
@@ -388,6 +393,9 @@
             "type" : "string"
           },
           "phone" : {
+            "type" : "string"
+          },
+          "socialMedia" : {
             "type" : "string"
           },
           "source" : {
