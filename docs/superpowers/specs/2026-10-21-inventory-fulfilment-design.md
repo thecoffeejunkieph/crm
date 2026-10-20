@@ -33,7 +33,7 @@ recorded reason.
 | Short pick | Picker records qty found. The gap posts as an adjustment; the order returns to short and can't dispatch |
 | Transfers | Manual, plus a Cover shortage shortcut on a short order. `DRAFT → DISPATCHED → RECEIVED` |
 | Allocation | Incoming stock goes to the linked order first, then to short reservations by oldest `confirmed_at` |
-| Quantities | `numeric(14,3)`, matching order lines |
+| Quantities | `numeric(12,3)`, matching `order_line.qty` |
 | QR codes | `crm:DO:{id}`, `crm:TR:{id}`, `crm:PR:{productId}`, `crm:WH:{warehouseId}`. No secrets; scanning only navigates |
 | Scanning | Android app: `@capacitor-mlkit/barcode-scanning`. Desktop browser: no camera scan; type-or-tap and Ctrl+K |
 
@@ -50,16 +50,17 @@ browser.
 Two new modules, in the existing package-per-module style (`ph.thecoffeejunkie.crm.<module>`, package-private
 entities, one public facade per module like `Catalog` and `Warehouses`).
 
-- **`inventory`**: stock levels, the movement ledger, receipts, adjustments, transfers, and the `Allocator`.
-  Public facade: `Inventory`.
-- **`fulfilment`**: reservations and delivery orders. Public facade: `Fulfilment`. Depends on `inventory`.
+- **`inventory`**: stock levels, the movement ledger, receipts, adjustments, transfers, reservations and the
+  `Allocator`. Public facade: `Inventory`. Reservations live here because allocation must update them in the same
+  transaction as the stock level, and `inventory` may not depend on `fulfilment`.
+- **`fulfilment`**: delivery orders. Public facade: `Fulfilment`. Depends on `inventory`.
 
 `sales` calls `Fulfilment` on confirm, revise, cancel and release. `fulfilment` reports back to `sales` through a
 `DeliveredEvent` (order id), so `sales` keeps owning order status. `inventory` never calls `sales`.
 
 ## 2. Data (Flyway, Postgres)
 
-All quantities `numeric(14,3)`. All tables get `created_at`, and mutable ones get `updated_at` and `version`.
+All quantities `numeric(12,3)`. All tables get `created_at`, and mutable ones get `updated_at` and `version`.
 
 ### inventory
 
@@ -80,14 +81,16 @@ All quantities `numeric(14,3)`. All tables get `created_at`, and mutable ones ge
 
 Document numbers use the gapless counter from #2.
 
+- **`stock_reservation`**: `order_line_id` (unique), `sales_order_id`, `order_number`, `rep_user_id`, `product_id`,
+  `warehouse_id`, `reserved_qty`, `short_qty`, `confirmed_at` (copied from the order, for allocation order and
+  notifications).
+
 ### fulfilment
 
-- **`stock_reservation`**: `order_line_id` (unique), `sales_order_id`, `product_id`, `warehouse_id`,
-  `reserved_qty`, `short_qty`, `confirmed_at` (copied from the order, for allocation order).
 - **`delivery_order`** + **`delivery_order_line`**: `number` (`DO-YYYY-NNNNN`), `sales_order_id` (unique among
   non-cancelled), `warehouse_id`, `method` in `DELIVERY, PICKUP`, `status` in
   `PICKING, DISPATCHED, DELIVERED, CANCELLED`, `dispatched_at/by`, `delivered_at/by`, `proof_key` (MinIO),
-  `receiver_name`; lines `order_line_id`, `product_id`, `qty`, `picked_qty` (null until picked).
+  `receiver_name`, `customer_name` and `ship_to` (snapshots of the customer's display name and address); lines `order_line_id`, `product_id`, `qty`, `picked_qty` (null until picked).
 
 ### sales
 
@@ -98,8 +101,8 @@ Document numbers use the gapless counter from #2.
 
 ### settings
 
-- **`adjustment_approval_threshold`**: PHP. A decrease whose `|delta| × product.cost` exceeds it needs approval.
-  Default `5000`.
+- **`approval.writeOffValueMax`**: PHP. A decrease whose `|delta| × product.cost` exceeds it needs approval.
+  Default `5000`. It replaces Foundation's unused `approval.writeOffQtyMax`.
 
 ## 3. Stock rules
 
@@ -124,12 +127,12 @@ order's total `short_qty` reaches zero, its rep gets a notification ("Order SO-�
 ### Reservation lifecycle (called from `OrderService`)
 
 - **Confirm** → `reserve(order)`: per line, reserve `min(qty, available)` and record the rest as `short_qty`.
-- **Revise** (CONFIRMED or RELEASED) → `adjust(order)`: diff per line. A decrease frees reserved first, then short.
+- **Revise** (CONFIRMED or RELEASED) → `adjust(order)`: diff per line. A decrease frees short first, then reserved, so stock already held stays held.
   An increase reserves what's available and adds the rest as short. Freed stock re-runs `allocate`. A revision of a
   RELEASED order whose delivery order is `PICKING` cancels that delivery order and moves the order back to
-  `CONFIRMED` (re-release needed). A revision after Dispatch is refused with `INVALID_TRANSITION`.
+  `CONFIRMED` (re-release needed). A revision after Dispatch is refused with `INVALID_STATE`.
 - **Cancel** → `release(order)`: deletes the reservations, lowers `reserved`, re-runs `allocate`. A `PICKING`
-  delivery order is cancelled. After Dispatch, cancel is refused with `INVALID_TRANSITION` (returns are out of
+  delivery order is cancelled. After Dispatch, cancel is refused with `INVALID_STATE` (returns are out of
   scope).
 - **Change ship-from** → `release` then `reserve` at the new warehouse.
 
@@ -145,7 +148,7 @@ the delivery order in `PICKING`, one line per order line, and notifies WAREHOUSE
 
 `POST /delivery-orders/{id}/pick` with `{lines: [{lineId, pickedQty}]}`, in `PICKING`. It can be sent more than once
 until dispatch.
-- `pickedQty > qty` → `422 VALIDATION`.
+- `pickedQty > qty` → `400 VALIDATION_FAILED`.
 - `pickedQty < qty` is a short pick. In one transaction:
   - post a `SHORT_PICK` adjustment of `pickedQty − qty` on the warehouse (reason "Short pick on DO-…"), with no
     approval needed;
@@ -181,7 +184,7 @@ the delivery in one step, and the UI labels it "Picked up".
 `POST /stock/adjustments` with `{warehouseId, productId, mode, countedQty | delta, reason}`.
 - `COUNTED` resolves `delta = counted − on_hand` at the moment of posting.
 - Increases, and decreases at or under the threshold, post immediately.
-- Decreases over the threshold create an `approval_request` (type `STOCK_ADJUSTMENT`, subject the adjustment) and
+- Decreases over the threshold create an `approval_request` (the existing type `STOCK_WRITE_OFF`, subject type `STOCK_ADJUSTMENT`, subject the adjustment) and
   return `PENDING_APPROVAL`. Approval posts it. A `COUNTED` adjustment re-resolves its delta at approval time.
   Rejection sets `REJECTED`.
 - A decrease that would take `on_hand` below `reserved` first takes the excess out of reservations: youngest
@@ -195,7 +198,7 @@ the delivery in one step, and the UI labels it "Picked up".
 - `/receive` with `{lines: [{lineId, receivedQty}]}` posts `TRANSFER_IN` of `receivedQty` at the destination, which
   allocates with the transfer's `sales_order_id` first. Where `receivedQty < qty`, a `TRANSIT_LOSS` adjustment
   records the gap against the source with no approval needed. The stock already left at
-  dispatch, so it posts no movement: it is a record of the loss, not a balance change. `receivedQty > qty` → `422 VALIDATION`.
+  dispatch, so it posts no movement: it is a record of the loss, not a balance change. `receivedQty > qty` → `400 VALIDATION_FAILED`.
 - `/cancel` works only from `DRAFT`.
 - `POST /orders/{id}/cover-shortage` drafts a transfer to the ship-from warehouse, linked to the order. Per short
   line it picks the warehouse with the most available stock and splits across warehouses only if no single one
@@ -225,7 +228,7 @@ ProblemDetail errors, the scoping rules of §6, and Idempotency-Key on every cre
 plus `deliveredAt`) and no proof photo.
 
 New error codes: `INSUFFICIENT_STOCK`, `ORDER_SHORT`, `PICK_INCOMPLETE`, `PROOF_REQUIRED`. Reused:
-`INVALID_TRANSITION`, `VALIDATION`, `NOT_FOUND`.
+`INVALID_STATE`, `VALIDATION_FAILED`, `NOT_FOUND`.
 
 ## 6. Access
 
