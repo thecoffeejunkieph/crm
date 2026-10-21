@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -108,16 +109,19 @@ class DeliveryService {
             }
             picked.put(line, r.pickedQty().setScale(3, RoundingMode.UNNECESSARY));
         }
-        // Short picks lock their levels in (productId, orderLineId) order, like every other multi-level change.
+        Map<Long, BigDecimal> gaps = new LinkedHashMap<>();
         picked.keySet().stream().sorted(Comparator.comparingLong((DeliveryOrderLine l) -> l.productId)
                 .thenComparingLong(l -> l.orderLineId)).forEach(line -> {
-            BigDecimal qty = picked.get(line);
-            BigDecimal gap = (line.pickedQty == null ? line.qty : line.pickedQty).subtract(qty);
+            BigDecimal gap = (line.pickedQty == null ? line.qty : line.pickedQty).subtract(picked.get(line));
             if (gap.signum() > 0) {
-                inventory.shortPick(line.orderLineId, gap, d.number, d.id);
+                gaps.put(line.orderLineId, gap);
             }
-            line.pickedQty = qty;
+            line.pickedQty = picked.get(line);
         });
+        // One call, so every level is locked before the first adjustment number is taken.
+        if (!gaps.isEmpty()) {
+            inventory.shortPicks(gaps, d.number, d.id);
+        }
         d.updatedAt = Instant.now();
         audit.record(AuditAction.PICKED, ENTITY, d.id, "Picked " + picked.size() + " line(s) on " + d.number, null);
         return toResponse(d);

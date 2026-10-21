@@ -351,6 +351,52 @@ class DeliveryOrdersIT {
         assertThat(f.reserved(p, wh)).isEqualByComparingTo("0");
     }
 
+    /**
+     * Two-product short pick against a concurrent short pick of the second product: every level lock must be taken
+     * before the adjustment counter, or the two can deadlock (one would come back 500).
+     */
+    @Test
+    void concurrentShortPicksDoNotDeadlock() throws Exception {
+        f.receive(p, wh, "100");
+        f.receive(q, wh, "100");
+        for (int round = 0; round < 5; round++) {
+            long both = deliveryFor(reserved(rep, Instant.now(), l(p, "2"), l(q, "2")), DeliveryMethod.DELIVERY);
+            long onlyQ = deliveryFor(reserved(rep2, Instant.now(), l(q, "2")), DeliveryMethod.DELIVERY);
+            List<Long> bothLines = lineIds(both);
+            List<Long> qLines = lineIds(onlyQ);
+            String bothBody = "{\"lines\":[{\"lineId\":" + bothLines.get(0) + ",\"pickedQty\":1},{\"lineId\":"
+                    + bothLines.get(1) + ",\"pickedQty\":1}]}";
+            String qBody = "{\"lines\":[{\"lineId\":" + qLines.get(0) + ",\"pickedQty\":1}]}";
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch go = new CountDownLatch(1);
+            ExecutorService pool = Executors.newFixedThreadPool(2);
+            try {
+                List<Future<MvcResult>> picks = new ArrayList<>();
+                for (Object[] job : new Object[][]{{both, bothBody}, {onlyQ, qBody}}) {
+                    RequestPostProcessor token = csrf(mvc);
+                    picks.add(pool.submit(() -> {
+                        ready.countDown();
+                        go.await();
+                        return mvc.perform(post("/api/delivery-orders/" + job[0] + "/pick")
+                                .contentType("application/json").content((String) job[1]).with(token).with(whUser))
+                                .andReturn();
+                    }));
+                }
+                assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+                go.countDown();
+                for (Future<MvcResult> pick : picks) {
+                    MvcResult r = pick.get(30, TimeUnit.SECONDS);
+                    assertThat(r.getResponse().getStatus()).as("round %d: %s", round,
+                            r.getResponse().getContentAsString()).isEqualTo(200);
+                }
+            } finally {
+                pool.shutdownNow();
+            }
+        }
+        assertThat(jdbc.queryForObject("select count(*) from stock_adjustment where warehouse_id = ? "
+                + "and source = 'SHORT_PICK'", Integer.class, wh)).isEqualTo(15);
+    }
+
     @Test
     void deliverNeedsPhotoAndName() throws Exception {
         long id = dispatched("4");

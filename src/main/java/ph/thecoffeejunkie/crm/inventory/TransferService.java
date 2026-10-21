@@ -188,11 +188,16 @@ class TransferService {
         if (seen.size() != byId.size()) {
             throw invalid("lines", "Every line of the transfer must be received.");
         }
-        t.lines.stream().sorted(Comparator.comparingLong(l -> l.productId)).forEach(l -> {
+        // Every TRANSFER_IN (level locks, in product order) before any TRANSIT_LOSS takes the adjustment counter,
+        // so a concurrent short pick or receive can never hold that counter while waiting on one of these levels.
+        List<StockTransferLine> sorted = t.lines.stream().sorted(Comparator.comparingLong(l -> l.productId)).toList();
+        sorted.forEach(l -> {
             if (l.receivedQty.signum() > 0) {
                 ledger.post(MovementType.TRANSFER_IN, l.productId, t.toWarehouseId, l.receivedQty, ENTITY, t.id,
                         t.number, t.salesOrderId);
             }
+        });
+        sorted.forEach(l -> {
             BigDecimal gap = l.qty.subtract(l.receivedQty);
             if (gap.signum() > 0) {
                 adjustments.postSystem(t.fromWarehouseId, l.productId, gap.negate(), AdjustmentSource.TRANSIT_LOSS,

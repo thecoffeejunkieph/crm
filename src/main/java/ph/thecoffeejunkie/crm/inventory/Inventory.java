@@ -173,8 +173,22 @@ public class Inventory {
     }
 
     /**
+     * Short picks of one delivery order, gap per order line. Every level is locked (sorted) before the first
+     * adjustment takes the document counter, so two picks can never wait on each other's level and counter.
+     */
+    public void shortPicks(Map<Long, BigDecimal> gapByOrderLine, String doNumber, long doId) {
+        List<Key> keys = gapByOrderLine.keySet().stream().map(lineId -> reservations.lineKey(lineId).stream()
+                .findFirst().map(k -> new Key((Long) k[0], (Long) k[1]))
+                .orElseThrow(() -> new DomainException(ErrorCode.INVALID_STATE, "This line has no reservation.")))
+                .toList();
+        lockAll(keys.stream());
+        gapByOrderLine.forEach((lineId, gap) -> shortPick(lineId, gap, doNumber, doId));
+    }
+
+    /**
      * The picker found gap less than the line's reservation. Under the level lock: moves gap from reserved to short,
      * lowers reserved, then posts the SHORT_PICK adjustment, so it never takes stock from other orders. Tells the rep.
+     * Several lines of one pick go through {@link #shortPicks}, which takes all their level locks first.
      */
     public void shortPick(long orderLineId, BigDecimal gap, String doNumber, long doId) {
         List<Object[]> key = reservations.lineKey(orderLineId);
