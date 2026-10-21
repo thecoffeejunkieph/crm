@@ -2436,6 +2436,18 @@
         },
         "type" : "object"
       },
+      "ScanResult" : {
+        "properties" : {
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "SendQuoteResponse" : {
         "properties" : {
           "emailedTo" : {
@@ -4151,6 +4163,45 @@
         "tags" : [ "invoice-controller" ]
       }
     },
+    "/api/labels" : {
+      "get" : {
+        "operationId" : "labels",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "type",
+          "required" : true,
+          "schema" : {
+            "enum" : [ "DO", "TR", "PR", "WH" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "ids",
+          "required" : true,
+          "schema" : {
+            "items" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "array"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/pdf" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "label-controller" ]
+      }
+    },
     "/api/me" : {
       "get" : {
         "operationId" : "me",
@@ -5844,6 +5895,32 @@
           }
         },
         "tags" : [ "report-controller" ]
+      }
+    },
+    "/api/scan/{code}" : {
+      "get" : {
+        "operationId" : "scan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "code",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ScanResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "scan-controller" ]
       }
     },
     "/api/stock" : {

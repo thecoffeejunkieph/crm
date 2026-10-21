@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
+import ph.thecoffeejunkie.crm.shared.PdfRenderer;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

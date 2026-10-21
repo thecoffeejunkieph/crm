@@ -240,6 +240,12 @@ public class Inventory {
                 .map(e -> transfers.createLinked(e.getKey(), shipFrom, orderId, e.getValue(), actorId)).toList();
     }
 
+    /** A transfer the caller can see at either end; anything else is a 404. For scan and labels. */
+    @Transactional(readOnly = true)
+    public TransferResponse transfer(long id) {
+        return transfers.get(id);
+    }
+
     @Transactional(readOnly = true)
     public Map<Long, LineStock> stockFor(long orderId) {
         Map<Long, LineStock> out = new HashMap<>();

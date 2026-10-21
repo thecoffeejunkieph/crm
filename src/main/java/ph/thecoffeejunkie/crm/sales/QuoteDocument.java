@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
+import ph.thecoffeejunkie.crm.shared.PdfRenderer;
 import org.springframework.stereotype.Component;
 import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.Customers;

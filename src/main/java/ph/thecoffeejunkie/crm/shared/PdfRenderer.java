@@ -1,4 +1,4 @@
-package ph.thecoffeejunkie.crm.sales;
+package ph.thecoffeejunkie.crm.shared;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import org.springframework.stereotype.Component;
@@ -15,11 +15,11 @@ import java.util.Map;
 
 /** Renders templates/pdf/{template}.html (well-formed XHTML) to PDF. Base-14 fonts only, hence "PHP" not the peso sign. */
 @Component
-class PdfRenderer {
+public class PdfRenderer {
 
     private final TemplateEngine templates = new TemplateEngine();
 
-    PdfRenderer() {
+    public PdfRenderer() {
         var resolver = new ClassLoaderTemplateResolver();
         resolver.setPrefix("templates/pdf/");
         resolver.setSuffix(".html");
@@ -28,7 +28,7 @@ class PdfRenderer {
         templates.setTemplateResolver(resolver);
     }
 
-    byte[] render(String template, Map<String, Object> vars) {
+    public byte[] render(String template, Map<String, Object> vars) {
         var ctx = new Context();
         ctx.setVariables(vars);
         String html = templates.process(template, ctx);
