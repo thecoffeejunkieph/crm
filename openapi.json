@@ -582,6 +582,100 @@
         "required" : [ "version" ],
         "type" : "object"
       },
+      "DeliveryLineResponse" : {
+        "properties" : {
+          "description" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "orderLineId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "pickedQty" : {
+            "type" : "number"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DeliveryOrderResponse" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "customerName" : {
+            "type" : "string"
+          },
+          "deliveredAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "dispatchedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DeliveryLineResponse"
+            },
+            "type" : "array"
+          },
+          "method" : {
+            "enum" : [ "DELIVERY", "PICKUP" ],
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "orderNumber" : {
+            "type" : "string"
+          },
+          "proofUrl" : {
+            "type" : "string"
+          },
+          "receiverName" : {
+            "type" : "string"
+          },
+          "salesOrderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shipTo" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PICKING", "DISPATCHED", "DELIVERED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "warehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ForgotPasswordRequest" : {
         "properties" : {
           "email" : {
@@ -1365,6 +1459,33 @@
         },
         "type" : "object"
       },
+      "PageResponseDeliveryOrderResponse" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DeliveryOrderResponse"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "PageResponseMissing2307Row" : {
         "properties" : {
           "content" : {
@@ -1715,6 +1836,32 @@
             "type" : "number"
           }
         },
+        "type" : "object"
+      },
+      "PickLineRequest" : {
+        "properties" : {
+          "lineId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "pickedQty" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "lineId", "pickedQty" ],
+        "type" : "object"
+      },
+      "PickRequest" : {
+        "properties" : {
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PickLineRequest"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "lines" ],
         "type" : "object"
       },
       "PortalLine" : {
@@ -3715,6 +3862,188 @@
           }
         },
         "tags" : [ "customer-sales-controller" ]
+      }
+    },
+    "/api/delivery-orders" : {
+      "get" : {
+        "operationId" : "list_11",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PICKING", "DISPATCHED", "DELIVERED", "CANCELLED" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "warehouseId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseDeliveryOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "delivery-order-controller" ]
+      }
+    },
+    "/api/delivery-orders/{id}" : {
+      "get" : {
+        "operationId" : "get_7",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "delivery-order-controller" ]
+      }
+    },
+    "/api/delivery-orders/{id}/deliver" : {
+      "post" : {
+        "operationId" : "deliver",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "receiverName",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "photo" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "delivery-order-controller" ]
+      }
+    },
+    "/api/delivery-orders/{id}/dispatch" : {
+      "post" : {
+        "operationId" : "dispatch_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "delivery-order-controller" ]
+      }
+    },
+    "/api/delivery-orders/{id}/pick" : {
+      "post" : {
+        "operationId" : "pick",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PickRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "delivery-order-controller" ]
       }
     },
     "/api/invoices/{id}.pdf" : {

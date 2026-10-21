@@ -78,6 +78,7 @@ class SecurityConfig {
                             .requestMatchers("/api/stock/receipts/**", "/api/stock/adjustments/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.POST, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.PUT, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.POST, "/api/delivery-orders/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.GET, "/api/products/*/availability").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers("/api/customers/**", "/api/orders/**", "/api/payments/**", "/api/invoices/**",
                                     "/api/reports/**").hasAnyRole("ADMIN", "SALES");

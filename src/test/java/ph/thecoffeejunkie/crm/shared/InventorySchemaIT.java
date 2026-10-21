@@ -52,8 +52,9 @@ class InventorySchemaIT {
     }
 
     private void deliveryOrder(long orderId, String status) {
-        jdbc.update("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, customer_name) "
-                + "values (?, ?, ?, 'DELIVERY', ?, 'Acme')", "DO-" + UUID.randomUUID(), orderId, warehouseId, status);
+        jdbc.update("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, customer_name, "
+                + "order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', ?, 'Acme', 'SO-1', ?)",
+                "DO-" + UUID.randomUUID(), orderId, warehouseId, status, userId);
     }
 
     @Test

@@ -21,11 +21,11 @@ import java.util.UUID;
  * Stock is received through {@link StockLedger}. The movement ledger is append-only for crm_app, so the
  * products and warehouses it references are archived on clean-up rather than deleted.
  */
-final class InventoryFixture {
+public final class InventoryFixture {
 
-    record Line(long productId, String qty) {}
+    public record Line(long productId, String qty) {}
 
-    final String tag = "IF" + UUID.randomUUID().toString().substring(0, 8);
+    public final String tag = "IF" + UUID.randomUUID().toString().substring(0, 8);
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
     private final StockLedger ledger;
@@ -40,48 +40,54 @@ final class InventoryFixture {
                 + "values ('BUSINESS', ?, '111-222-333', 'Makati', 'NET_30') returning id", Long.class, tag);
     }
 
+    /** For ITs outside this package, which cannot name {@link StockLedger}. */
+    public static InventoryFixture create(JdbcTemplate jdbc, TransactionTemplate tx,
+                                          org.springframework.context.ApplicationContext ctx) {
+        return new InventoryFixture(jdbc, tx, ctx.getBean(StockLedger.class));
+    }
+
     /** A staff session for MockMvc; warehouseIds only matter for WAREHOUSE. */
-    static RequestPostProcessor as(long userId, Role role, Long... warehouseIds) {
+    public static RequestPostProcessor as(long userId, Role role, Long... warehouseIds) {
         return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
                 .authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(userId,
                         "u" + userId + "@if.it", "Staff " + userId, role, Set.of(warehouseIds)), null,
                         java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
     }
 
-    void archive(long productId) {
+    public void archive(long productId) {
         jdbc.update("update product set archived_at = now() where id = ?", productId);
     }
 
-    static Line l(long productId, String qty) {
+    public static Line l(long productId, String qty) {
         return new Line(productId, qty);
     }
 
-    long user(String name) {
+    public long user(String name) {
         return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
                 + "values (?, ?, 'U', 'SALES') returning id", Long.class, tag + name + "@if.it", name);
     }
 
-    long warehouse(String code) {
+    public long warehouse(String code) {
         return jdbc.queryForObject("insert into warehouse (code, name) values (?, 'Fixture') returning id",
                 Long.class, tag + code);
     }
 
-    long product(String sku, String unit) {
+    public long product(String sku, String unit) {
         return jdbc.queryForObject("insert into product (sku, name, unit, price, tax_class) "
                 + "values (?, ?, ?, 10, 'VATABLE') returning id", Long.class, tag + sku, "Product " + sku, unit);
     }
 
-    void receive(long productId, long warehouseId, String qty) {
+    public void receive(long productId, long warehouseId, String qty) {
         receive(productId, warehouseId, qty, null);
     }
 
-    void receive(long productId, long warehouseId, String qty, Long linkedOrderId) {
+    public void receive(long productId, long warehouseId, String qty, Long linkedOrderId) {
         tx.executeWithoutResult(s -> ledger.post(MovementType.RECEIPT, productId, warehouseId, new BigDecimal(qty),
                 "TEST", 0, null, linkedOrderId));
     }
 
     /** A CONFIRMED order with real order lines; the returned stock request lists them in insertion order. */
-    OrderStock order(long repId, long warehouseId, Instant confirmedAt, Line... lines) {
+    public OrderStock order(long repId, long warehouseId, Instant confirmedAt, Line... lines) {
         String number = tag + "-" + (++orders);
         long id = jdbc.queryForObject("insert into sales_order (number, customer_id, rep_id, status, payment_terms, "
                 + "confirmed_at, created_by, ship_from_warehouse_id) values (?, ?, ?, 'CONFIRMED', 'NET_30', ?, ?, ?) "
@@ -97,11 +103,11 @@ final class InventoryFixture {
         return new OrderStock(id, number, repId, warehouseId, confirmedAt, out);
     }
 
-    BigDecimal onHand(long productId, long warehouseId) {
+    public BigDecimal onHand(long productId, long warehouseId) {
         return level(productId, warehouseId, "on_hand");
     }
 
-    BigDecimal reserved(long productId, long warehouseId) {
+    public BigDecimal reserved(long productId, long warehouseId) {
         return level(productId, warehouseId, "reserved");
     }
 
@@ -110,12 +116,12 @@ final class InventoryFixture {
                 + "and warehouse_id = ?), 0)", BigDecimal.class, productId, warehouseId);
     }
 
-    List<String> notificationTitles(long userId) {
+    public List<String> notificationTitles(long userId) {
         return jdbc.queryForList("select title from notification where recipient_user_id = ? "
                 + "and type = 'ORDER_RESERVED' order by id", String.class, userId);
     }
 
-    void cleanUp() {
+    public void cleanUp() {
         String orderIds = "select id from sales_order where customer_id = " + customer;
         String products = "select id from product where sku like '" + tag + "%'";
         String warehouses = "select id from warehouse where code like '" + tag + "%'";
