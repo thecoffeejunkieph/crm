@@ -165,6 +165,7 @@ class OrderService {
 
     @Transactional
     OrderResponse update(Scope s, long id, OrderRequest req) {
+        fulfilment.lockForOrder(id); // delivery order before sales order, as deliver does; scope is checked next
         SalesOrder o = access.findVisibleForUpdate(id, s);
         requireVersion(o, req.version());
         if (o.status == OrderStatus.CONFIRMED || o.status == OrderStatus.RELEASED) {
@@ -196,7 +197,7 @@ class OrderService {
      * checks plus INVOICE_VOID when invoiced, adjust the reservations, then void and reissue. A RELEASED order's
      * PICKING delivery order is cancelled and the order goes back to CONFIRMED; after dispatch it is INVALID_STATE.
      * Ship-from and delivery method change only while CONFIRMED. One transaction: any refusal saves nothing.
-     * Locks: order row, then stock levels (adjust), then the invoice counter (reissue).
+     * Locks: delivery order (update), order row, stock levels (adjust), then the invoice counter (reissue).
      */
     private OrderResponse revise(Scope s, SalesOrder o, OrderRequest req) {
         if (req.reason() == null || req.reason().isBlank()) {
@@ -358,7 +359,7 @@ class OrderService {
     }
 
     /**
-     * CONFIRMED → RELEASED: the payment/credit gate, then no short line (ORDER_SHORT lists them), then a PICKING
+     * CONFIRMED → RELEASED: the payment/credit gate, reservations reconciled, then no short line (ORDER_SHORT lists them), then a PICKING
      * delivery order. FULFILLED follows from its delivery ({@link DeliveredListener}). Creating the delivery order
      * takes the DELIVERY_ORDER counter, and nothing after it locks a stock level.
      */
@@ -367,6 +368,8 @@ class OrderService {
         SalesOrder o = transition(s, id, req, OrderAction.RELEASE);
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
         approvals.ensureAllApproved(checks.forRelease(o, c));
+        // Reconciles: an order confirmed before reservations existed is reserved now (a no-op diff otherwise).
+        inventory.adjust(OrderStockMapper.of(o));
         requireNotShort(o);
         o.status = OrderStatus.RELEASED;
         o.releasedAt = Instant.now();
@@ -426,6 +429,7 @@ class OrderService {
             throw invalid("reason", "Say why the order is cancelled.");
         }
         String reason = req.reason().trim();
+        fulfilment.lockForOrder(id); // delivery order before sales order, as deliver does; scope is checked next
         SalesOrder o = transition(s, id, req, OrderAction.CANCEL);
         if (payments.hasVerified(o)) {
             throw new DomainException(ErrorCode.HAS_PAYMENTS,

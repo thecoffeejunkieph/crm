@@ -68,6 +68,14 @@ public class Fulfilment {
         return d.id;
     }
 
+    /**
+     * Locks the order's live delivery order, if any. Callers that will also lock the sales order take this first:
+     * deliver locks the delivery order and then the sales order, so the reverse order could deadlock.
+     */
+    public void lockForOrder(long orderId) {
+        orders.findBySalesOrderIdAndStatusNot(orderId, DeliveryStatus.CANCELLED);
+    }
+
     /** PICKING becomes CANCELLED; once it has left the warehouse it cannot be. No delivery order is a no-op. */
     public void cancelForOrder(long orderId) {
         orders.findBySalesOrderIdAndStatusNot(orderId, DeliveryStatus.CANCELLED).ifPresent(d -> {
