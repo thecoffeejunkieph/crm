@@ -46,8 +46,9 @@ class ReleaseCancelIT {
         long product = f.product("A", "112.00", null, "VATABLE");
         asRep = as(rep, Role.SALES);
         asAdmin = as(admin, Role.ADMIN);
+        f.stock(product, "10"); // release is refused while the order is short
         order = f.createdOrder(asRep, customer, line(product, "1"));
-        f.setStatus(order, "CONFIRMED");
+        f.transition(asRep, order, "confirm", null).andExpect(status().isOk());
     }
 
     @AfterEach
@@ -99,24 +100,6 @@ class ReleaseCancelIT {
     void cashCustomerPaidReleases() throws Exception {
         jdbc.update("update sales_order set settled_amount = total where id = ?", order);
         f.transition(asRep, order, "release", null).andExpect(status().isOk());
-    }
-
-    @Test
-    void salesCannotFulfil() throws Exception {
-        creditCustomer();
-        f.transition(asRep, order, "release", null).andExpect(status().isOk());
-        f.transition(asRep, order, "fulfil", null).andExpect(status().isForbidden());
-        mvc.perform(get("/api/orders/" + order).with(asRep))
-                .andExpect(jsonPath("$.allowedActions[?(@ == 'FULFIL')]").isEmpty());
-    }
-
-    @Test
-    void adminFulfilsReleased() throws Exception {
-        creditCustomer();
-        f.transition(asRep, order, "release", null).andExpect(status().isOk());
-        f.transition(asAdmin, order, "fulfil", null).andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("FULFILLED"))
-                .andExpect(jsonPath("$.fulfilledAt").isNotEmpty());
     }
 
     @Test

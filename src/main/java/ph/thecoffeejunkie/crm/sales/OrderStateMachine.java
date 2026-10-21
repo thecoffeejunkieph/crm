@@ -16,8 +16,9 @@ final class OrderStateMachine {
     private static final Map<OrderStatus, Set<OrderAction>> ALLOWED = new EnumMap<>(Map.of(
             OrderStatus.DRAFT, EnumSet.of(EDIT, SEND_QUOTE, CONFIRM, CANCEL),
             OrderStatus.QUOTED, EnumSet.of(EDIT, SEND_QUOTE, CONFIRM, ACCEPT, DECLINE, CANCEL),
-            OrderStatus.CONFIRMED, EnumSet.of(REVISE, RELEASE, CANCEL, ISSUE_INVOICE, REISSUE_INVOICE, RECORD_PAYMENT),
-            OrderStatus.RELEASED, EnumSet.of(REVISE, FULFIL, CANCEL, ISSUE_INVOICE, REISSUE_INVOICE, RECORD_PAYMENT),
+            OrderStatus.CONFIRMED, EnumSet.of(REVISE, RELEASE, CANCEL, ISSUE_INVOICE, REISSUE_INVOICE, RECORD_PAYMENT,
+                    COVER_SHORTAGE),
+            OrderStatus.RELEASED, EnumSet.of(REVISE, CANCEL, ISSUE_INVOICE, REISSUE_INVOICE, RECORD_PAYMENT),
             OrderStatus.FULFILLED, EnumSet.of(ISSUE_INVOICE, REISSUE_INVOICE, RECORD_PAYMENT),
             OrderStatus.CANCELLED, EnumSet.noneOf(OrderAction.class)));
 

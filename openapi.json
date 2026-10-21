@@ -676,6 +676,40 @@
         },
         "type" : "object"
       },
+      "DeliverySummary" : {
+        "properties" : {
+          "deliveredAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "dispatchedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "method" : {
+            "enum" : [ "DELIVERY", "PICKUP" ],
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "proofUrl" : {
+            "type" : "string"
+          },
+          "receiverName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PICKING", "DISPATCHED", "DELIVERED", "CANCELLED" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ForgotPasswordRequest" : {
         "properties" : {
           "email" : {
@@ -877,6 +911,10 @@
             "minimum" : 0,
             "type" : "number"
           },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "productId" : {
             "format" : "int64",
             "type" : "integer"
@@ -918,6 +956,12 @@
             "type" : "integer"
           },
           "qty" : {
+            "type" : "number"
+          },
+          "reservedQty" : {
+            "type" : "number"
+          },
+          "shortQty" : {
             "type" : "number"
           },
           "sku" : {
@@ -1103,6 +1147,10 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "deliveryMethod" : {
+            "enum" : [ "DELIVERY", "PICKUP" ],
+            "type" : "string"
+          },
           "lines" : {
             "items" : {
               "$ref" : "#/components/schemas/LineRequest"
@@ -1120,6 +1168,10 @@
           },
           "reason" : {
             "type" : "string"
+          },
+          "shipFromWarehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
           },
           "shippingFee" : {
             "type" : "number"
@@ -1142,7 +1194,7 @@
           },
           "allowedActions" : {
             "items" : {
-              "enum" : [ "EDIT", "SEND_QUOTE", "CONFIRM", "ACCEPT", "DECLINE", "REVISE", "RELEASE", "FULFIL", "CANCEL", "ISSUE_INVOICE", "REISSUE_INVOICE", "RECORD_PAYMENT" ],
+              "enum" : [ "EDIT", "SEND_QUOTE", "CONFIRM", "ACCEPT", "DECLINE", "REVISE", "RELEASE", "CANCEL", "ISSUE_INVOICE", "REISSUE_INVOICE", "COVER_SHORTAGE", "RECORD_PAYMENT" ],
               "type" : "string"
             },
             "type" : "array",
@@ -1180,6 +1232,13 @@
           "customerType" : {
             "enum" : [ "BUSINESS", "INDIVIDUAL" ],
             "type" : "string"
+          },
+          "deliveryMethod" : {
+            "enum" : [ "DELIVERY", "PICKUP" ],
+            "type" : "string"
+          },
+          "deliveryOrder" : {
+            "$ref" : "#/components/schemas/DeliverySummary"
           },
           "fulfilledAt" : {
             "format" : "date-time",
@@ -1238,6 +1297,13 @@
           "settled" : {
             "type" : "number"
           },
+          "shipFromWarehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shipFromWarehouseName" : {
+            "type" : "string"
+          },
           "shippingFee" : {
             "type" : "number"
           },
@@ -1250,6 +1316,9 @@
           },
           "terms" : {
             "type" : "string"
+          },
+          "totalShort" : {
+            "type" : "number"
           },
           "totals" : {
             "$ref" : "#/components/schemas/TotalsResponse"
@@ -1933,6 +2002,14 @@
           },
           "customerAcceptedAt" : {
             "format" : "date-time",
+            "type" : "string"
+          },
+          "deliveredAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "deliveryStatus" : {
+            "enum" : [ "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED" ],
             "type" : "string"
           },
           "id" : {
@@ -4590,9 +4667,9 @@
         "tags" : [ "order-controller" ]
       }
     },
-    "/api/orders/{id}/fulfil" : {
+    "/api/orders/{id}/cover-shortage" : {
       "post" : {
-        "operationId" : "fulfil",
+        "operationId" : "coverShortage",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4602,22 +4679,15 @@
             "type" : "integer"
           }
         } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/TransitionRequest"
-              }
-            }
-          },
-          "required" : true
-        },
         "responses" : {
           "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/OrderResponse"
+                  "items" : {
+                    "$ref" : "#/components/schemas/TransferResponse"
+                  },
+                  "type" : "array"
                 }
               }
             },

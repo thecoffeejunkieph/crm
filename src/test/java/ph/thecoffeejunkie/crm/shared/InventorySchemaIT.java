@@ -98,18 +98,12 @@ class InventorySchemaIT {
     }
 
     @Test
-    void existingOrdersBackfilledWithDefaultWarehouse() {
-        // V5 ran before this test, so exercise the same default for an insert that names no warehouse.
-        Long existing = jdbc.query("select id from warehouse where is_default and archived_at is null",
-                rs -> rs.next() ? rs.getLong(1) : null);
-        long defaultId = existing != null ? existing : warehouse(true);
-
-        long orderId = order(null);
-
-        assertThat(jdbc.queryForObject("select ship_from_warehouse_id from sales_order where id = ?", Long.class,
-                orderId)).isEqualTo(defaultId);
+    void orderNeedsShipFromAndDefaultsToDelivery() {
+        // V8 dropped V5's default-warehouse trigger: OrderService names the warehouse itself.
+        long orderId = order(warehouseId);
         assertThat(jdbc.queryForObject("select delivery_method from sales_order where id = ?", String.class,
                 orderId)).isEqualTo("DELIVERY");
+        assertThrows(DataIntegrityViolationException.class, () -> order(null));
     }
 
     @Test

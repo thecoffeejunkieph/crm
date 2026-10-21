@@ -18,7 +18,13 @@ import ph.thecoffeejunkie.crm.catalog.TaxClass;
 import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.customers.TaxTreatment;
+import ph.thecoffeejunkie.crm.fulfilment.DeliveryRequest;
+import ph.thecoffeejunkie.crm.fulfilment.DeliverySummary;
+import ph.thecoffeejunkie.crm.fulfilment.Fulfilment;
 import ph.thecoffeejunkie.crm.identity.Users;
+import ph.thecoffeejunkie.crm.inventory.Inventory;
+import ph.thecoffeejunkie.crm.inventory.LineStock;
+import ph.thecoffeejunkie.crm.inventory.TransferResponse;
 import ph.thecoffeejunkie.crm.settings.SettingKey;
 import ph.thecoffeejunkie.crm.settings.Settings;
 import ph.thecoffeejunkie.crm.shared.DomainException;
@@ -26,6 +32,7 @@ import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Scope;
+import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -33,6 +40,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,8 +50,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import static ph.thecoffeejunkie.crm.sales.OrderAction.ACCEPT;
+import static ph.thecoffeejunkie.crm.sales.OrderAction.COVER_SHORTAGE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.DECLINE;
-import static ph.thecoffeejunkie.crm.sales.OrderAction.FULFIL;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.ISSUE_INVOICE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.REISSUE_INVOICE;
 
@@ -73,11 +81,18 @@ class OrderService {
     private final InvoiceService invoiceService;
     private final PaymentService payments;
     private final OrderRevisionRepository revisions;
+    private final Inventory inventory;
+    private final Fulfilment fulfilment;
+    private final Warehouses warehouses;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
                  Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
-                 PaymentService payments, OrderRevisionRepository revisions) {
+                 PaymentService payments, OrderRevisionRepository revisions, Inventory inventory,
+                 Fulfilment fulfilment, Warehouses warehouses) {
+        this.inventory = inventory;
+        this.fulfilment = fulfilment;
+        this.warehouses = warehouses;
         this.revisions = revisions;
         this.invoices = invoices;
         this.access = access;
@@ -139,7 +154,9 @@ class OrderService {
         o.repId = c.assignedRepId();
         o.createdBy = s.userId();
         o.number = "SO-%02d-%05d".formatted(SalesTime.today(clock).getYear() % 100, repo.nextNumber());
+        o.shipFromWarehouseId = warehouses.defaultId();
         applyHeader(o, req, c);
+        applyShipping(o, req, AuditChanges.diff());
         applyLines(o, req.lines(), c, Set.of());
         repo.saveAndFlush(o);
         audit.record(AuditAction.CREATED, ENTITY, o.id, "Created order " + o.number, null);
@@ -160,6 +177,7 @@ class OrderService {
         Set<Long> alreadyOn = new HashSet<>(o.lines.stream().map(l -> l.productId).toList());
         headerChanges(changes, o, req, c);
         applyHeader(o, req, c);
+        applyShipping(o, req, changes);
         applyLines(o, req.lines(), c, alreadyOn);
         changes.field("lines", before, linesSummary(o));
         if (o.status == OrderStatus.QUOTED) {
@@ -175,7 +193,10 @@ class OrderService {
 
     /**
      * PUT on a CONFIRMED/RELEASED order (spec §3 Revise): snapshot the current state, apply, re-run the confirm
-     * checks plus INVOICE_VOID when invoiced, then void and reissue. One transaction: any refusal saves nothing.
+     * checks plus INVOICE_VOID when invoiced, adjust the reservations, then void and reissue. A RELEASED order's
+     * PICKING delivery order is cancelled and the order goes back to CONFIRMED; after dispatch it is INVALID_STATE.
+     * Ship-from and delivery method change only while CONFIRMED. One transaction: any refusal saves nothing.
+     * Locks: order row, then stock levels (adjust), then the invoice counter (reissue).
      */
     private OrderResponse revise(Scope s, SalesOrder o, OrderRequest req) {
         if (req.reason() == null || req.reason().isBlank()) {
@@ -186,12 +207,23 @@ class OrderService {
         if (req.lines() == null || req.lines().isEmpty()) {
             throw invalid("lines", "A confirmed order needs at least one line.");
         }
+        boolean released = o.status == OrderStatus.RELEASED;
+        boolean shipping = shippingChanges(o, req);
+        if (released && shipping) {
+            throw new DomainException(ErrorCode.INVALID_STATE,
+                    "The ship-from warehouse and delivery method can't change after release.");
+        }
+        if (released) {
+            fulfilment.cancelForOrder(o.id);
+        }
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
         Map<String, Object> snapshot = snapshot(o);
         String before = linesSummary(o);
         AuditChanges changes = AuditChanges.diff();
+        AuditChanges shipChanges = AuditChanges.diff();
         headerChanges(changes, o, req, c);
         applyHeader(o, req, c);
+        applyShipping(o, req, shipChanges);
         applyLines(o, req.lines(), c, new HashSet<>(o.lines.stream().map(l -> l.productId).toList()));
         changes.field("lines", before, linesSummary(o));
         if (o.total.compareTo(o.settledAmount) < 0) {
@@ -212,7 +244,17 @@ class OrderService {
         revisions.save(r);
         changes.field("revision", o.revision, o.revision + 1);
         o.revision += 1;
+        if (released) {
+            changes.field("status", o.status, OrderStatus.CONFIRMED);
+            o.status = OrderStatus.CONFIRMED;
+            o.releasedAt = null;
+        }
         save(o, Instant.now());
+        inventory.adjust(OrderStockMapper.of(o));
+        if (shipping) {
+            audit.record(AuditAction.SHIP_FROM_CHANGED, ENTITY, o.id, "Changed how order " + o.number + " ships",
+                    shipChanges);
+        }
         if (invoice.isPresent()) {
             invoiceService.voidAndReplace(o, reason);
         }
@@ -292,6 +334,7 @@ class OrderService {
         requireConfirmable(o);
         approvals.ensureAllApproved(requiredForConfirm(o));
         markConfirmed(o);
+        inventory.reserve(OrderStockMapper.of(o));
         audit.record(AuditAction.CONFIRMED, ENTITY, id, "Confirmed order " + o.number, null);
         return toResponse(o, s);
     }
@@ -308,35 +351,75 @@ class OrderService {
         List<RequiredApproval> missing = approvals.missing(requiredForConfirm(o));
         if (missing.isEmpty()) {
             markConfirmed(o);
+            inventory.reserve(OrderStockMapper.of(o));
             audit.recordFor("SYSTEM", null, "System", AuditAction.CONFIRMED, ENTITY, id, "Auto-confirmed after approval");
         }
         return missing;
     }
 
-    /** CONFIRMED → RELEASED. #3 turns released orders into delivery orders. */
+    /**
+     * CONFIRMED → RELEASED: the payment/credit gate, then no short line (ORDER_SHORT lists them), then a PICKING
+     * delivery order. FULFILLED follows from its delivery ({@link DeliveredListener}). Creating the delivery order
+     * takes the DELIVERY_ORDER counter, and nothing after it locks a stock level.
+     */
     @Transactional
     OrderResponse release(Scope s, long id, TransitionRequest req) {
         SalesOrder o = transition(s, id, req, OrderAction.RELEASE);
-        approvals.ensureAllApproved(checks.forRelease(o, customers.salesProfile(o.customerId)));
+        CustomerSalesProfile c = customers.salesProfile(o.customerId);
+        approvals.ensureAllApproved(checks.forRelease(o, c));
+        requireNotShort(o);
         o.status = OrderStatus.RELEASED;
         o.releasedAt = Instant.now();
         save(o, o.releasedAt);
+        fulfilment.create(new DeliveryRequest(o.id, o.number, OrderStockMapper.rep(o), o.shipFromWarehouseId,
+                o.deliveryMethod, c.displayName(), c.address(), o.lines.stream().map(l ->
+                        new DeliveryRequest.DeliveryLine(l.id, l.productId, l.description, l.unit, l.qty)).toList()));
         audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number, null);
         return toResponse(o, s);
     }
 
-    /** RELEASED → FULFILLED, ADMIN only (controller); #3 replaces it with delivery completion. */
-    @Transactional
-    OrderResponse fulfil(Scope s, long id, TransitionRequest req) {
-        SalesOrder o = transition(s, id, req, OrderAction.FULFIL);
-        o.status = OrderStatus.FULFILLED;
-        o.fulfilledAt = Instant.now();
-        save(o, o.fulfilledAt);
-        audit.record(AuditAction.FULFILLED, ENTITY, id, "Marked order " + o.number + " fulfilled", null);
-        return toResponse(o, s);
+    private void requireNotShort(SalesOrder o) {
+        if (inventory.totalShort(o.id).signum() == 0) {
+            return;
+        }
+        Map<Long, LineStock> stock = inventory.stockFor(o.id);
+        Map<Long, ProductInfo> products = catalog.info(o.lines.stream().map(l -> l.productId).toList());
+        List<Map<String, Object>> details = new ArrayList<>();
+        for (OrderLine l : o.lines) {
+            LineStock ls = stock.get(l.id);
+            if (ls != null && ls.shortQty().signum() > 0) {
+                Map<String, Object> d = new LinkedHashMap<>();
+                d.put("orderLineId", l.id);
+                d.put("sku", products.get(l.productId).sku());
+                d.put("shortQty", ls.shortQty());
+                details.add(d);
+            }
+        }
+        throw new DomainException(ErrorCode.ORDER_SHORT,
+                "Some lines are short of stock. Cover the shortage or revise the order first.", Map.of("details", details));
     }
 
-    /** Refunds happen outside the system, so verified payments block it. An active invoice is voided, not reissued. */
+    /** CONFIRMED and short: drafts linked transfers from the warehouses that have the stock. */
+    @Transactional
+    List<TransferResponse> coverShortage(Scope s, long id) {
+        SalesOrder o = access.findVisibleForUpdate(id, s);
+        OrderStateMachine.require(o.status, COVER_SHORTAGE);
+        if (inventory.totalShort(o.id).signum() == 0) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "This order isn't short of stock.");
+        }
+        List<TransferResponse> drafted = inventory.coverShortage(o.id, s.userId());
+        if (!drafted.isEmpty()) {
+            audit.record(AuditAction.SHORTAGE_COVERED, ENTITY, id, "Drafted "
+                    + String.join(", ", drafted.stream().map(TransferResponse::number).toList())
+                    + " to cover the shortage on " + o.number, null);
+        }
+        return drafted;
+    }
+
+    /**
+     * Refunds happen outside the system, so verified payments block it. A PICKING delivery order is cancelled (after
+     * dispatch: INVALID_STATE) and the reservations freed, before an active invoice is voided (not reissued).
+     */
     @Transactional
     OrderResponse cancel(Scope s, long id, TransitionRequest req) {
         if (req.reason() == null || req.reason().isBlank()) {
@@ -348,6 +431,8 @@ class OrderService {
             throw new DomainException(ErrorCode.HAS_PAYMENTS,
                     "This order has verified payments. Refund them outside the system first.");
         }
+        fulfilment.cancelForOrder(o.id);
+        inventory.release(o.id);
         var invoice = invoiceService.active(o);
         if (invoice.isPresent()) {
             approvals.ensureAllApproved(List.of(InvoiceService.voidApproval(invoice.get(), OrderFingerprint.of(o),
@@ -414,11 +499,16 @@ class OrderService {
         LocalDate today = SalesTime.today(clock);
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
         Map<Long, ProductInfo> products = catalog.info(o.lines.stream().map(l -> l.productId).toList());
+        Map<Long, LineStock> stock = inventory.stockFor(o.id);
         List<LineResponse> lines = o.lines.stream().map(l -> {
             ProductInfo p = products.get(l.productId);
+            LineStock ls = stock.get(l.id);
             return new LineResponse(l.id, l.position, l.productId, p == null ? null : p.sku(), l.description, l.unit,
-                    l.qty, l.unitPrice, l.discountPct, l.taxClass, l.lineTotal, admin ? belowCost(l, p) : null);
+                    l.qty, l.unitPrice, l.discountPct, l.taxClass, l.lineTotal, admin ? belowCost(l, p) : null,
+                    ls == null ? null : ls.reservedQty(), ls == null ? null : ls.shortQty());
         }).toList();
+        BigDecimal totalShort = stock.values().stream().map(LineStock::shortQty)
+                .reduce(new BigDecimal("0.000"), BigDecimal::add);
         String repName = o.repId == null ? null : users.displayNames(List.of(o.repId)).get(o.repId);
         InvoiceSummary invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
                 .map(Invoice::toSummary).orElse(null);
@@ -428,16 +518,18 @@ class OrderService {
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),
                 withholding, invoice, o.quotedAt, o.customerAcceptedAt, o.confirmedAt, o.releasedAt, o.fulfilledAt,
-                o.cancelledAt, o.cancelReason, allowedActions(o, admin, invoice != null), OrderFingerprint.of(o),
-                o.updatedAt, o.version);
+                o.cancelledAt, o.cancelReason, allowedActions(o, invoice != null, totalShort.signum() > 0),
+                OrderFingerprint.of(o), o.updatedAt, o.version, o.shipFromWarehouseId,
+                warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
+                fulfilment.forOrder(o.id).orElse(null));
     }
 
-    static Set<OrderAction> allowedActions(SalesOrder o, boolean admin, boolean hasInvoice) {
+    static Set<OrderAction> allowedActions(SalesOrder o, boolean hasInvoice, boolean isShort) {
         Set<OrderAction> a = OrderStateMachine.allowed(o.status);
         a.removeAll(EnumSet.of(ACCEPT, DECLINE));
         a.remove(hasInvoice ? ISSUE_INVOICE : REISSUE_INVOICE);
-        if (!admin) {
-            a.remove(FULFIL);
+        if (!isShort) {
+            a.remove(COVER_SHORTAGE);
         }
         return a;
     }
@@ -489,13 +581,40 @@ class OrderService {
         o.terms = req.terms();
     }
 
+    private static boolean shippingChanges(SalesOrder o, OrderRequest req) {
+        return req.shipFromWarehouseId() != null && !req.shipFromWarehouseId().equals(o.shipFromWarehouseId)
+                || req.deliveryMethod() != null && req.deliveryMethod() != o.deliveryMethod;
+    }
+
+    /** Null keeps the current value. A new ship-from must be an active warehouse. */
+    private void applyShipping(SalesOrder o, OrderRequest req, AuditChanges changes) {
+        Long wh = req.shipFromWarehouseId();
+        if (wh != null && !wh.equals(o.shipFromWarehouseId)) {
+            if (!warehouses.allActive(Set.of(wh))) {
+                throw invalid("shipFromWarehouseId", "Choose an active warehouse.");
+            }
+            changes.field("shipFromWarehouseId", o.shipFromWarehouseId, wh);
+            o.shipFromWarehouseId = wh;
+        }
+        if (req.deliveryMethod() != null && req.deliveryMethod() != o.deliveryMethod) {
+            changes.field("deliveryMethod", o.deliveryMethod, req.deliveryMethod());
+            o.deliveryMethod = req.deliveryMethod();
+        }
+    }
+
     private static BigDecimal shipping(OrderRequest req) {
         return OrderTotals.money(req.shippingFee() == null ? BigDecimal.ZERO : req.shippingFee());
     }
 
-    /** Replaces every line, snapshotting description, unit and tax class, and recomputes the cached totals. */
+    /**
+     * Sets the order's lines to reqs, in order. A request naming one of this order's line ids updates that line in
+     * place; a line not named is deleted; no id (or an id no order has) adds a line. Another order's line id is 400.
+     * Snapshots description, unit and tax class, and recomputes the cached totals.
+     */
     void applyLines(SalesOrder o, List<LineRequest> reqs, CustomerSalesProfile c, Set<Long> alreadyOn) {
         Map<Long, ProductInfo> products = catalog.info(reqs.stream().map(LineRequest::productId).toList());
+        Map<Long, OrderLine> current = new HashMap<>();
+        o.lines.forEach(l -> current.put(l.id, l));
         List<OrderLine> lines = new ArrayList<>();
         for (int i = 0; i < reqs.size(); i++) {
             LineRequest r = reqs.get(i);
@@ -507,8 +626,14 @@ class OrderService {
             if (p.archived() && !alreadyOn.contains(p.id())) {
                 throw invalid(field, "This product is archived.");
             }
-            OrderLine l = new OrderLine();
-            l.order = o;
+            OrderLine l = r.id() == null ? null : current.remove(r.id());
+            if (l == null && r.id() != null && repo.lineExists(r.id())) {
+                throw invalid("lines[" + i + "].id", "This line isn't on this order, or is listed twice.");
+            }
+            if (l == null) {
+                l = new OrderLine();
+                l.order = o;
+            }
             l.position = i;
             l.productId = p.id();
             l.description = r.description() == null || r.description().isBlank() ? p.name() : r.description().trim();

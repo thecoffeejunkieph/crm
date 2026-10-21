@@ -10,6 +10,8 @@ import ph.thecoffeejunkie.crm.approvals.CreateApprovalRequest;
 import ph.thecoffeejunkie.crm.approvals.RequiredApproval;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
+import ph.thecoffeejunkie.crm.fulfilment.DeliverySummary;
+import ph.thecoffeejunkie.crm.fulfilment.Fulfilment;
 import ph.thecoffeejunkie.crm.notifications.NotificationType;
 import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.shared.ContactPrincipal;
@@ -45,11 +47,13 @@ class PortalOrderService {
     private final AuditLog audit;
     private final CurrentActor actor;
     private final Clock clock;
+    private final Fulfilment fulfilment;
 
     PortalOrderService(SalesOrderRepository repo, OrderService orders, PaymentService payments,
                        PaymentRepository paymentRepo, InvoiceRepository invoices, InvoiceDocument invoiceDocument,
                        QuoteDocument quoteDocument, Approvals approvals, Notifications notifications, AuditLog audit,
-                       CurrentActor actor, Clock clock) {
+                       CurrentActor actor, Clock clock, Fulfilment fulfilment) {
+        this.fulfilment = fulfilment;
         this.repo = repo;
         this.orders = orders;
         this.payments = payments;
@@ -202,12 +206,27 @@ class PortalOrderService {
         boolean expired = OrderService.quoteExpired(o, today);
         InvoiceSummary invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
                 .map(Invoice::toSummary).orElse(null);
+        DeliverySummary d = fulfilment.forOrder(o.id).orElse(null);
         return new PortalOrderResponse(o.id, o.number, o.status, OrderService.paymentStatus(o, today),
                 o.quoteValidUntil, expired, o.status == OrderStatus.QUOTED && !expired && o.customerAcceptedAt == null,
                 o.paymentTerms, o.shippingFee, o.terms,
                 o.lines.stream().map(l -> new PortalLine(l.description, l.unit, l.qty, l.unitPrice, l.discountPct,
                         l.lineTotal)).toList(),
-                TotalsResponse.of(o.totals()), o.settledAmount, o.balance(), invoice, o.customerAcceptedAt, o.version);
+                TotalsResponse.of(o.totals()), o.settledAmount, o.balance(), invoice, o.customerAcceptedAt, o.version,
+                deliveryStatus(d), d == null ? null : d.deliveredAt());
+    }
+
+    /** Where the delivery is; never the proof photo. */
+    private static PortalDeliveryStatus deliveryStatus(DeliverySummary d) {
+        if (d == null) {
+            return null;
+        }
+        return switch (d.status()) {
+            case PICKING -> PortalDeliveryStatus.PREPARING;
+            case DISPATCHED -> PortalDeliveryStatus.OUT_FOR_DELIVERY;
+            case DELIVERED -> PortalDeliveryStatus.DELIVERED;
+            case CANCELLED -> null;
+        };
     }
 
     private static PortalPaymentResponse toResponse(Payment p, ContactPrincipal c) {

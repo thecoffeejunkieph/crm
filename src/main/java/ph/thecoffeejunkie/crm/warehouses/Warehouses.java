@@ -40,6 +40,19 @@ public class Warehouses {
         return repo.countByIdInAndArchivedAtIsNull(ids) == ids.size();
     }
 
+    /** The warehouse new orders ship from. */
+    @Transactional(readOnly = true)
+    public long defaultId() {
+        return repo.findByIsDefaultTrueAndArchivedAtIsNull().map(w -> w.id).orElseThrow(() ->
+                new DomainException(ErrorCode.VALIDATION_FAILED, "Choose a default warehouse first."));
+    }
+
+    /** Archived ones too: an order keeps showing where it ships from. */
+    @Transactional(readOnly = true)
+    public String name(long id) {
+        return repo.findById(id).map(w -> w.name).orElse(null);
+    }
+
     @Transactional
     public WarehouseResponse create(WarehouseRequest req) {
         String code = req.code().trim();

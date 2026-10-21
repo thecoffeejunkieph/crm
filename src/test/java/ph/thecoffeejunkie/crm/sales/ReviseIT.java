@@ -52,8 +52,9 @@ class ReviseIT {
         product = f.product("A", "112.00", null, "VATABLE");
         asRep = as(rep, Role.SALES);
         asAdmin = as(admin, Role.ADMIN);
+        f.stock(product, "10");
         order = f.createdOrder(asRep, customer, line(product, "3")); // 336.00
-        f.setStatus(order, "CONFIRMED");
+        f.transition(asRep, order, "confirm", null).andExpect(status().isOk());
     }
 
     @AfterEach
@@ -161,5 +162,49 @@ class ReviseIT {
         f.update(asRep, order, REASON).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         assertThat(revision()).isZero();
+    }
+
+    private long lineOf(long productId) {
+        return jdbc.queryForObject("select id from order_line where order_id = ? and product_id = ?", Long.class,
+                order, productId);
+    }
+
+    @Test
+    void reviseKeepsLineIdentityAndReservation() throws Exception {
+        long line = lineOf(product);
+        long reservation = jdbc.queryForObject("select id from stock_reservation where order_line_id = ?", Long.class,
+                line);
+        f.update(asRep, order, REASON, line(line, product, "5")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.lines[0].id").value(line))
+                .andExpect(jsonPath("$.lines[0].reservedQty").value(5));
+        assertThat(lineOf(product)).isEqualTo(line);
+        assertThat(jdbc.queryForObject("select id from stock_reservation where order_line_id = ?", Long.class, line))
+                .isEqualTo(reservation);
+        assertThat(f.reserved(product, f.defaultWarehouse())).isEqualByComparingTo("5");
+    }
+
+    @Test
+    void reviseRemovedLineFreesReservation() throws Exception {
+        long other = f.product("B", "50.00", null, "VATABLE");
+        f.stock(other, "10");
+        long line = lineOf(product);
+        f.update(asRep, order, REASON, line(line, product, "3"), line(other, "2")).andExpect(status().isOk());
+        f.update(asRep, order, REASON, line(lineOf(other), other, "2")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.lines.length()").value(1));
+        assertThat(f.reserved(product, f.defaultWarehouse())).isEqualByComparingTo("0");
+        assertThat(f.reserved(other, f.defaultWarehouse())).isEqualByComparingTo("2");
+        assertThat(jdbc.queryForObject("select count(*) from stock_reservation where order_line_id = ?", Integer.class,
+                line)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from order_line where id = ?", Integer.class, line)).isZero();
+    }
+
+    @Test
+    void anotherOrdersLineId400() throws Exception {
+        long otherOrder = f.createdOrder(asRep, customer, line(product, "1"));
+        long foreign = jdbc.queryForObject("select id from order_line where order_id = ?", Long.class, otherOrder);
+        f.update(asRep, order, REASON, line(foreign, product, "2")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("lines[0].id"));
+        assertThat(jdbc.queryForObject("select order_id from order_line where id = ?", Long.class, foreign))
+                .isEqualTo(otherOrder);
     }
 }

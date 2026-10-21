@@ -12,6 +12,7 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import ph.thecoffeejunkie.crm.customers.PaymentTerms;
+import ph.thecoffeejunkie.crm.fulfilment.DeliveryMethod;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,7 +20,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The one sales aggregate, from draft to fulfilled (spec §2). Lines are replaced wholesale on every save. */
+/** The one sales aggregate, from draft to fulfilled (spec §2). Lines keep their ids across edits. */
 @Entity
 @Table(name = "sales_order")
 class SalesOrder {
@@ -53,6 +54,9 @@ class SalesOrder {
     Instant fulfilledAt;
     Instant cancelledAt;
     String cancelReason;
+    Long shipFromWarehouseId;
+    @Enumerated(EnumType.STRING)
+    DeliveryMethod deliveryMethod = DeliveryMethod.DELIVERY;
     Long createdBy;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();

@@ -34,7 +34,8 @@ class SalesSchemaIT {
                 + "where not exists (select 1 from warehouse where is_default and archived_at is null)",
                 UUID.randomUUID().toString());
         orderId = jdbc.queryForObject("insert into sales_order (number, customer_id, rep_id, status, payment_terms, "
-                + "created_by) values (?, ?, ?, 'CONFIRMED', 'NET_30', ?) returning id", Long.class,
+                + "created_by, ship_from_warehouse_id) values (?, ?, ?, 'CONFIRMED', 'NET_30', ?, "
+                + "(select id from warehouse where is_default and archived_at is null)) returning id", Long.class,
                 "SO-" + UUID.randomUUID(), customerId, userId, userId);
     }
 

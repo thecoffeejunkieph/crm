@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.audit.AuditEventResponse;
+import ph.thecoffeejunkie.crm.inventory.TransferResponse;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
@@ -79,10 +80,11 @@ class OrderController {
         return orders.release(actor.scope(), id, req);
     }
 
-    @PostMapping("/{id}/fulfil")
-    @PreAuthorize("@salesPermissions.canFulfil()")
-    OrderResponse fulfil(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {
-        return orders.fulfil(actor.scope(), id, req);
+    /** Drafts linked transfers from other warehouses to the ship-from warehouse (Idempotency-Key). */
+    @PostMapping("/{id}/cover-shortage")
+    @PreAuthorize("@salesPermissions.canWrite()")
+    List<TransferResponse> coverShortage(@PathVariable long id) {
+        return orders.coverShortage(actor.scope(), id);
     }
 
     @PostMapping("/{id}/cancel")

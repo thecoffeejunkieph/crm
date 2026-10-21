@@ -16,6 +16,9 @@ interface SalesOrderRepository extends JpaRepository<SalesOrder, Long>, JpaSpeci
     @Query("select o from SalesOrder o where o.id = :id")
     Optional<SalesOrder> findByIdForUpdate(long id);
 
+    @Query(value = "select exists (select 1 from order_line where id = :lineId)", nativeQuery = true)
+    boolean lineExists(long lineId);
+
     @Query(value = "select nextval('sales_order_number_seq')", nativeQuery = true)
     long nextNumber();
 

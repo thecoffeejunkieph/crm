@@ -24,10 +24,6 @@ public class SalesPermissions {
         return is(Role.ADMIN, Role.SALES);
     }
 
-    public boolean canFulfil() {
-        return is(Role.ADMIN);
-    }
-
     private boolean is(Role... roles) {
         return actor.staff().map(StaffPrincipal::role).map(r -> Set.of(roles).contains(r)).orElse(false);
     }

@@ -66,6 +66,32 @@ final class SalesFixture {
                 tag + sku, "Product " + sku, price, cost, taxClass);
     }
 
+    long defaultWarehouse() {
+        return jdbc.queryForObject("select id from warehouse where is_default and archived_at is null", Long.class);
+    }
+
+    /** A non-default warehouse, removed again in cleanUp. */
+    long warehouse(String code) {
+        return jdbc.queryForObject("insert into warehouse (code, name) values (?, ?) returning id", Long.class,
+                tag + "WH" + code, "Fixture " + code);
+    }
+
+    /** Puts qty on hand at the default warehouse. Test seeding only: real stock moves through the ledger. */
+    void stock(long productId, String qty) {
+        stock(productId, defaultWarehouse(), qty);
+    }
+
+    void stock(long productId, long warehouseId, String qty) {
+        jdbc.update("insert into stock_level (product_id, warehouse_id, on_hand) values (?, ?, ?::numeric) "
+                + "on conflict (product_id, warehouse_id) do update set on_hand = stock_level.on_hand + excluded.on_hand",
+                productId, warehouseId, qty);
+    }
+
+    java.math.BigDecimal reserved(long productId, long warehouseId) {
+        return jdbc.queryForObject("select coalesce((select reserved from stock_level where product_id = ? "
+                + "and warehouse_id = ?), 0)", java.math.BigDecimal.class, productId, warehouseId);
+    }
+
     static RequestPostProcessor as(long id, Role role) {
         return authentication(token(id, role));
     }
@@ -87,6 +113,11 @@ final class SalesFixture {
 
     static String line(long productId, String qty) {
         return "{\"productId\":" + productId + ",\"qty\":" + qty + "}";
+    }
+
+    /** A line that keeps its identity: id is an existing order line's id. */
+    static String line(long id, long productId, String qty) {
+        return "{\"id\":" + id + ",\"productId\":" + productId + ",\"qty\":" + qty + "}";
     }
 
     static String line(long productId, String qty, String unitPrice, String discountPct) {
@@ -139,6 +170,11 @@ final class SalesFixture {
         SecurityContextHolder.clearContext();
         String orders = "select o.id from sales_order o join customer c on c.id = o.customer_id where c.display_name like '"
                 + tag + "%'";
+        String products = "select id from product where sku like '" + tag + "%'";
+        jdbc.update("delete from delivery_order where sales_order_id in (" + orders + ")");
+        jdbc.update("delete from stock_transfer where sales_order_id in (" + orders + ")");
+        jdbc.update("delete from stock_reservation where sales_order_id in (" + orders + ")");
+        jdbc.update("delete from stock_level where product_id in (" + products + ")");
         jdbc.update("delete from payment where order_id in (" + orders + ")");
         jdbc.update("update invoice set replaced_by_id = null where order_id in (" + orders + ")");
         jdbc.update("delete from invoice where order_id in (" + orders + ")");
@@ -154,7 +190,7 @@ final class SalesFixture {
                 tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
         jdbc.update("delete from product where sku like ?", tag + "%");
-        jdbc.update("delete from warehouse where code = ?", tag + "WH");
+        jdbc.update("delete from warehouse where code like ?", tag + "WH%");
         jdbc.update("delete from app_user where email like ?", tag + "%");
     }
 }
