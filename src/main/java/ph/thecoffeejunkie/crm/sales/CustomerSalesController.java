@@ -66,6 +66,16 @@ class CustomerSalesController {
         }));
     }
 
+    @GetMapping("/api/customers/{id}/account")
+    @PreAuthorize("@salesPermissions.canRead()")
+    @Transactional(readOnly = true)
+    CustomerAccount account(@PathVariable long id) {
+        var profile = customers.salesProfileVisible(actor.scope(), id)
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+        return new CustomerAccount(orderRepo.openBalanceExcluding(id, 0), profile.creditLimit(),
+                orderRepo.hasOverdue(id, SalesTime.today(clock)));
+    }
+
     private Scope requireVisible(long customerId) {
         Scope s = actor.scope();
         customers.salesProfileVisible(s, customerId)
