@@ -97,11 +97,18 @@ class PosProductsIT {
         f.product("C90", "100.00", "90.00", "VATABLE");
         f.product("C50", "100.00", "50.00", "VATABLE");
         f.product("CNL", "100.00", null, "VATABLE");
+        f.product("CRD", "33.33", null, "VATABLE");
         String body = SalesFixture.body(list(asRep, f.tag + "C").andExpect(status().isOk())
                 .andExpect(jsonPath("$.discountCapPct").value(15)));
         assertThat(min(body, "C90")).isEqualByComparingTo("90.00");
         assertThat(min(body, "C50")).isEqualByComparingTo("85.00");
         assertThat(min(body, "CNL")).isEqualByComparingTo("85.00");
+        assertThat(min(body, "CRD")).isEqualByComparingTo("28.33");
+    }
+
+    @Test
+    void noMatchReturnsEmptyPage() throws Exception {
+        list(asRep, f.tag + "NOPE").andExpect(status().isOk()).andExpect(jsonPath("$.products.content").isEmpty());
     }
 
     private BigDecimal min(String body, String sku) {

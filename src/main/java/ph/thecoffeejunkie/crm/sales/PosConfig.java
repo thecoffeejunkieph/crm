@@ -8,7 +8,6 @@ import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Set;
 
 @Component
@@ -37,8 +36,8 @@ class PosConfig {
 
     /** Cashiers may not go below cost, nor discount past the cap: the higher of the two floors. */
     static BigDecimal minUnitPrice(BigDecimal price, BigDecimal cost, BigDecimal capPct) {
-        BigDecimal capFloor = price.multiply(BigDecimal.valueOf(100).subtract(capPct))
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.CEILING);
-        return cost == null ? capFloor : capFloor.max(cost.setScale(2, RoundingMode.CEILING));
+        BigDecimal capFloor = OrderTotals.money(price.multiply(BigDecimal.valueOf(100).subtract(capPct))
+                .divide(BigDecimal.valueOf(100)));
+        return cost == null ? capFloor : capFloor.max(OrderTotals.money(cost));
     }
 }

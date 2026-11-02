@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.catalog.Catalog;
+import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.inventory.Inventory;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
@@ -32,7 +33,7 @@ class PosController {
         long warehouse = config.warehouseId();
         BigDecimal cap = config.discountCapPct();
         var found = catalog.searchActive(q, page);
-        var available = inventory.available(warehouse, found.content().stream().map(ph.thecoffeejunkie.crm.catalog.ProductInfo::id).toList());
+        var available = inventory.available(warehouse, found.content().stream().map(ProductInfo::id).toList());
         var rows = found.content().stream().map(p -> new PosProductResponse(p.id(), p.sku(), p.name(), p.unit(),
                 p.price(), available.get(p.id()), PosConfig.minUnitPrice(p.price(), p.cost(), cap))).toList();
         return new PosProductPage(new PageResponse<>(found.pageNumber(),

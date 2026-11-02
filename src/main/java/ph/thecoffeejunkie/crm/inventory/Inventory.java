@@ -12,6 +12,7 @@ import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +55,7 @@ public class Inventory {
 
     /** On hand minus reserved at one warehouse; a product with no stock row is 0. */
     @Transactional(readOnly = true)
-    public Map<Long, BigDecimal> available(long warehouseId, java.util.Collection<Long> productIds) {
+    public Map<Long, BigDecimal> available(long warehouseId, Collection<Long> productIds) {
         Map<Long, BigDecimal> out = new HashMap<>();
         productIds.forEach(id -> out.put(id, BigDecimal.ZERO));
         levels.findByProductIdIn(productIds).stream().filter(l -> l.warehouseId == warehouseId)
