@@ -58,4 +58,10 @@ class PaymentController {
     PaymentResponse attach2307(@PathVariable long id, @RequestPart("file") MultipartFile file) {
         return payments.attach2307(actor.scope(), id, file);
     }
+
+    @PutMapping(value = "/api/payments/{id}/proof", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@salesPermissions.canWrite()")
+    PaymentResponse attachProof(@PathVariable long id, @RequestPart("file") MultipartFile file) {
+        return payments.attachProof(actor.scope(), id, file);
+    }
 }

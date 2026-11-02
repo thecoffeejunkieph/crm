@@ -117,6 +117,26 @@ class PaymentService {
     }
 
     @Transactional
+    PaymentResponse attachProof(Scope s, long paymentId, MultipartFile file) {
+        Payment p = find(paymentId);
+        SalesOrder o = access.findVisibleForUpdate(p.orderId, s);
+        if (p.status == PaymentVerification.REJECTED) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "Can't attach proof to a rejected payment.");
+        }
+        if (file == null || file.isEmpty()) {
+            throw OrderService.invalid("file", "Choose a file.");
+        }
+        String old = p.proofKey;
+        p.proofKey = storage.store("payments/proof", file, StorageService.PROOF_TYPES);
+        p.updatedAt = Instant.now();
+        repo.saveAndFlush(p);
+        storage.deleteQuietly(old);
+        audit.record(AuditAction.PAYMENT_PROOF_ATTACHED, OrderService.ENTITY, o.id,
+                "Attached proof to payment of " + p.amount().toPlainString(), null);
+        return toResponse(p);
+    }
+
+    @Transactional
     PaymentResponse attach2307(Scope s, long paymentId, MultipartFile file) {
         Payment p = find(paymentId);
         SalesOrder o = access.findVisibleForUpdate(p.orderId, s);

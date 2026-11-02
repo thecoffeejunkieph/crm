@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import ph.thecoffeejunkie.crm.IntegrationTest;
+import ph.thecoffeejunkie.crm.files.StorageService;
 import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.time.LocalDate;
@@ -39,6 +40,7 @@ class PaymentsIT {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired StorageService storage;
 
     SalesFixture f;
     long rep;
@@ -205,5 +207,57 @@ class PaymentsIT {
         orderJson().andExpect(jsonPath("$.suggestedWithholding").value(1.00));
         record(order, payment("233.50", "0"), null).andExpect(status().isOk());
         orderJson().andExpect(jsonPath("$.suggestedWithholding").value(0.50));
+    }
+
+    static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4};
+
+    private ResultActions putProof(long paymentId, MockMultipartFile file, RequestPostProcessor user) throws Exception {
+        return mvc.perform(multipart(HttpMethod.PUT, "/api/payments/" + paymentId + "/proof")
+                .file(file).with(csrf(mvc)).with(user));
+    }
+
+    private static MockMultipartFile png() {
+        return new MockMultipartFile("file", "p.png", "image/png", PNG);
+    }
+
+    @Test
+    void attachProofToRecordedPayment() throws Exception {
+        long p = SalesFixture.id(record(order, payment("300", "0"), null));
+        putProof(p, png(), asRep).andExpect(status().isOk()).andExpect(jsonPath("$.proofUrl").isNotEmpty());
+    }
+
+    @Test
+    void attachProofReplacesEarlier() throws Exception {
+        long p = SalesFixture.id(record(order, payment("300", "0"), null));
+        putProof(p, png(), asRep).andExpect(status().isOk());
+        String first = jdbc.queryForObject("select proof_key from payment where id = ?", String.class, p);
+        putProof(p, png(), asRep).andExpect(status().isOk());
+        String second = jdbc.queryForObject("select proof_key from payment where id = ?", String.class, p);
+        assertThat(second).isNotEqualTo(first);
+        var http = java.net.http.HttpClient.newHttpClient();
+        var gone = http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create(storage.presignedUrl(first))).build(),
+                java.net.http.HttpResponse.BodyHandlers.discarding());
+        assertThat(gone.statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void attachProofRejectsTextFile() throws Exception {
+        long p = SalesFixture.id(record(order, payment("300", "0"), null));
+        putProof(p, new MockMultipartFile("file", "p.txt", "text/plain", "hello".getBytes()), asRep)
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void attachProofToRejectedPaymentRefused() throws Exception {
+        long p = pendingPayment("100");
+        jdbc.update("update payment set status = 'REJECTED', reject_reason = 'x' where id = ?", p);
+        putProof(p, png(), asRep).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
+    @Test
+    void attachProofOutOfScope() throws Exception {
+        long p = SalesFixture.id(record(order, payment("300", "0"), null));
+        putProof(p, png(), as(f.user("other", Role.SALES), Role.SALES)).andExpect(status().isNotFound());
     }
 }
