@@ -120,19 +120,7 @@ class PaymentService {
     PaymentResponse attachProof(Scope s, long paymentId, MultipartFile file) {
         Payment p = find(paymentId);
         SalesOrder o = access.findVisibleForUpdate(p.orderId, s);
-        if (p.status == PaymentVerification.REJECTED) {
-            throw new DomainException(ErrorCode.INVALID_STATE, "Can't attach proof to a rejected payment.");
-        }
-        if (file == null || file.isEmpty()) {
-            throw OrderService.invalid("file", "Choose a file.");
-        }
-        String old = p.proofKey;
-        p.proofKey = storage.store("payments/proof", file, StorageService.PROOF_TYPES);
-        p.updatedAt = Instant.now();
-        repo.saveAndFlush(p);
-        storage.deleteQuietly(old);
-        audit.record(AuditAction.PAYMENT_PROOF_ATTACHED, OrderService.ENTITY, o.id,
-                "Attached proof to payment of " + p.amount().toPlainString(), null);
+        attach(p, o, file, Attachment.PROOF);
         return toResponse(p);
     }
 
@@ -146,19 +134,48 @@ class PaymentService {
 
     /** Any status but REJECTED; replaces an earlier file. Caller holds the order lock. */
     void attach2307(Payment p, SalesOrder o, MultipartFile file) {
+        attach(p, o, file, Attachment.FORM_2307);
+    }
+
+    /** What differs between a proof of payment and a BIR Form 2307 attached to a payment. */
+    private enum Attachment {
+        PROOF("payments/proof", "proof", AuditAction.PAYMENT_PROOF_ATTACHED, "Attached proof to payment of ") {
+            String key(Payment p) { return p.proofKey; }
+            void key(Payment p, String k) { p.proofKey = k; }
+        },
+        FORM_2307("payments/2307", "a 2307", AuditAction.FORM_2307_ATTACHED, "Attached BIR Form 2307 to payment of ") {
+            String key(Payment p) { return p.form2307Key; }
+            void key(Payment p, String k) { p.form2307Key = k; }
+        };
+
+        final String prefix, label, auditText;
+        final AuditAction action;
+
+        Attachment(String prefix, String label, AuditAction action, String auditText) {
+            this.prefix = prefix;
+            this.label = label;
+            this.action = action;
+            this.auditText = auditText;
+        }
+
+        abstract String key(Payment p);
+
+        abstract void key(Payment p, String k);
+    }
+
+    private void attach(Payment p, SalesOrder o, MultipartFile file, Attachment kind) {
         if (p.status == PaymentVerification.REJECTED) {
-            throw new DomainException(ErrorCode.INVALID_STATE, "Can't attach a 2307 to a rejected payment.");
+            throw new DomainException(ErrorCode.INVALID_STATE, "Can't attach " + kind.label + " to a rejected payment.");
         }
         if (file == null || file.isEmpty()) {
             throw OrderService.invalid("file", "Choose a file.");
         }
-        String old = p.form2307Key;
-        p.form2307Key = storage.store("payments/2307", file, StorageService.PROOF_TYPES);
+        String old = kind.key(p);
+        kind.key(p, storage.store(kind.prefix, file, StorageService.PROOF_TYPES));
         p.updatedAt = Instant.now();
         repo.saveAndFlush(p);
         storage.deleteQuietly(old);
-        audit.record(AuditAction.FORM_2307_ATTACHED, OrderService.ENTITY, o.id,
-                "Attached BIR Form 2307 to payment of " + p.amount().toPlainString(), null);
+        audit.record(kind.action, OrderService.ENTITY, o.id, kind.auditText + p.amount().toPlainString(), null);
     }
 
     @Transactional(readOnly = true)

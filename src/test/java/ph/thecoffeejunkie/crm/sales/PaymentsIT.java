@@ -14,6 +14,10 @@ import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.files.StorageService;
 import ph.thecoffeejunkie.crm.shared.Role;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -37,6 +41,17 @@ import static ph.thecoffeejunkie.crm.sales.SalesFixture.line;
 class PaymentsIT {
 
     static final byte[] PDF = "%PDF-1.7 proof".getBytes();
+
+    static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4};
+
+    private ResultActions putProof(long paymentId, MockMultipartFile file, RequestPostProcessor user) throws Exception {
+        return mvc.perform(multipart(HttpMethod.PUT, "/api/payments/" + paymentId + "/proof")
+                .file(file).with(csrf(mvc)).with(user));
+    }
+
+    private static MockMultipartFile png() {
+        return new MockMultipartFile("file", "p.png", "image/png", PNG);
+    }
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -209,17 +224,6 @@ class PaymentsIT {
         orderJson().andExpect(jsonPath("$.suggestedWithholding").value(0.50));
     }
 
-    static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4};
-
-    private ResultActions putProof(long paymentId, MockMultipartFile file, RequestPostProcessor user) throws Exception {
-        return mvc.perform(multipart(HttpMethod.PUT, "/api/payments/" + paymentId + "/proof")
-                .file(file).with(csrf(mvc)).with(user));
-    }
-
-    private static MockMultipartFile png() {
-        return new MockMultipartFile("file", "p.png", "image/png", PNG);
-    }
-
     @Test
     void attachProofToRecordedPayment() throws Exception {
         long p = SalesFixture.id(record(order, payment("300", "0"), null));
@@ -234,9 +238,9 @@ class PaymentsIT {
         putProof(p, png(), asRep).andExpect(status().isOk());
         String second = jdbc.queryForObject("select proof_key from payment where id = ?", String.class, p);
         assertThat(second).isNotEqualTo(first);
-        var http = java.net.http.HttpClient.newHttpClient();
-        var gone = http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create(storage.presignedUrl(first))).build(),
-                java.net.http.HttpResponse.BodyHandlers.discarding());
+        var http = HttpClient.newHttpClient();
+        var gone = http.send(HttpRequest.newBuilder(URI.create(storage.presignedUrl(first))).build(),
+                HttpResponse.BodyHandlers.discarding());
         assertThat(gone.statusCode()).isEqualTo(404);
     }
 
