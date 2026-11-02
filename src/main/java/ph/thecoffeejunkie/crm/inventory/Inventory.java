@@ -52,6 +52,16 @@ public class Inventory {
         this.reservations = reservations;
     }
 
+    /** On hand minus reserved at one warehouse; a product with no stock row is 0. */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> available(long warehouseId, java.util.Collection<Long> productIds) {
+        Map<Long, BigDecimal> out = new HashMap<>();
+        productIds.forEach(id -> out.put(id, BigDecimal.ZERO));
+        levels.findByProductIdIn(productIds).stream().filter(l -> l.warehouseId == warehouseId)
+                .forEach(l -> out.put(l.productId, l.available()));
+        return out;
+    }
+
     /** Per line, reserves min(qty, available) and records the rest as short. */
     public void reserve(OrderStock o) {
         lockAll(o.lines().stream().map(l -> new Key(l.productId(), o.warehouseId())));

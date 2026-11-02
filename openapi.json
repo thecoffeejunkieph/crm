@@ -1712,6 +1712,33 @@
         },
         "type" : "object"
       },
+      "PageResponsePosProductResponse" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PosProductResponse"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "PageResponseProductResponse" : {
         "properties" : {
           "content" : {
@@ -2166,6 +2193,45 @@
           }
         },
         "required" : [ "token" ],
+        "type" : "object"
+      },
+      "PosProductPage" : {
+        "properties" : {
+          "discountCapPct" : {
+            "type" : "number"
+          },
+          "products" : {
+            "$ref" : "#/components/schemas/PageResponsePosProductResponse"
+          }
+        },
+        "type" : "object"
+      },
+      "PosProductResponse" : {
+        "properties" : {
+          "available" : {
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "minUnitPrice" : {
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "price" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "ProductRequest" : {
@@ -5713,6 +5779,39 @@
           }
         },
         "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/pos/products" : {
+      "get" : {
+        "operationId" : "products",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PosProductPage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "pos-controller" ]
       }
     },
     "/api/products" : {

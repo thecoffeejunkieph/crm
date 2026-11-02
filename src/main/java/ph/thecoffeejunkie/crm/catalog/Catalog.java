@@ -105,13 +105,23 @@ public class Catalog {
         audit.record(AuditAction.ARCHIVED, ENTITY, id, "Archived product " + p.sku, null);
     }
 
+    /** Active products whose name or SKU contains {@code q}; for the POS. */
+    @Transactional(readOnly = true)
+    public PageResponse<ProductInfo> searchActive(String q, PageQuery page) {
+        Specification<Product> spec = Specification.allOf((r, cq, cb) -> cb.isNull(r.get("archivedAt")), matches(q));
+        return PageResponse.of(repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT)).map(Catalog::toInfo));
+    }
+
     /** Archived products included: orders keep referring to them. */
     @Transactional(readOnly = true)
     public Map<Long, ProductInfo> info(Collection<Long> ids) {
         Map<Long, ProductInfo> out = new HashMap<>();
-        repo.findAllById(new HashSet<>(ids)).forEach(p -> out.put(p.id,
-                new ProductInfo(p.id, p.sku, p.name, p.unit, p.price, p.cost, p.taxClass, p.archivedAt != null)));
+        repo.findAllById(new HashSet<>(ids)).forEach(p -> out.put(p.id, toInfo(p)));
         return out;
+    }
+
+    private static ProductInfo toInfo(Product p) {
+        return new ProductInfo(p.id, p.sku, p.name, p.unit, p.price, p.cost, p.taxClass, p.archivedAt != null);
     }
 
     private Product find(long id) {
