@@ -1228,6 +1228,10 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "channel" : {
+            "enum" : [ "B2B", "POS" ],
+            "type" : "string"
+          },
           "confirmedAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -1352,6 +1356,10 @@
         "properties" : {
           "balance" : {
             "type" : "number"
+          },
+          "channel" : {
+            "enum" : [ "B2B", "POS" ],
+            "type" : "string"
           },
           "customerId" : {
             "format" : "int64",
@@ -4580,6 +4588,14 @@
           "schema" : {
             "default" : false,
             "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "channel",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "B2B", "POS" ],
+            "type" : "string"
           }
         }, {
           "in" : "query",

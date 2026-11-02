@@ -55,6 +55,25 @@ class OrdersIT {
     }
 
     @Test
+    void newOrderIsB2B() throws Exception {
+        f.create(asRep, customer, line(productA, "1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.channel").value("B2B"));
+    }
+
+    @Test
+    void listFiltersByChannel() throws Exception {
+        f.createdOrder(asRep, customer, line(productA, "1"));
+        long pos = f.createdOrder(asRep, customer, line(productA, "1"));
+        jdbc.update("update sales_order set channel = 'POS' where id = ?", pos);
+        mvc.perform(get("/api/orders").param("channel", "POS").param("customerId", String.valueOf(customer))
+                        .with(asAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(pos))
+                .andExpect(jsonPath("$.content[0].channel").value("POS"));
+    }
+
+    @Test
     void createNumbersAndAssignsRep() throws Exception {
         f.create(as(admin, Role.ADMIN), customer, line(productA, "1")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.number").value(matchesPattern("SO-\\d{2}-\\d{5}")))

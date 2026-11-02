@@ -78,6 +78,17 @@ class SettingsIT {
     }
 
     @Test
+    void posWarehouseIdDefaultsToZero() throws Exception {
+        mvc.perform(get("/api/admin/settings").with(authentication(auth(Role.ADMIN))))
+                .andExpect(jsonPath("$['pos.warehouseId']").value(0));
+    }
+
+    @Test
+    void posWarehouseIdRejectsNegative() throws Exception {
+        mvc.perform(putJson("{\"pos.warehouseId\": -1}")).andExpect(status().isBadRequest());
+    }
+
+    @Test
     void writeOffValueMaxDefaults5000() {
         assertThat(settings.decimal(SettingKey.APPROVAL_WRITE_OFF_VALUE_MAX)).isEqualByComparingTo("5000");
     }

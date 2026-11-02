@@ -24,5 +24,5 @@ record OrderResponse(long id, String number, long customerId, String customerNam
                      Instant releasedAt, Instant fulfilledAt, Instant cancelledAt, String cancelReason,
                      Set<OrderAction> allowedActions, long approvalVersion, Instant updatedAt, long version,
                      long shipFromWarehouseId, String shipFromWarehouseName, DeliveryMethod deliveryMethod,
-                     BigDecimal totalShort, DeliverySummary deliveryOrder) {
+                     BigDecimal totalShort, DeliverySummary deliveryOrder, SalesChannel channel) {
 }

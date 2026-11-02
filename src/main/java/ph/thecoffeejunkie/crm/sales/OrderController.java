@@ -39,9 +39,10 @@ class OrderController {
                                     @RequestParam(required = false) Long repId,
                                     @RequestParam(required = false) String q,
                                     @RequestParam(defaultValue = "false") boolean awaitingConfirmation,
+                                    @RequestParam(required = false) SalesChannel channel,
                                     PageQuery page) {
         return orders.list(actor.scope(), new OrderFilter(status, paymentStatus, customerId, repId, q,
-                awaitingConfirmation), page);
+                awaitingConfirmation, channel), page);
     }
 
     @PostMapping

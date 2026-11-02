@@ -123,6 +123,7 @@ class OrderService {
                         : cb.like(cb.lower(r.get("number")), Like.contains(f.q()), '\\'),
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),
+                (r, q, cb) -> f.channel() == null ? null : cb.equal(r.get("channel"), f.channel()),
                 paymentStatus(f.paymentStatus(), today));
         var found = repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT));
         Map<Long, String> customerNames = customers.displayNames(
@@ -131,7 +132,7 @@ class OrderService {
                 found.getContent().stream().map(o -> o.repId).filter(Objects::nonNull).toList());
         return PageResponse.of(found.map(o -> new OrderSummary(o.id, o.number, o.customerId,
                 customerNames.get(o.customerId), o.status, paymentStatus(o, today), o.total, o.balance(),
-                o.repId == null ? null : repNames.get(o.repId), o.updatedAt)));
+                o.repId == null ? null : repNames.get(o.repId), o.updatedAt, o.channel)));
     }
 
     @Transactional(readOnly = true)
@@ -141,6 +142,11 @@ class OrderService {
 
     @Transactional
     OrderResponse create(Scope s, OrderRequest req) {
+        return create(s, req, SalesChannel.B2B);
+    }
+
+    @Transactional
+    OrderResponse create(Scope s, OrderRequest req, SalesChannel channel) {
         if (req.customerId() == null) {
             throw invalid("customerId", "must not be null");
         }
@@ -150,6 +156,7 @@ class OrderService {
             throw invalid("customerId", "This customer is archived.");
         }
         SalesOrder o = new SalesOrder();
+        o.channel = channel;
         o.customerId = c.id();
         o.repId = c.assignedRepId();
         o.createdBy = s.userId();
@@ -525,7 +532,7 @@ class OrderService {
                 o.cancelledAt, o.cancelReason, allowedActions(o, invoice != null, totalShort.signum() > 0),
                 OrderFingerprint.of(o), o.updatedAt, o.version, o.shipFromWarehouseId,
                 warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
-                fulfilment.forOrder(o.id).orElse(null));
+                fulfilment.forOrder(o.id).orElse(null), o.channel);
     }
 
     static Set<OrderAction> allowedActions(SalesOrder o, boolean hasInvoice, boolean isShort) {

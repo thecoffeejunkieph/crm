@@ -33,6 +33,8 @@ class SalesOrder {
     Long repId;
     @Enumerated(EnumType.STRING)
     OrderStatus status = OrderStatus.DRAFT;
+    @Enumerated(EnumType.STRING)
+    SalesChannel channel = SalesChannel.B2B;
     int revision;
     @Enumerated(EnumType.STRING)
     PaymentTerms paymentTerms;
