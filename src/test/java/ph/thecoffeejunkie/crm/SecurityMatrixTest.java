@@ -145,6 +145,7 @@ class SecurityMatrixTest {
             Map.entry("POST /api/customers/{id}/contacts/{contactId}/archive", AS),
             Map.entry("GET /api/customers/{id}/history", AS),
             Map.entry("GET /api/customers/{id}/orders", AS),
+            Map.entry("GET /api/customers/{id}/account", AS),
             Map.entry("GET /api/customers/{id}/invoices", AS),
             Map.entry("GET /api/reports/missing-2307", AS),
             Map.entry("GET /api/reports/missing-2307.csv", AS),

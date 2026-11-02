@@ -120,4 +120,20 @@ class ReportsIT {
         mvc.perform(get("/api/customers/" + customer + "/invoices").with(as(other, Role.SALES)))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void customerAccount() throws Exception {
+        jdbc.update("update sales_order set status = 'CONFIRMED', due_date = current_date - 1 where id = ?", order);
+        jdbc.update("update customer set credit_limit = 5000 where id = ?", customer);
+        mvc.perform(get("/api/customers/" + customer + "/account").with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.balance").value(1120.00))
+                .andExpect(jsonPath("$.creditLimit").value(5000.00))
+                .andExpect(jsonPath("$.hasOverdue").value(true));
+        long other = f.user("oth", Role.SALES);
+        mvc.perform(get("/api/customers/" + customer + "/account").with(as(other, Role.SALES)))
+                .andExpect(status().isNotFound());
+        jdbc.update("update customer set credit_limit = null where id = ?", customer);
+        mvc.perform(get("/api/customers/" + customer + "/account").with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.creditLimit").value(org.hamcrest.Matchers.nullValue()));
+    }
 }

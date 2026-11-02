@@ -342,6 +342,20 @@
         },
         "type" : "object"
       },
+      "CustomerAccount" : {
+        "properties" : {
+          "balance" : {
+            "type" : "number"
+          },
+          "creditLimit" : {
+            "type" : "number"
+          },
+          "hasOverdue" : {
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
       "CustomerInvoiceRow" : {
         "properties" : {
           "dueDate" : {
@@ -3682,6 +3696,33 @@
           }
         },
         "tags" : [ "customer-controller" ]
+      }
+    },
+    "/api/customers/{id}/account" : {
+      "get" : {
+        "operationId" : "account",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CustomerAccount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "customer-sales-controller" ]
       }
     },
     "/api/customers/{id}/archive" : {
