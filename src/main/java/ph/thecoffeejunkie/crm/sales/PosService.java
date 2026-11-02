@@ -138,8 +138,8 @@ class PosService {
             ProductInfo p = products.get(l.productId());
             BigDecimal min = PosConfig.minUnitPrice(p.price(), p.cost(), cap);
             BigDecimal discount = l.discountPct() == null ? BigDecimal.ZERO : l.discountPct();
-            BigDecimal net = l.unitPrice().multiply(BigDecimal.valueOf(100).subtract(discount))
-                    .divide(BigDecimal.valueOf(100));
+            BigDecimal net = OrderTotals.money(l.unitPrice().multiply(BigDecimal.valueOf(100).subtract(discount))
+                    .divide(BigDecimal.valueOf(100)));
             if (discount.compareTo(cap) > 0 || net.compareTo(min) < 0) {
                 Map<String, Object> d = new LinkedHashMap<>();
                 d.put("productId", p.id());

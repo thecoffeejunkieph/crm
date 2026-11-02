@@ -6,6 +6,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ph.thecoffeejunkie.crm.approvals.ApprovalType;
 import ph.thecoffeejunkie.crm.approvals.Approvals;
 import ph.thecoffeejunkie.crm.approvals.RequiredApproval;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
@@ -497,9 +498,12 @@ class OrderService {
         repo.saveAndFlush(o);
     }
 
+    /** A POS sale is paid in full before it leaves the counter, so credit (overdue, over limit) never blocks it. */
     List<RequiredApproval> requiredForConfirm(SalesOrder o) {
-        return checks.forConfirm(o, customers.salesProfile(o.customerId),
+        List<RequiredApproval> required = checks.forConfirm(o, customers.salesProfile(o.customerId),
                 catalog.info(o.lines.stream().map(l -> l.productId).toList()), SalesTime.today(clock));
+        return o.channel != SalesChannel.POS ? required
+                : required.stream().filter(r -> r.type() != ApprovalType.CREDIT_LIMIT).toList();
     }
 
     private void requireConfirmable(SalesOrder o) {

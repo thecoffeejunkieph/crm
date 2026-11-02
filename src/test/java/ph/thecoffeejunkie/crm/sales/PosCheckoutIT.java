@@ -168,6 +168,24 @@ class PosCheckoutIT {
     }
 
     @Test
+    void netRoundingUpToFloorAccepted() throws Exception {
+        // 95.30 less 0.11% = 95.19517: below the 95.20 floor unrounded, exactly on it at 2 places (HALF_UP).
+        checkout(List.of(line(a, "1", "95.30", "0.11")), List.of(pay("CASH", "95.20", null)))
+                .andExpect(status().isCreated());
+        // 95.30 less 0.12% = 95.18564 -> 95.19, below it.
+        checkout(List.of(line(a, "1", "95.30", "0.12")), List.of(pay("CASH", "95.19", null)))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("POS_PRICE_NOT_ALLOWED"));
+    }
+
+    @Test
+    void overdueCustomerCanBuyAtCounter() throws Exception {
+        long overdue = f.createdOrder(asRep, customer, SalesFixture.line(a, "1"));
+        jdbc.update("update sales_order set status = 'CONFIRMED', due_date = current_date - 5 where id = ?", overdue);
+        sellTwo().andExpect(status().isCreated());
+    }
+
+    @Test
     void paymentMismatchRejected() throws Exception {
         String body = SalesFixture.body(checkout(List.of(line(a, "2", "112.00", null)),
                 List.of(pay("CASH", "200.00", null)))
