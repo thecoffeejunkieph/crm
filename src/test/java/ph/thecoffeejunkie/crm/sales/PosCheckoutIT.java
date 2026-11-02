@@ -179,6 +179,66 @@ class PosCheckoutIT {
     }
 
     @Test
+    void subCentBelowCostRejectedAsPriceNotApproval() throws Exception {
+        long b = f.product("B", "112.00", "100.00", "VATABLE");
+        f.stock(b, f.defaultWarehouse(), "5");
+        // 100.10 less 0.1% = 99.9999: 100.00 at 2 places, but under cost unrounded, which is what BELOW_COST checks.
+        checkout(List.of(line(b, "1", "100.10", "0.1")), List.of(pay("CASH", "100.00", null)))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("POS_PRICE_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.details[0].minUnitPrice").value(100.00));
+        assertThat(orderCount()).isZero();
+    }
+
+    @Test
+    void discountWithThreeDecimalsRejected() throws Exception {
+        checkout(List.of(line(a, "1", "112.00", "12.345")), List.of(pay("CASH", "98.17", null)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("lines[0].discountPct"));
+        checkout(List.of(line(a, "1", "112.00", null)), List.of(pay("CASH", "112.00", "200.001")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("payments[0].tendered"));
+        assertThat(orderCount()).isZero();
+    }
+
+    @Test
+    void nonRegularTaxCustomerRejected() throws Exception {
+        jdbc.update("update customer set tax_treatment = 'VAT_EXEMPT' where id = ?", customer);
+        List<Long> before = counts();
+        long counter = invoiceCounter();
+        sellTwo().andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("POS_TAX_TREATMENT_NOT_SUPPORTED"))
+                .andExpect(jsonPath("$.detail")
+                        .value("This customer is VAT-exempt or zero-rated. Sell as a regular order."));
+        assertThat(counts()).isEqualTo(before);
+        assertThat(invoiceCounter()).isEqualTo(counter);
+    }
+
+    @Test
+    void failureAfterInvoiceIssueRollsBackCounter() throws Exception {
+        // Test-only trigger: the DISPATCH insert in fulfilAtCounter (after the invoice is issued) fails for this product.
+        JdbcTemplate owner = new JdbcTemplate(new DriverManagerDataSource(env.getProperty("spring.datasource.url"),
+                env.getProperty("spring.flyway.user"), env.getProperty("spring.flyway.password")));
+        String fn = "pos_it_fail_" + Math.abs(f.tag.hashCode());
+        owner.execute("create function " + fn + "() returns trigger language plpgsql as $$ begin "
+                + "raise exception 'forced failure'; end $$");
+        owner.execute("create trigger " + fn + " before insert on stock_movement for each row "
+                + "when (new.product_id = " + a + ") execute function " + fn + "()");
+        try {
+            List<Long> before = counts();
+            long counter = invoiceCounter();
+            int status = sellTwo().andReturn().getResponse().getStatus();
+            assertThat(status).isGreaterThanOrEqualTo(500);
+            assertThat(counts()).isEqualTo(before);
+            assertThat(invoiceCounter()).isEqualTo(counter);
+            assertThat(f.reserved(a, f.defaultWarehouse())).isEqualByComparingTo("0");
+        } finally {
+            owner.execute("drop trigger " + fn + " on stock_movement");
+            owner.execute("drop function " + fn + "()");
+        }
+    }
+
+    @Test
     void overdueCustomerCanBuyAtCounter() throws Exception {
         long overdue = f.createdOrder(asRep, customer, SalesFixture.line(a, "1"));
         jdbc.update("update sales_order set status = 'CONFIRMED', due_date = current_date - 5 where id = ?", overdue);

@@ -103,6 +103,12 @@ class InvoiceService {
         return new PdfFile(i.number + ".pdf", document.render(i));
     }
 
+    /** Unscoped, for the after-commit mail of an invoice the caller just issued. */
+    @Transactional(readOnly = true)
+    byte[] pdfBytes(long invoiceId) {
+        return document.render(repo.findById(invoiceId).orElseThrow());
+    }
+
     java.util.Optional<Invoice> active(SalesOrder o) {
         return repo.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED);
     }

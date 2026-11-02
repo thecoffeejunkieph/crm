@@ -8,6 +8,7 @@ import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.customers.PaymentTerms;
+import ph.thecoffeejunkie.crm.customers.TaxTreatment;
 import ph.thecoffeejunkie.crm.fulfilment.DeliveryMethod;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
@@ -60,6 +61,12 @@ class PosService {
         long wh = config.warehouseId();
         validate(req);
         checkPrices(req.lines());
+        // Unknown or hidden customers fall through to orders.create, which reports them as it always has.
+        customers.salesProfileVisible(s, req.customerId()).filter(c -> c.taxTreatment() != TaxTreatment.REGULAR)
+                .ifPresent(c -> {
+                    throw new DomainException(ErrorCode.POS_TAX_TREATMENT_NOT_SUPPORTED,
+                            "This customer is VAT-exempt or zero-rated. Sell as a regular order.");
+                });
 
         OrderResponse created = orders.create(s, new OrderRequest(req.customerId(), PaymentTerms.DUE_ON_RECEIPT,
                 BigDecimal.ZERO, null, null, req.lines().stream().map(l -> new LineRequest(null, l.productId(), l.qty(),
@@ -98,7 +105,8 @@ class PosService {
 
         String email = customers.salesProfile(req.customerId()).email();
         if (req.emailInvoice() && email != null && !email.isBlank()) {
-            mailer.invoiceAfterCommit(List.of(email), invoice.number(), invoices.pdf(s, invoice.id()).bytes());
+            long invoiceId = invoice.id();
+            mailer.invoiceAfterCommit(List.of(email), invoice.number(), () -> invoices.pdfBytes(invoiceId));
         }
         BigDecimal change = req.payments().stream().filter(t -> t.tendered() != null)
                 .map(t -> t.tendered().subtract(t.amount())).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -125,7 +133,10 @@ class PosService {
         }
     }
 
-    /** No line below its floor (the product list's minUnitPrice) or past the discount cap. */
+    /**
+     * No line past the discount cap, below the cap floor (net rounded, as invoiced) or below cost (net unrounded, as
+     * ApprovalChecks' BELOW_COST sees it), so the till refuses exactly what confirm would send for approval.
+     */
     private void checkPrices(List<PosSaleRequest.Line> lines) {
         Map<Long, ProductInfo> products = catalog.info(lines.stream().map(PosSaleRequest.Line::productId).toList());
         if (products.size() != new HashSet<>(lines.stream().map(PosSaleRequest.Line::productId).toList()).size()
@@ -137,10 +148,12 @@ class PosService {
         for (PosSaleRequest.Line l : lines) {
             ProductInfo p = products.get(l.productId());
             BigDecimal min = PosConfig.minUnitPrice(p.price(), p.cost(), cap);
+            BigDecimal capFloor = PosConfig.minUnitPrice(p.price(), null, cap);
             BigDecimal discount = l.discountPct() == null ? BigDecimal.ZERO : l.discountPct();
-            BigDecimal net = OrderTotals.money(l.unitPrice().multiply(BigDecimal.valueOf(100).subtract(discount))
-                    .divide(BigDecimal.valueOf(100)));
-            if (discount.compareTo(cap) > 0 || net.compareTo(min) < 0) {
+            BigDecimal net = l.unitPrice().multiply(BigDecimal.valueOf(100).subtract(discount))
+                    .divide(BigDecimal.valueOf(100));
+            if (discount.compareTo(cap) > 0 || OrderTotals.money(net).compareTo(capFloor) < 0
+                    || (p.cost() != null && net.compareTo(p.cost()) < 0)) {
                 Map<String, Object> d = new LinkedHashMap<>();
                 d.put("productId", p.id());
                 d.put("minUnitPrice", min);

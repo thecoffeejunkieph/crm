@@ -19,10 +19,10 @@ record PosSaleRequest(@NotNull Long customerId, @NotEmpty @Size(max = 200) List<
 
     record Line(@NotNull Long productId, @NotNull @Positive @Digits(integer = 9, fraction = 3) BigDecimal qty,
                 @NotNull @PositiveOrZero @Digits(integer = 17, fraction = 2) BigDecimal unitPrice,
-                @DecimalMin("0") @DecimalMax("100") BigDecimal discountPct) {
+                @DecimalMin("0") @DecimalMax("100") @Digits(integer = 3, fraction = 2) BigDecimal discountPct) {
     }
 
     record Tender(@NotNull PaymentMethod method, @NotNull @Positive @Digits(integer = 17, fraction = 2) BigDecimal amount,
-                  @Positive BigDecimal tendered, @Size(max = 100) String reference) {
+                  @Positive @Digits(integer = 17, fraction = 2) BigDecimal tendered, @Size(max = 100) String reference) {
     }
 }

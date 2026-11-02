@@ -13,6 +13,7 @@ import ph.thecoffeejunkie.crm.shared.HtmlMail;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** Sends the quote mail off-thread after commit, so a rolled-back send never mails anyone. */
 @Component
@@ -49,19 +50,29 @@ class SalesMailer {
         });
     }
 
-    void invoiceAfterCommit(List<String> to, String number, byte[] pdf) {
+    /** pdf runs on the executor after commit (its own read), so rendering never holds the checkout's locks. */
+    void invoiceAfterCommit(List<String> to, String number, Supplier<byte[]> pdf) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                executor.execute(() -> to.forEach(address -> {
+                executor.execute(() -> {
+                    byte[] bytes;
                     try {
-                        mail.send(address, "Invoice " + number + " from " + mail.company(), "invoice-sent",
-                                Map.of("number", number),
-                                List.of(new HtmlMail.Attachment(number + ".pdf", "application/pdf", pdf)));
+                        bytes = pdf.get();
                     } catch (RuntimeException e) {
-                        log.warn("Invoice {} mail to {} failed", number, address, e);
+                        log.warn("Invoice {} PDF for mail failed", number, e);
+                        return;
                     }
-                }));
+                    to.forEach(address -> {
+                        try {
+                            mail.send(address, "Invoice " + number + " from " + mail.company(), "invoice-sent",
+                                    Map.of("number", number),
+                                    List.of(new HtmlMail.Attachment(number + ".pdf", "application/pdf", bytes)));
+                        } catch (RuntimeException e) {
+                            log.warn("Invoice {} mail to {} failed", number, address, e);
+                        }
+                    });
+                });
             }
         });
     }
