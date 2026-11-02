@@ -284,7 +284,7 @@ public class Customers {
 
     private static CustomerSalesProfile toSalesProfile(Customer c) {
         return new CustomerSalesProfile(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.creditLimit,
-                c.paymentTerms, c.taxTreatment, c.assignedRepId, c.archivedAt != null);
+                c.paymentTerms, c.taxTreatment, c.assignedRepId, c.archivedAt != null, c.email);
     }
 
     private Customer findVisible(long id, Scope s, boolean includeArchived) {

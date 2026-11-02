@@ -95,12 +95,14 @@ class StockViews {
         args.add(pageable.getPageSize());
         args.add(pageable.getOffset());
         List<Object[]> raw = jdbc.query("select m.id, m.type, m.qty, m.ref_type, m.ref_id, "
-                + "coalesce(r.number, a.number, t.number, d.number) ref_number, m.reason, m.created_by, m.created_at "
+                + "coalesce(r.number, a.number, t.number, d.number, i.number) ref_number, m.reason, m.created_by, "
+                + "m.created_at "
                 + "from stock_movement m "
                 + "left join stock_receipt r on m.ref_type = 'STOCK_RECEIPT' and r.id = m.ref_id "
                 + "left join stock_adjustment a on m.ref_type = 'STOCK_ADJUSTMENT' and a.id = m.ref_id "
                 + "left join stock_transfer t on m.ref_type = 'TRANSFER' and t.id = m.ref_id "
-                + "left join delivery_order d on m.ref_type = 'DELIVERY_ORDER' and d.id = m.ref_id" + where
+                + "left join delivery_order d on m.ref_type = 'DELIVERY_ORDER' and d.id = m.ref_id "
+                + "left join invoice i on m.ref_type = 'INVOICE' and i.id = m.ref_id" + where
                 + " order by m.id desc limit ? offset ?",
                 (rs, i) -> new Object[]{rs.getLong("id"), rs.getString("type"), rs.getBigDecimal("qty"),
                         rs.getString("ref_type"), rs.getLong("ref_id"), rs.getString("ref_number"),

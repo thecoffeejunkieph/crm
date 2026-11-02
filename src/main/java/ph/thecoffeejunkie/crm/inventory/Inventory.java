@@ -164,6 +164,11 @@ public class Inventory {
      * short line refuses the whole order with ORDER_SHORT.
      */
     public void consume(long orderId, String refNumber, long refId) {
+        consume(orderId, DELIVERY_ORDER, refNumber, refId);
+    }
+
+    /** {@link #consume(long, String, long)} against another document, e.g. the INVOICE of a counter sale. */
+    public void consume(long orderId, String refType, String refNumber, long refId) {
         lockAll(keysOf(orderId));
         List<StockReservation> rs = reservations.findBySalesOrderId(orderId);
         List<Map<String, Object>> shortLines = rs.stream().filter(r -> r.shortQty.signum() > 0)
@@ -177,7 +182,7 @@ public class Inventory {
             if (r.reservedQty.signum() > 0) {
                 ledger.changeReserved(ledger.lock(r.productId, r.warehouseId), r.reservedQty.negate());
                 ledger.post(MovementType.DISPATCH, r.productId, r.warehouseId, r.reservedQty.negate(),
-                        DELIVERY_ORDER, refId, refNumber, null);
+                        refType, refId, refNumber, null);
             }
             reservations.delete(r);
         });

@@ -48,4 +48,21 @@ class SalesMailer {
             }
         });
     }
+
+    void invoiceAfterCommit(List<String> to, String number, byte[] pdf) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                executor.execute(() -> to.forEach(address -> {
+                    try {
+                        mail.send(address, "Invoice " + number + " from " + mail.company(), "invoice-sent",
+                                Map.of("number", number),
+                                List.of(new HtmlMail.Attachment(number + ".pdf", "application/pdf", pdf)));
+                    } catch (RuntimeException e) {
+                        log.warn("Invoice {} mail to {} failed", number, address, e);
+                    }
+                }));
+            }
+        });
+    }
 }

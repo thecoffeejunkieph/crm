@@ -388,6 +388,32 @@ class OrderService {
         return toResponse(o, s);
     }
 
+    /**
+     * POS: a fully paid CONFIRMED order is handed over at the counter. CONFIRMED → RELEASED → FULFILLED in one go,
+     * stock dispatched against the invoice. Unlike {@link #release} there is no delivery order.
+     */
+    @Transactional
+    void fulfilAtCounter(Scope s, long id, String invoiceNumber, long invoiceId) {
+        SalesOrder o = access.findVisibleForUpdate(id, s);
+        OrderStateMachine.require(o.status, OrderAction.RELEASE);
+        if (o.channel != SalesChannel.POS || o.balance().signum() != 0) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "Only a fully paid POS order is handed over at the counter.");
+        }
+        approvals.ensureAllApproved(checks.forRelease(o, customers.salesProfile(o.customerId)));
+        requireNotShort(o);
+        Instant now = Instant.now();
+        o.status = OrderStatus.RELEASED;
+        o.releasedAt = now;
+        save(o, now);
+        audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number + " at the counter", null);
+        inventory.consume(id, "INVOICE", invoiceNumber, invoiceId);
+        o.status = OrderStatus.FULFILLED;
+        o.fulfilledAt = now;
+        save(o, now);
+        audit.record(AuditAction.FULFILLED, ENTITY, id, "Order " + o.number + " handed over at the counter",
+                AuditChanges.diff().field("status", OrderStatus.RELEASED, OrderStatus.FULFILLED));
+    }
+
     private void requireNotShort(SalesOrder o) {
         if (inventory.totalShort(o.id).signum() == 0) {
             return;

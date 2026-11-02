@@ -82,7 +82,7 @@ class SecurityConfig {
                             .requestMatchers("/api/labels", "/api/labels/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.GET, "/api/products/*/availability").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers("/api/customers/**", "/api/orders/**", "/api/payments/**", "/api/invoices/**",
-                                    "/api/reports/**").hasAnyRole("ADMIN", "SALES");
+                                    "/api/pos/**", "/api/reports/**").hasAnyRole("ADMIN", "SALES");
                     a.requestMatchers("/api/portal/**").hasRole("CUSTOMER")
                             .requestMatchers("/api/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
                             .anyRequest().permitAll();
