@@ -84,9 +84,9 @@ sale had gone through the B2B path.
 
 **`PUT /api/payments/{id}/proof`** (multipart `file`) → `PaymentResponse`
 
-- For any verified payment, not only POS ones. Mirrors `PUT /api/payments/{id}/form-2307`: magic-byte check through
-  `StorageService`, key `invoices/{no}/payments/{uuid}.{ext}`, replaces an existing proof (old object deleted after
-  commit), audited `PAYMENT_PROOF_UPLOADED`.
+- For any payment not `REJECTED`, not only POS ones. Mirrors `PUT /api/payments/{id}/form-2307`: magic-byte check
+  through `StorageService` under the existing `payments/proof` prefix, replaces an existing proof (old object deleted
+  after save), audited `PAYMENT_PROOF_ATTACHED`.
 - Same access rules as recording a payment on that order.
 
 ### `PosService.checkout` — one `@Transactional`
@@ -103,11 +103,12 @@ sale had gone through the B2B path.
    `POS_APPROVAL_REQUIRED`.
 6. **Stock:** `Inventory.reserve(...)`. If any reservation has `shortQty > 0`, roll back with 409
    `POS_OUT_OF_STOCK` and `{productId, requested, available}` per short line.
-7. **Release, invoice, payments:** release (no `forRelease` approval, since payments cover the total), issue the
-   invoice through the existing issue path (gapless `SI-…` number, frozen snapshot), then record each payment
-   through `PaymentService` as staff (status `VERIFIED`).
-8. **Dispatch:** `Inventory.consume(orderId, invoiceNumber, invoiceId)` posts `DISPATCH` per line; set the order
-   `FULFILLED`. Audit `POS_SALE` with the invoice number and total.
+7. **Invoice, payments:** issue the invoice through the existing issue path (gapless `SI-…` number, frozen
+   snapshot) while `CONFIRMED`, then record each payment through `PaymentService` as staff (status `VERIFIED`).
+8. **Release and dispatch at the counter:** a new `OrderService.fulfilAtCounter` (balance is 0, so no
+   `forRelease` approval) sets `RELEASED`, calls `Inventory.consume(orderId, invoiceNumber, invoiceId)` to post
+   `DISPATCH` per line, and sets `FULFILLED`. It never creates a delivery order (the B2B `release()` always does).
+   Audit `POS_SALE` with the invoice number and total.
 9. **After commit:** if `emailInvoice` and the customer has an email, send the invoice PDF via `SalesMailer`. A
    mail failure is logged and does not affect the sale.
 
@@ -119,7 +120,7 @@ invoice numbers, no orphan order.
 ### Other backend changes
 
 - Orders list: `channel` filter (`OrderFilter`), `channel` in `OrderSummary` / `OrderResponse`.
-- `SalesReports`: sales totals split by channel.
+- Dashboards are the other half of tracker item P4-2 and are not designed here.
 
 ## Frontend (`crm-dashboard-ui`)
 
@@ -139,7 +140,7 @@ invoice numbers, no orphan order.
 - **`PosLineDialog.tsx`** — edit unit price and discount %. Fields refuse a discount over the cap or a net price
   below `minUnitPrice` (the cap comes with the product list response as `discountCapPct`).
 - **`QuickAddCustomerDialog.tsx`** — name, phone, optional email. Posts to the existing customers API with type
-  `INDIVIDUAL` and `CASH` terms, then selects the result.
+  `INDIVIDUAL` and `DUE_ON_RECEIPT` terms, then selects the result.
 - **`TenderDialog.tsx`** — tender rows (method, amount; tendered for cash; reference for others) with live
   Remaining and Change. Confirm is enabled only when Remaining is 0. "Email invoice" is ticked when the customer has
   an email. Sends a fresh `Idempotency-Key` per checkout attempt.
