@@ -495,6 +495,17 @@ class DeliveryOrdersIT {
     }
 
     @Test
+    void listFiltersByNumber() throws Exception {
+        f.receive(p, wh, "10");
+        long first = delivery("2");
+        long second = delivery("2");
+        String number = jdbc.queryForObject("select number from delivery_order where id = ?", String.class, first);
+        mvc.perform(get("/api/delivery-orders").param("q", number.toLowerCase()).with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + first + ")]").isNotEmpty())
+                .andExpect(jsonPath("$.content[?(@.id == " + second + ")]").isEmpty());
+    }
+
+    @Test
     void salesSeesOnlyOwnOrders() throws Exception {
         f.receive(p, wh, "10");
         long mine = delivery("2");

@@ -245,6 +245,16 @@ class TransfersIT {
     }
 
     @Test
+    void listFiltersByNumber() throws Exception {
+        long first = create("2", null);
+        long second = create("2", null);
+        String number = jdbc.queryForObject("select number from stock_transfer where id = ?", String.class, first);
+        mvc.perform(get("/api/transfers").param("q", number.toLowerCase()).with(dstUser)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + first + ")]").isNotEmpty())
+                .andExpect(jsonPath("$.content[?(@.id == " + second + ")]").isEmpty());
+    }
+
+    @Test
     void coverShortageCreatesLinkedDraftPerSource() {
         f.receive(p, src, "3");
         f.receive(p, other, "20");

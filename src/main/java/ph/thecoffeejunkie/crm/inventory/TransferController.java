@@ -51,8 +51,9 @@ class TransferController {
 
     @GetMapping("/api/transfers")
     PageResponse<TransferResponse> list(@RequestParam(required = false) TransferStatus status,
-                                        @RequestParam(required = false) Long warehouseId, PageQuery page) {
-        return transfers.list(status, warehouseId, page);
+                                        @RequestParam(required = false) Long warehouseId,
+                                        @RequestParam(required = false) String q, PageQuery page) {
+        return transfers.list(status, warehouseId, q, page);
     }
 
     @GetMapping("/api/transfers/{id}")

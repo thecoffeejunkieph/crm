@@ -12,6 +12,7 @@ import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.identity.Users;
 import ph.thecoffeejunkie.crm.notifications.NotificationType;
 import ph.thecoffeejunkie.crm.notifications.Notifications;
+import ph.thecoffeejunkie.crm.shared.Like;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
@@ -222,17 +223,18 @@ class TransferService {
     }
 
     @Transactional(readOnly = true)
-    PageResponse<TransferResponse> list(TransferStatus status, Long warehouseId, PageQuery page) {
+    PageResponse<TransferResponse> list(TransferStatus status, Long warehouseId, String q, PageQuery page) {
         if (warehouseId != null && !perms.canRead(warehouseId)) {
             throw new DomainException(ErrorCode.NOT_FOUND, "Warehouse not found");
         }
         StaffPrincipal me = actor.staff().orElseThrow();
         Specification<StockTransfer> spec = Specification.allOf(
-                (r, q, cb) -> status == null ? null : cb.equal(r.get("status"), status),
-                (r, q, cb) -> warehouseId == null ? null
+                (r, query, cb) -> status == null ? null : cb.equal(r.get("status"), status),
+                (r, query, cb) -> Like.blank(q) ? null : cb.like(cb.lower(r.get("number")), Like.contains(q), '\\'),
+                (r, query, cb) -> warehouseId == null ? null
                         : cb.or(cb.equal(r.get("fromWarehouseId"), warehouseId),
                                 cb.equal(r.get("toWarehouseId"), warehouseId)),
-                (r, q, cb) -> me.role() != Role.WAREHOUSE ? null
+                (r, query, cb) -> me.role() != Role.WAREHOUSE ? null
                         : me.warehouseIds().isEmpty() ? cb.disjunction()
                         : cb.or(r.get("fromWarehouseId").in(me.warehouseIds()),
                                 r.get("toWarehouseId").in(me.warehouseIds())));

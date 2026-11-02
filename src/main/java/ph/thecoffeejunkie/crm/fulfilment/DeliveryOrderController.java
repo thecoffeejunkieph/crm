@@ -25,8 +25,9 @@ class DeliveryOrderController {
 
     @GetMapping("/api/delivery-orders")
     PageResponse<DeliveryOrderResponse> list(@RequestParam(required = false) DeliveryStatus status,
-                                             @RequestParam(required = false) Long warehouseId, PageQuery page) {
-        return deliveries.list(status, warehouseId, page);
+                                             @RequestParam(required = false) Long warehouseId,
+                                             @RequestParam(required = false) String q, PageQuery page) {
+        return deliveries.list(status, warehouseId, q, page);
     }
 
     @GetMapping("/api/delivery-orders/{id}")

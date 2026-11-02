@@ -13,6 +13,7 @@ import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.files.StorageService;
 import ph.thecoffeejunkie.crm.inventory.Inventory;
+import ph.thecoffeejunkie.crm.shared.Like;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
@@ -66,15 +67,16 @@ class DeliveryService {
     }
 
     @Transactional(readOnly = true)
-    PageResponse<DeliveryOrderResponse> list(DeliveryStatus status, Long warehouseId, PageQuery page) {
+    PageResponse<DeliveryOrderResponse> list(DeliveryStatus status, Long warehouseId, String q, PageQuery page) {
         Scope me = actor.scope();
         if (warehouseId != null && me.role() == Role.WAREHOUSE && !me.warehouseIds().contains(warehouseId)) {
             throw new DomainException(ErrorCode.NOT_FOUND, "Warehouse not found");
         }
         Specification<DeliveryOrder> spec = Specification.allOf(
-                (r, q, cb) -> status == null ? null : cb.equal(r.get("status"), status),
-                (r, q, cb) -> warehouseId == null ? null : cb.equal(r.get("warehouseId"), warehouseId),
-                (r, q, cb) -> switch (me.role()) {
+                (r, query, cb) -> status == null ? null : cb.equal(r.get("status"), status),
+                (r, query, cb) -> warehouseId == null ? null : cb.equal(r.get("warehouseId"), warehouseId),
+                (r, query, cb) -> Like.blank(q) ? null : cb.like(cb.lower(r.get("number")), Like.contains(q), '\\'),
+                (r, query, cb) -> switch (me.role()) {
                     case WAREHOUSE -> me.warehouseIds().isEmpty() ? cb.disjunction()
                             : r.get("warehouseId").in(me.warehouseIds());
                     case SALES -> cb.equal(r.get("repUserId"), me.userId());

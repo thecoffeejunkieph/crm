@@ -27,6 +27,7 @@ import ph.thecoffeejunkie.crm.inventory.LineStock;
 import ph.thecoffeejunkie.crm.inventory.TransferResponse;
 import ph.thecoffeejunkie.crm.settings.SettingKey;
 import ph.thecoffeejunkie.crm.settings.Settings;
+import ph.thecoffeejunkie.crm.shared.Like;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
@@ -44,7 +45,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -120,7 +120,7 @@ class OrderService {
                 (r, q, cb) -> f.customerId() == null ? null : cb.equal(r.get("customerId"), f.customerId()),
                 (r, q, cb) -> f.repId() == null ? null : cb.equal(r.get("repId"), f.repId()),
                 (r, q, cb) -> f.q() == null || f.q().isBlank() ? null
-                        : cb.like(cb.lower(r.get("number")), like(f.q()), '\\'),
+                        : cb.like(cb.lower(r.get("number")), Like.contains(f.q()), '\\'),
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),
                 paymentStatus(f.paymentStatus(), today));
@@ -690,8 +690,4 @@ class OrderService {
         };
     }
 
-    private static String like(String q) {
-        return "%" + q.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%")
-                .replace("_", "\\_") + "%";
-    }
 }
