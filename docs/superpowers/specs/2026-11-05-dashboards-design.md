@@ -20,7 +20,7 @@ which the dashboard shows. The warehouse sees today's work. The legacy `Dashboar
 | When does a sale count toward a target? | When its payment is `VERIFIED`. |
 | Which month? | The Manila date of `payment.verified_at`. A closed month does not change when a late payment is received-dated into it. |
 | What amount? | `cash_amount + withholding_amount` (`Payment.amount()`), VAT-inclusive — matches the invoice total. |
-| Who gets credit? | The customer's assigned rep **at confirm**, stored on the order. Reassigning the customer later does not move credit. |
+| Who gets credit? | The customer's assigned rep **at confirm**, stored on the order (`sales_order.rep_id`, refreshed at confirm). Reassigning the customer later does not move credit. |
 | Customer with no rep | No one is credited; shows as "Unassigned" on the owner view. |
 | POS sales | Same rule: customer's rep, not the cashier. |
 | Target period | Calendar month, Manila time. |
@@ -34,7 +34,6 @@ and reports (F-172), commission payout records or month locking.
 ## Data model — `V10__insights.sql`
 
 ```sql
-alter table sales_order add column credited_rep_id bigint null references app_user(id);
 alter table order_line  add column unit_cost numeric(19,2) null;
 
 create table sales_target (
@@ -49,25 +48,29 @@ create table sales_target (
   updated_by      bigint not null references app_user(id),
   unique (rep_id, month)
 );
-create index on sales_order (credited_rep_id);
+create index on sales_order (rep_id);
 create index on payment (status, verified_at);
 ```
 
 Backfill in the same migration, for orders in `CONFIRMED`, `RELEASED`, `FULFILLED`:
-`credited_rep_id = customer.assigned_rep_id` (current value) and `order_line.unit_cost = product.cost` (current
-value). Money columns use `numeric(19,2)` like the rest of the schema.
+`order_line.unit_cost = product.cost` (current value). Money columns use `numeric(19,2)` like the rest of the
+schema.
 
-### Where the snapshots are taken
+### The credited rep is the existing `sales_order.rep_id`
 
-`OrderService.confirm` is the single path every confirm takes (manual confirm, `confirmAsSystem` from
-`AutoConfirmListener`, and `PosService.checkout`). Inside it, after the checks pass:
+`sales_order.rep_id` already exists: `OrderService.create` sets it from the customer's assigned rep, and nothing
+changes it afterwards (order *visibility* follows the customer through `OrderScopes`, but `rep_id` does not). So
+no new column: `markConfirmed` (the private step both `confirm` and `confirmAsSystem` — and through `confirm`,
+POS checkout — run) refreshes `o.repId = customer.assignedRepId` at confirm. After confirm it never changes, not
+by revisions and not by reassignment. Existing orders keep the `rep_id` they have (the rep at creation), so no
+backfill is needed for credit.
 
-- `order.creditedRepId = customer.assignedRepId`
-- each line's `unitCost = product.cost`
+### Cost snapshot
 
-Never changed afterwards — not by revisions, not by reassignment. A revision that returns the order to an earlier
-state and re-confirms takes fresh snapshots (it passes through `confirm` again). `unit_cost` is never serialised
-in `OrderResponse`, `LineResponse` or any POS/portal response.
+A private `snapshotCosts(SalesOrder o)` fills `unitCost = product.cost` on every line whose `unitCost` is null.
+It runs in `markConfirmed` and in `revise` after the lines are applied, so a line added to a confirmed order gets
+its cost when added; an unchanged line keeps the cost it had. `unit_cost` is never serialised in `OrderResponse`,
+`LineResponse` or any POS/portal response.
 
 `sales_target.rep_id` must be an active user with role `SALES` (checked in the service, `422 INSIGHTS_NOT_A_REP`).
 
@@ -80,13 +83,13 @@ month in `Asia/Manila`; "today" is today in Manila regardless of the month picke
 |---|---|
 | Collected | Σ `cash_amount + withholding_amount` of payments with `status = VERIFIED` and Manila date of `verified_at` in month. |
 | Invoiced | Σ `invoice.total` with `status = ISSUED` and Manila date of `issued_at` in month. A voided invoice drops out; its replacement counts in its own issue month. |
-| Outstanding | All-time Σ balance of `ISSUED` invoices not fully settled by verified payments (reuse `Balances`). |
-| Overdue | The part of Outstanding past due date (reuse the existing overdue rule behind `PaymentStatus.OVERDUE`). |
+| Outstanding | All-time Σ (`sales_order.total − settled_amount`) over orders not `CANCELLED` that have an `ISSUED` invoice and a positive balance. (`settled_amount` already moves only on verified payments.) |
+| Overdue | The part of Outstanding where `sales_order.due_date` is before today (Manila) — the same rule as `Balances.status` → `OVERDUE`. |
 | To verify | Count and Σ of payments with `status = PENDING`. |
 | Gross margin (ADMIN) | Over lines of orders with an `ISSUED` invoice issued in month: Σ (line net − `unit_cost × qty`). Lines with null `unit_cost` are excluded and counted as `linesWithoutCost`. Margin % = margin / Σ line net of included lines. |
 | Commission | See Decisions. Computed on read; nothing stored. A payment rejected after verification lowers it. |
 
-Rep scoping: every sales figure for the rep view filters `sales_order.credited_rep_id = currentUser`.
+Rep scoping: every sales figure for the rep view filters `sales_order.rep_id = currentUser`.
 
 ## API — module `insights`
 
@@ -178,11 +181,11 @@ Backend (`@IntegrationTest`, Testcontainers):
   - unassigned customer appears in the admin "Unassigned" row only
   - warehouse scoping: a WAREHOUSE user sees only their warehouses
   - `unit_cost` absent from `OrderResponse` JSON
-- Confirm snapshot: manual, auto-confirm and POS checkout all set `credited_rep_id` and `unit_cost`.
+- Confirm snapshot: manual, auto-confirm and POS checkout all refresh `rep_id` and set `unit_cost`; a line added by revising a confirmed order gets `unit_cost`.
 - Targets: upsert, stale version 409, copy fills only empty rows, non-SALES rep 422, audit event written, cache
   evicted (dashboard reflects the new target without waiting 60s).
 - Access: SALES → admin 403; WAREHOUSE → sales 403; bad month 400. Added to the 403 matrix and OpenAPI snapshot.
-- Migration backfill: an order confirmed before V10 gets the customer's current rep and the product's current cost.
+- Migration backfill: an order confirmed before V10 gets the product's current cost on each line.
 
 Frontend: Vitest for the target card (no target / below / exactly hit / over), each role page rendering from
 fixture data, the targets page save and 409 path, `/` redirect. Playwright smoke: admin sets a rep's target,
