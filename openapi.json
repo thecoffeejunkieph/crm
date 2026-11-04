@@ -101,6 +101,68 @@
         },
         "type" : "object"
       },
+      "AdminInsights" : {
+        "properties" : {
+          "byChannel" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChannelAmount"
+            },
+            "type" : "array"
+          },
+          "collected" : {
+            "type" : "number"
+          },
+          "collectedByMonth" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MonthAmount"
+            },
+            "type" : "array"
+          },
+          "collectedPrevMonth" : {
+            "type" : "number"
+          },
+          "invoiced" : {
+            "type" : "number"
+          },
+          "margin" : {
+            "$ref" : "#/components/schemas/Margin"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "operations" : {
+            "$ref" : "#/components/schemas/Operations"
+          },
+          "outstanding" : {
+            "type" : "number"
+          },
+          "overdue" : {
+            "type" : "number"
+          },
+          "reps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RepRow"
+            },
+            "type" : "array"
+          },
+          "toVerify" : {
+            "$ref" : "#/components/schemas/ToVerify"
+          },
+          "topCustomers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CustomerAmount"
+            },
+            "type" : "array"
+          },
+          "topProducts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ProductRow"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "ApprovalResponse" : {
         "properties" : {
           "decidedAt" : {
@@ -246,6 +308,17 @@
           }
         },
         "required" : [ "currentPassword", "newPassword" ],
+        "type" : "object"
+      },
+      "ChannelAmount" : {
+        "properties" : {
+          "channel" : {
+            "type" : "string"
+          },
+          "collected" : {
+            "type" : "number"
+          }
+        },
         "type" : "object"
       },
       "ContactRequest" : {
@@ -1070,6 +1143,21 @@
         },
         "type" : "object"
       },
+      "Margin" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "linesWithoutCost" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "pct" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "MeResponse" : {
         "properties" : {
           "email" : {
@@ -1130,6 +1218,17 @@
           },
           "withholdingAmount" : {
             "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "MonthAmount" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "month" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -1222,6 +1321,27 @@
           "type" : {
             "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND" ],
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "Operations" : {
+        "properties" : {
+          "adjustmentsPendingApproval" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "deliveriesDispatched" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "deliveriesPicking" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "transfersInTransit" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -2458,6 +2578,24 @@
         },
         "type" : "object"
       },
+      "ProductRow" : {
+        "properties" : {
+          "margin" : {
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "revenue" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "ReceiptLineRequest" : {
         "properties" : {
           "productId" : {
@@ -2632,6 +2770,37 @@
           }
         },
         "required" : [ "reason", "version" ],
+        "type" : "object"
+      },
+      "RepRow" : {
+        "properties" : {
+          "collected" : {
+            "type" : "number"
+          },
+          "commission" : {
+            "type" : "number"
+          },
+          "commissionPct" : {
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "progressPct" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "repId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "target" : {
+            "type" : "number"
+          },
+          "targetHit" : {
+            "type" : "boolean"
+          }
+        },
         "type" : "object"
       },
       "ResetPasswordRequest" : {
@@ -4540,6 +4709,32 @@
           }
         },
         "tags" : [ "delivery-order-controller" ]
+      }
+    },
+    "/api/insights/admin" : {
+      "get" : {
+        "operationId" : "admin",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminInsights"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "insights-controller" ]
       }
     },
     "/api/insights/sales" : {

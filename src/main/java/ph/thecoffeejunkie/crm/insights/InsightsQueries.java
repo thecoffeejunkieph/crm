@@ -112,6 +112,85 @@ class InsightsQueries {
         return new NeedsAction(quotes, unpaid, overdue);
     }
 
+    /** Lines of orders whose ISSUED invoice was issued in the month; revenue = line_total, cost = unit_cost × qty. */
+    AdminInsights.Margin margin(YearMonth m) {
+        return jdbc.queryForObject("select sum(l.line_total - l.unit_cost * l.qty) filter (where l.unit_cost is not null) amt, "
+                + "sum(l.line_total) filter (where l.unit_cost is not null) rev, "
+                + "count(*) filter (where l.unit_cost is null) missing from order_line l " + INVOICED_IN_MONTH,
+                month(m), (rs, i) -> {
+                    BigDecimal amount = money(rs.getBigDecimal("amt"));
+                    BigDecimal rev = rs.getBigDecimal("rev");
+                    BigDecimal pct = rev == null || rev.signum() == 0 ? null
+                            : amount.multiply(new BigDecimal(100)).divide(rev, 2, RoundingMode.HALF_UP);
+                    return new AdminInsights.Margin(amount, pct, rs.getLong("missing"));
+                });
+    }
+
+    private static final String INVOICED_IN_MONTH = "join invoice i on i.order_id = l.order_id and i.status = 'ISSUED' "
+            + "and i.issued_at >= :start and i.issued_at < :end";
+
+    /** {@code months} entries, oldest first, ending at {@code end}. */
+    List<AdminInsights.MonthAmount> collectedByMonth(YearMonth end, int months) {
+        YearMonth first = end.minusMonths(months - 1L);
+        MapSqlParameterSource p = new MapSqlParameterSource("start", Timestamp.from(InsightsMonth.start(first)))
+                .addValue("end", Timestamp.from(InsightsMonth.end(end)));
+        Map<YearMonth, BigDecimal> byMonth = new HashMap<>();
+        jdbc.query("select to_char(p.verified_at at time zone 'Asia/Manila', 'YYYY-MM') ym, sum(" + PAID + ") amount "
+                + "from payment p where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end "
+                + "group by 1", p, rs -> {
+                    byMonth.put(YearMonth.parse(rs.getString("ym")), rs.getBigDecimal("amount"));
+                });
+        List<AdminInsights.MonthAmount> out = new ArrayList<>();
+        for (YearMonth m = first; !m.isAfter(end); m = m.plusMonths(1)) {
+            out.add(new AdminInsights.MonthAmount(m, money(byMonth.get(m))));
+        }
+        return out;
+    }
+
+    /** Collected per credited rep; the null key holds orders with no rep. */
+    Map<Long, BigDecimal> collectedByRep(YearMonth m) {
+        Map<Long, BigDecimal> out = new HashMap<>();
+        jdbc.query("select o.rep_id, sum(" + PAID + ") amount from payment p join sales_order o on o.id = p.order_id "
+                + "where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end group by o.rep_id",
+                month(m), rs -> {
+                    long id = rs.getLong("rep_id");
+                    out.put(rs.wasNull() ? null : id, money(rs.getBigDecimal("amount")));
+                });
+        return out;
+    }
+
+    /** Both channels, B2B then POS, zeros included. */
+    List<AdminInsights.ChannelAmount> collectedByChannel(YearMonth m) {
+        Map<String, BigDecimal> by = new HashMap<>();
+        jdbc.query("select o.channel, sum(" + PAID + ") amount from payment p join sales_order o on o.id = p.order_id "
+                + "where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end group by o.channel",
+                month(m), rs -> {
+                    by.put(rs.getString("channel"), rs.getBigDecimal("amount"));
+                });
+        return List.of(new AdminInsights.ChannelAmount("B2B", money(by.get("B2B"))),
+                new AdminInsights.ChannelAmount("POS", money(by.get("POS"))));
+    }
+
+    /** By revenue; margin counts only lines with a cost. */
+    List<AdminInsights.ProductRow> topProducts(YearMonth m, int limit) {
+        return jdbc.query("select pr.id, pr.name, sum(l.line_total) rev, "
+                + "sum(l.line_total - l.unit_cost * l.qty) filter (where l.unit_cost is not null) margin "
+                + "from order_line l " + INVOICED_IN_MONTH + " join product pr on pr.id = l.product_id "
+                + "group by pr.id, pr.name order by rev desc, pr.name limit :limit", month(m).addValue("limit", limit),
+                (rs, i) -> new AdminInsights.ProductRow(rs.getLong("id"), rs.getString("name"),
+                        money(rs.getBigDecimal("rev")), money(rs.getBigDecimal("margin"))));
+    }
+
+    AdminInsights.Operations operations() {
+        return jdbc.queryForObject("select "
+                + "(select count(*) from delivery_order where status = 'PICKING') picking, "
+                + "(select count(*) from delivery_order where status = 'DISPATCHED') dispatched, "
+                + "(select count(*) from stock_transfer where status = 'DISPATCHED') transit, "
+                + "(select count(*) from stock_adjustment where status = 'PENDING_APPROVAL') adjustments",
+                new MapSqlParameterSource(), (rs, i) -> new AdminInsights.Operations(rs.getLong("picking"),
+                        rs.getLong("dispatched"), rs.getLong("transit"), rs.getLong("adjustments")));
+    }
+
     private List<OrderRef> refs(String sql, MapSqlParameterSource p) {
         return jdbc.query(sql, p, (rs, i) -> new OrderRef(rs.getLong("id"), rs.getString("number"),
                 rs.getString("display_name"), money(rs.getBigDecimal("amount")), rs.getObject("since", LocalDate.class)));

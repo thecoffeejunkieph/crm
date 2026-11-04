@@ -121,6 +121,28 @@ class InsightsFixture {
                 receivedOn, creator(), verifiedAt == null ? null : Timestamp.from(verifiedAt));
     }
 
+    long delivery(long orderId, long warehouseId, String status, Instant deliveredAt) {
+        return jdbc.queryForObject("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, "
+                + "delivered_at, customer_name, order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', ?, ?, ?, "
+                + "'SO-X', ?) returning id", Long.class, tag + "-DO" + seq++, orderId, warehouseId, status,
+                deliveredAt == null ? null : Timestamp.from(deliveredAt), tag + "cust", creator());
+    }
+
+    long transfer(long fromWarehouseId, long toWarehouseId, String status) {
+        return jdbc.queryForObject("insert into stock_transfer (number, from_warehouse_id, to_warehouse_id, status) "
+                + "values (?, ?, ?, ?) returning id", Long.class, tag + "-TR" + seq++, fromWarehouseId, toWarehouseId, status);
+    }
+
+    long adjustment(long warehouseId, long productId, String status) {
+        return jdbc.queryForObject("insert into stock_adjustment (number, warehouse_id, product_id, mode, delta, reason, "
+                + "status) values (?, ?, ?, 'DELTA', -1, 'test', ?) returning id", Long.class, tag + "-AD" + seq++,
+                warehouseId, productId, status);
+    }
+
+    long defaultWarehouse() {
+        return anyWarehouse();
+    }
+
     /** An instant {@code hours} after the start of {@code m} in Manila. */
     static Instant at(YearMonth m, long hours) {
         return InsightsMonth.start(m).plus(Duration.ofHours(hours));

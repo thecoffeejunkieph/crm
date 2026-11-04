@@ -28,4 +28,10 @@ class InsightsController {
     SalesInsights sales(@RequestParam(required = false) String month) {
         return insights.sales(actor.scope().userId(), InsightsMonth.parse(month, clock));
     }
+
+    @GetMapping("/api/insights/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    AdminInsights admin(@RequestParam(required = false) String month) {
+        return insights.admin(InsightsMonth.parse(month, clock));
+    }
 }
