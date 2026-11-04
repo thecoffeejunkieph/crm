@@ -114,6 +114,7 @@ class PosCheckoutIT {
 
     @Test
     void splitTenderSaleCompletes() throws Exception {
+        jdbc.update("update product set cost = 50 where id = ?", a);
         String body = SalesFixture.body(checkout(List.of(line(a, "2", "112.00", null)),
                 List.of(pay("CASH", "100.00", "200.00"), pay("GCASH", "124.00", null)))
                 .andExpect(status().isCreated()));
@@ -132,6 +133,9 @@ class PosCheckoutIT {
         assertThat((BigDecimal) o.get("balance")).isEqualByComparingTo("0");
         assertThat(o.get("released_at")).isNotNull();
         assertThat(o.get("fulfilled_at")).isNotNull();
+        assertThat(jdbc.queryForObject("select rep_id from sales_order where id = ?", Long.class, orderId)).isEqualTo(rep);
+        assertThat(jdbc.queryForObject("select unit_cost from order_line where order_id = ?", BigDecimal.class, orderId))
+                .isEqualByComparingTo("50.00");
 
         assertThat(jdbc.queryForList("select number from invoice where order_id = ? and status = 'ISSUED'",
                 String.class, orderId)).containsExactly(invoiceNumber);

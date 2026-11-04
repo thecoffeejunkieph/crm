@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -36,6 +37,9 @@ class OrderLine {
     @Enumerated(EnumType.STRING)
     TaxClass taxClass;
     BigDecimal lineTotal;
+    /** Product cost when the line was confirmed (spec 2026-11-05); admin-only, never in a response. */
+    @Column(name = "unit_cost")
+    BigDecimal unitCost;
 
     /** unitPrice after discount, unrounded: what the below-cost check compares with cost. */
     BigDecimal netUnitPrice() {

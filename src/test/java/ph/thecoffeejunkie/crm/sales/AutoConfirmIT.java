@@ -89,6 +89,8 @@ class AutoConfirmIT {
         assertThat(orderStatus()).isEqualTo("QUOTED");
         decide(pending.get(1));
         assertThat(orderStatus()).isEqualTo("CONFIRMED");
+        assertThat(jdbc.queryForObject("select unit_cost from order_line where order_id = ?",
+                java.math.BigDecimal.class, order)).isEqualByComparingTo("100.00");
         assertThat(confirmedAudits()).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from notification where recipient_user_id = ? "
                 + "and type = 'ORDER_CONFIRMED'", Integer.class, rep)).isEqualTo(1);

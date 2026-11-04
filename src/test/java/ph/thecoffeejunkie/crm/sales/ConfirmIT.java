@@ -108,6 +108,40 @@ class ConfirmIT {
     }
 
     @Test
+    void confirmRefreshesRepFromCustomer() throws Exception {
+        long other = f.user("rep2", Role.SALES);
+        long id = f.createdOrder(as(admin, Role.ADMIN), customer, line(product, "1"));
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", other, customer);
+        f.transition(as(admin, Role.ADMIN), id, "confirm", null).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select rep_id from sales_order where id = ?", Long.class, id)).isEqualTo(other);
+
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", rep, customer);
+        assertThat(jdbc.queryForObject("select rep_id from sales_order where id = ?", Long.class, id)).isEqualTo(other);
+    }
+
+    @Test
+    void confirmSnapshotsLineCost() throws Exception {
+        long cheap = f.product("C", "500.00", "60.00", "VATABLE");
+        long id = f.createdOrder(as(admin, Role.ADMIN), customer, line(cheap, "1"));
+        f.transition(as(admin, Role.ADMIN), id, "confirm", null).andExpect(status().isOk());
+        String cost = "select unit_cost from order_line where order_id = ?";
+        assertThat(jdbc.queryForObject(cost, java.math.BigDecimal.class, id)).isEqualByComparingTo("60.00");
+
+        jdbc.update("update product set cost = 99 where id = ?", cheap);
+        assertThat(jdbc.queryForObject(cost, java.math.BigDecimal.class, id)).isEqualByComparingTo("60.00");
+    }
+
+    @Test
+    void unitCostNotInOrderResponse() throws Exception {
+        long id = f.createdOrder(as(admin, Role.ADMIN), customer, line(product, "1"));
+        f.transition(as(admin, Role.ADMIN), id, "confirm", null).andExpect(status().isOk());
+        String body = SalesFixture.body(mvc.perform(
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/orders/" + id)
+                        .with(as(admin, Role.ADMIN))).andExpect(status().isOk()));
+        assertThat(body).doesNotContain("unitCost").doesNotContain("unit_cost");
+    }
+
+    @Test
     void cashCustomerSkipsLimitButOverdueBlocks() throws Exception {
         otherConfirmedOrder("9999.00", null);
         long id = f.createdOrder(asRep, customer, line(product, "1"));

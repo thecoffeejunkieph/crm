@@ -170,6 +170,18 @@ class ReviseIT {
     }
 
     @Test
+    void reviseAddsCostToNewLine() throws Exception {
+        jdbc.update("update order_line set unit_cost = 7.00 where order_id = ?", order);
+        long added = f.product("B", "50.00", "10.00", "VATABLE");
+        f.stock(added, "10");
+        f.update(asRep, order, REASON, line(lineOf(product), product, "3"), line(added, "1"))
+                .andExpect(status().isOk());
+        String cost = "select unit_cost from order_line where order_id = ? and product_id = ?";
+        assertThat(jdbc.queryForObject(cost, java.math.BigDecimal.class, order, added)).isEqualByComparingTo("10.00");
+        assertThat(jdbc.queryForObject(cost, java.math.BigDecimal.class, order, product)).isEqualByComparingTo("7.00");
+    }
+
+    @Test
     void reviseKeepsLineIdentityAndReservation() throws Exception {
         long line = lineOf(product);
         long reservation = jdbc.queryForObject("select id from stock_reservation where order_line_id = ?", Long.class,

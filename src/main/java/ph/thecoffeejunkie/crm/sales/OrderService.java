@@ -234,6 +234,7 @@ class OrderService {
         applyHeader(o, req, c);
         applyShipping(o, req, shipChanges);
         applyLines(o, req.lines(), c, new HashSet<>(o.lines.stream().map(l -> l.productId).toList()));
+        snapshotCosts(o);
         changes.field("lines", before, linesSummary(o));
         if (o.total.compareTo(o.settledAmount) < 0) {
             throw new DomainException(ErrorCode.OVERPAYMENT, "The revised total is less than what was already paid ("
@@ -517,10 +518,28 @@ class OrderService {
     }
 
     private void markConfirmed(SalesOrder o) {
+        // Credit is the customer's rep at confirm; never changed afterwards (spec 2026-11-05).
+        o.repId = customers.salesProfile(o.customerId).assignedRepId();
+        snapshotCosts(o);
         o.status = OrderStatus.CONFIRMED;
         o.confirmedAt = Instant.now();
         o.updatedAt = o.confirmedAt;
         repo.saveAndFlush(o);
+    }
+
+    /** Fills unit cost on lines that have none yet: at confirm, and for lines a revision adds. */
+    private void snapshotCosts(SalesOrder o) {
+        List<Long> missing = o.lines.stream().filter(l -> l.unitCost == null).map(l -> l.productId).toList();
+        if (missing.isEmpty()) {
+            return;
+        }
+        Map<Long, ProductInfo> info = catalog.info(missing);
+        for (OrderLine l : o.lines) {
+            ProductInfo p = info.get(l.productId);
+            if (l.unitCost == null && p != null) {
+                l.unitCost = p.cost();
+            }
+        }
     }
 
     @Transactional(readOnly = true)
