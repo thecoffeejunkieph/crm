@@ -356,6 +356,21 @@
         },
         "type" : "object"
       },
+      "CustomerAmount" : {
+        "properties" : {
+          "collected" : {
+            "type" : "number"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "CustomerInvoiceRow" : {
         "properties" : {
           "dueDate" : {
@@ -564,6 +579,18 @@
           },
           "type" : {
             "enum" : [ "BUSINESS", "INDIVIDUAL" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DayAmount" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "date" : {
+            "format" : "date",
             "type" : "string"
           }
         },
@@ -1143,6 +1170,29 @@
         },
         "type" : "object"
       },
+      "NeedsAction" : {
+        "properties" : {
+          "openQuotes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OrderRef"
+            },
+            "type" : "array"
+          },
+          "overdueInvoices" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OrderRef"
+            },
+            "type" : "array"
+          },
+          "unpaidConfirmed" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OrderRef"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "NotificationResponse" : {
         "properties" : {
           "body" : {
@@ -1171,6 +1221,28 @@
           },
           "type" : {
             "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "OrderRef" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "customerName" : {
+            "type" : "string"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "orderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "since" : {
+            "format" : "date",
             "type" : "string"
           }
         },
@@ -2599,6 +2671,60 @@
         },
         "type" : "object"
       },
+      "SalesInsights" : {
+        "properties" : {
+          "collected" : {
+            "type" : "number"
+          },
+          "collectedByDay" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DayAmount"
+            },
+            "type" : "array"
+          },
+          "commission" : {
+            "type" : "number"
+          },
+          "invoiced" : {
+            "type" : "number"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "needsAction" : {
+            "$ref" : "#/components/schemas/NeedsAction"
+          },
+          "outstanding" : {
+            "type" : "number"
+          },
+          "overdue" : {
+            "type" : "number"
+          },
+          "progressPct" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remaining" : {
+            "type" : "number"
+          },
+          "target" : {
+            "$ref" : "#/components/schemas/Target"
+          },
+          "targetHit" : {
+            "type" : "boolean"
+          },
+          "toVerify" : {
+            "$ref" : "#/components/schemas/ToVerify"
+          },
+          "topCustomers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CustomerAmount"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "ScanResult" : {
         "properties" : {
           "id" : {
@@ -2700,6 +2826,17 @@
         },
         "type" : "object"
       },
+      "Target" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "commissionPct" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "TargetRequest" : {
         "properties" : {
           "commissionPct" : {
@@ -2759,6 +2896,18 @@
           }
         },
         "required" : [ "amount", "method" ],
+        "type" : "object"
+      },
+      "ToVerify" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "count" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "TotalsResponse" : {
@@ -4391,6 +4540,32 @@
           }
         },
         "tags" : [ "delivery-order-controller" ]
+      }
+    },
+    "/api/insights/sales" : {
+      "get" : {
+        "operationId" : "sales",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SalesInsights"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "insights-controller" ]
       }
     },
     "/api/insights/targets" : {

@@ -1,0 +1,31 @@
+package ph.thecoffeejunkie.crm.insights;
+
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import ph.thecoffeejunkie.crm.shared.CurrentActor;
+
+import java.time.Clock;
+
+/** Role gates are also URL rules in SecurityConfig, so a wrong role gets 403 before any parameter check. */
+@RestController
+class InsightsController {
+
+    private final InsightsService insights;
+    private final CurrentActor actor;
+    private final Clock clock;
+
+    InsightsController(InsightsService insights, CurrentActor actor, Clock clock) {
+        this.insights = insights;
+        this.actor = actor;
+        this.clock = clock;
+    }
+
+    /** Always the signed-in rep: there is deliberately no repId parameter. */
+    @GetMapping("/api/insights/sales")
+    @PreAuthorize("hasRole('SALES')")
+    SalesInsights sales(@RequestParam(required = false) String month) {
+        return insights.sales(actor.scope().userId(), InsightsMonth.parse(month, clock));
+    }
+}
