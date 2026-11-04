@@ -87,7 +87,7 @@ month in `Asia/Manila`; "today" is today in Manila regardless of the month picke
 | Overdue | The part of Outstanding where `sales_order.due_date` is before today (Manila) — the same rule as `Balances.status` → `OVERDUE`. |
 | To verify | Count and Σ of payments with `status = PENDING`. |
 | Gross margin (ADMIN) | Over lines of orders with an `ISSUED` invoice issued in month: Σ (line net − `unit_cost × qty`). Lines with null `unit_cost` are excluded and counted as `linesWithoutCost`. Margin % = margin / Σ line net of included lines. |
-| Commission | See Decisions. Computed on read; nothing stored. A payment rejected after verification lowers it. |
+| Commission | See Decisions. Computed on read; nothing stored. Verified payments are final (reject applies only to `PENDING`), so a past month's figure is stable. Staff-recorded payments are `VERIFIED` at once and count from the moment they are recorded. |
 
 Rep scoping: every sales figure for the rep view filters `sales_order.rep_id = currentUser`.
 
