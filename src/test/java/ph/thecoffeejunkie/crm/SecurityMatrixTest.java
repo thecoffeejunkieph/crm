@@ -150,6 +150,7 @@ class SecurityMatrixTest {
             Map.entry("GET /api/customers/{id}/invoices", AS),
             Map.entry("GET /api/insights/sales", S),
             Map.entry("GET /api/insights/admin", A),
+            Map.entry("GET /api/insights/warehouse", AW),
             Map.entry("GET /api/insights/targets", A),
             Map.entry("PUT /api/insights/targets/{repId}/{month}", A),
             Map.entry("POST /api/insights/targets/copy", A),

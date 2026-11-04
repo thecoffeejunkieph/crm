@@ -790,6 +790,28 @@
         },
         "type" : "object"
       },
+      "DeliveryRef" : {
+        "properties" : {
+          "customerName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "number" : {
+            "type" : "string"
+          },
+          "since" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "DeliverySummary" : {
         "properties" : {
           "deliveredAt" : {
@@ -3079,6 +3101,23 @@
         },
         "type" : "object"
       },
+      "Today" : {
+        "properties" : {
+          "deliveredToday" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "dispatched" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "toPick" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "TotalsResponse" : {
         "properties" : {
           "total" : {
@@ -3254,6 +3293,19 @@
         },
         "type" : "object"
       },
+      "Transfers" : {
+        "properties" : {
+          "incoming" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "toDispatch" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "TransitionRequest" : {
         "properties" : {
           "reason" : {
@@ -3365,6 +3417,23 @@
               "type" : "integer"
             },
             "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "WarehouseInsights" : {
+        "properties" : {
+          "queue" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DeliveryRef"
+            },
+            "type" : "array"
+          },
+          "today" : {
+            "$ref" : "#/components/schemas/Today"
+          },
+          "transfers" : {
+            "$ref" : "#/components/schemas/Transfers"
           }
         },
         "type" : "object"
@@ -4871,6 +4940,24 @@
           }
         },
         "tags" : [ "target-controller" ]
+      }
+    },
+    "/api/insights/warehouse" : {
+      "get" : {
+        "operationId" : "warehouse",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WarehouseInsights"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "insights-controller" ]
       }
     },
     "/api/invoices/{id}.pdf" : {

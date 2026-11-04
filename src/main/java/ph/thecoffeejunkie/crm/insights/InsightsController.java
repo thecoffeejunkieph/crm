@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
+import ph.thecoffeejunkie.crm.shared.Role;
+import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.time.Clock;
 
@@ -33,5 +35,13 @@ class InsightsController {
     @PreAuthorize("hasRole('ADMIN')")
     AdminInsights admin(@RequestParam(required = false) String month) {
         return insights.admin(InsightsMonth.parse(month, clock));
+    }
+
+    /** Scoped to the caller's warehouses; ADMIN sees all. Ignores month: it is today's work. */
+    @GetMapping("/api/insights/warehouse")
+    @PreAuthorize("hasAnyRole('ADMIN', 'WAREHOUSE')")
+    WarehouseInsights warehouse() {
+        Scope s = actor.scope();
+        return insights.warehouse(s.role() == Role.ADMIN ? null : s.warehouseIds(), InsightsMonth.today(clock));
     }
 }

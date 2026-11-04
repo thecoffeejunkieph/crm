@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * All dashboard SQL (spec 2026-11-05, "Figures"). A null {@code repId} means company-wide; otherwise only orders
@@ -189,6 +190,36 @@ class InsightsQueries {
                 + "(select count(*) from stock_adjustment where status = 'PENDING_APPROVAL') adjustments",
                 new MapSqlParameterSource(), (rs, i) -> new AdminInsights.Operations(rs.getLong("picking"),
                         rs.getLong("dispatched"), rs.getLong("transit"), rs.getLong("adjustments")));
+    }
+
+    /** {@code warehouseIds} null = every warehouse; empty = none (all zeros). */
+    WarehouseInsights warehouse(Set<Long> warehouseIds, LocalDate today) {
+        if (warehouseIds != null && warehouseIds.isEmpty()) {
+            return new WarehouseInsights(new WarehouseInsights.Today(0, 0, 0), new WarehouseInsights.Transfers(0, 0),
+                    List.of());
+        }
+        MapSqlParameterSource p = new MapSqlParameterSource("today", today).addValue("ids", warehouseIds);
+        String mine = warehouseIds == null ? "true" : "d.warehouse_id in (:ids)";
+        String from = warehouseIds == null ? "true" : "t.from_warehouse_id in (:ids)";
+        String to = warehouseIds == null ? "true" : "t.to_warehouse_id in (:ids)";
+        WarehouseInsights.Today t = jdbc.queryForObject("select "
+                + "count(*) filter (where d.status = 'PICKING') picking, "
+                + "count(*) filter (where d.status = 'DISPATCHED') dispatched, "
+                + "count(*) filter (where d.status = 'DELIVERED' and " + MANILA_DATE.formatted("d.delivered_at")
+                + " = :today) delivered from delivery_order d where " + mine, p,
+                (rs, i) -> new WarehouseInsights.Today(rs.getLong("picking"), rs.getLong("dispatched"),
+                        rs.getLong("delivered")));
+        WarehouseInsights.Transfers tr = jdbc.queryForObject("select "
+                + "(select count(*) from stock_transfer t where t.status = 'DRAFT' and " + from + ") out, "
+                + "(select count(*) from stock_transfer t where t.status = 'DISPATCHED' and " + to + ") inc", p,
+                (rs, i) -> new WarehouseInsights.Transfers(rs.getLong("out"), rs.getLong("inc")));
+        List<WarehouseInsights.DeliveryRef> queue = jdbc.query("select d.id, d.number, d.customer_name, d.status, "
+                + "d.created_at from delivery_order d where d.status in ('PICKING', 'DISPATCHED') and " + mine
+                + " order by d.created_at, d.id limit 10", p,
+                (rs, i) -> new WarehouseInsights.DeliveryRef(rs.getLong("id"), rs.getString("number"),
+                        rs.getString("customer_name"), rs.getString("status"),
+                        rs.getTimestamp("created_at").toInstant()));
+        return new WarehouseInsights(t, tr, queue);
     }
 
     private List<OrderRef> refs(String sql, MapSqlParameterSource p) {

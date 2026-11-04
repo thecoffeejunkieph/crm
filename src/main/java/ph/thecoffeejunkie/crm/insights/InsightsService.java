@@ -6,12 +6,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /** One read per role, cached 60s in Redis (cache "insights"); target writes invalidate it (TargetService). */
@@ -52,6 +54,14 @@ class InsightsService {
         return new AdminInsights(m, collected, q.collected(null, m.minusMonths(1)), q.invoiced(null, m), q.margin(m),
                 owed.outstanding(), owed.overdue(), q.toVerify(null), q.collectedByMonth(m, 12), reps(m),
                 q.collectedByChannel(m), q.topProducts(m, 10), q.topCustomers(null, m, 10), q.operations());
+    }
+
+    /** {@code warehouseIds} null for ADMIN (every warehouse). The key sorts the ids so set order never splits it. */
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "insights",
+            key = "'wh:' + (#warehouseIds == null ? 'all' : new java.util.TreeSet(#warehouseIds)) + ':' + #today")
+    public WarehouseInsights warehouse(Set<Long> warehouseIds, LocalDate today) {
+        return q.warehouse(warehouseIds, today);
     }
 
     /** Every active SALES user (zeros included), then "Unassigned" when it collected anything; by collected desc. */
