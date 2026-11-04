@@ -123,6 +123,15 @@ class TargetsIT {
     }
 
     @Test
+    void nextMonthCanBePlannedButNotFurther() throws Exception {
+        putTarget(repA, now.plusMonths(1), "1000", "1", null).andExpect(status().isOk());
+        putTarget(repA, now.plusMonths(2), "1000", "1", null).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INSIGHTS_BAD_MONTH"));
+        mvc.perform(get("/api/insights/targets").param("month", now.plusMonths(1).toString()).with(asAdmin))
+                .andExpect(jsonPath(row(repA) + ".targetAmount").value(contains(1000.0)));
+    }
+
+    @Test
     void badMonth400() throws Exception {
         mvc.perform(get("/api/insights/targets").param("month", "2026-13").with(asAdmin))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INSIGHTS_BAD_MONTH"));

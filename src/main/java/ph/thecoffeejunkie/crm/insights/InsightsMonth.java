@@ -20,6 +20,15 @@ final class InsightsMonth {
     }
 
     static YearMonth parse(String raw, Clock clock) {
+        return parse(raw, clock, 0);
+    }
+
+    /** Targets: as {@link #parse}, but next month too, so the owner can set December's targets in November. */
+    static YearMonth parseForPlanning(String raw, Clock clock) {
+        return parse(raw, clock, 1);
+    }
+
+    private static YearMonth parse(String raw, Clock clock, int monthsAhead) {
         YearMonth now = YearMonth.now(clock.withZone(MANILA));
         if (raw == null || raw.isBlank()) {
             return now;
@@ -33,7 +42,7 @@ final class InsightsMonth {
         } catch (java.time.format.DateTimeParseException e) {
             throw bad();
         }
-        if (m.isAfter(now) || m.isBefore(now.minusMonths(24))) {
+        if (m.isAfter(now.plusMonths(monthsAhead)) || m.isBefore(now.minusMonths(24))) {
             throw bad();
         }
         return m;

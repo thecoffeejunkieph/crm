@@ -17,7 +17,10 @@ import ph.thecoffeejunkie.crm.shared.Role;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -47,10 +50,22 @@ class TargetService {
 
     @Transactional(readOnly = true)
     List<TargetRow> list(YearMonth m) {
-        List<Long> reps = users.activeIdsWithRole(Role.SALES);
-        Map<Long, String> names = users.displayNames(reps);
+        return list(m, List.of());
+    }
+
+    /**
+     * Active SALES users, plus anyone with a target that month and {@code alsoInclude}, so a rep who has since left
+     * still shows in past months.
+     */
+    @Transactional(readOnly = true)
+    List<TargetRow> list(YearMonth m, Collection<Long> alsoInclude) {
         Map<Long, SalesTarget> rows = repo.findByMonth(m.atDay(1)).stream()
                 .collect(Collectors.toMap(t -> t.repId, Function.identity()));
+        Set<Long> ids = new LinkedHashSet<>(users.activeIdsWithRole(Role.SALES));
+        ids.addAll(rows.keySet());
+        ids.addAll(alsoInclude);
+        List<Long> reps = List.copyOf(ids);
+        Map<Long, String> names = users.displayNames(reps);
         return reps.stream().map(id -> row(id, names.get(id), rows.get(id)))
                 .sorted((a, b) -> Objects.toString(a.repName(), "").compareToIgnoreCase(Objects.toString(b.repName(), "")))
                 .toList();

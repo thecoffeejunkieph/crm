@@ -64,10 +64,11 @@ class InsightsService {
         return q.warehouse(warehouseIds, today);
     }
 
-    /** Every active SALES user (zeros included), then "Unassigned" when it collected anything; by collected desc. */
+    /** Every active SALES user (zeros included), anyone credited or targeted that month, then "Unassigned" when it collected anything; by collected desc. */
     private List<AdminInsights.RepRow> reps(YearMonth m) {
         Map<Long, BigDecimal> byRep = q.collectedByRep(m);
-        Map<Long, TargetRow> rows = targets.list(m).stream().collect(Collectors.toMap(TargetRow::repId, r -> r));
+        List<Long> credited = byRep.keySet().stream().filter(Objects::nonNull).toList();
+        Map<Long, TargetRow> rows = targets.list(m, credited).stream().collect(Collectors.toMap(TargetRow::repId, r -> r));
         List<AdminInsights.RepRow> out = new ArrayList<>();
         for (TargetRow r : rows.values()) {
             BigDecimal c = byRep.getOrDefault(r.repId(), InsightsQueries.money(null));

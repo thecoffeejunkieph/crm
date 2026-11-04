@@ -50,6 +50,11 @@ class CommissionTest {
     }
 
     @Test
+    void hugeRatioDoesNotThrow() {
+        assertThat(Commission.progressPct(d("22000000"), d("1"))).isEqualTo(Integer.MAX_VALUE);
+    }
+
+    @Test
     void progressNotCapped() {
         assertThat(Commission.progressPct(d("15000"), d("10000"))).isEqualTo(150);
     }

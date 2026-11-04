@@ -28,16 +28,17 @@ class TargetController {
 
     @GetMapping("/api/insights/targets")
     List<TargetRow> list(@RequestParam(required = false) String month) {
-        return targets.list(InsightsMonth.parse(month, clock));
+        return targets.list(InsightsMonth.parseForPlanning(month, clock));
     }
 
     @PutMapping("/api/insights/targets/{repId}/{month}")
     TargetRow set(@PathVariable long repId, @PathVariable String month, @Valid @RequestBody TargetRequest req) {
-        return targets.set(repId, InsightsMonth.parse(month, clock), req);
+        return targets.set(repId, InsightsMonth.parseForPlanning(month, clock), req);
     }
 
     @PostMapping("/api/insights/targets/copy")
     Map<String, Integer> copy(@RequestParam String from, @RequestParam String to) {
-        return Map.of("copied", targets.copy(InsightsMonth.parse(from, clock), InsightsMonth.parse(to, clock)));
+        return Map.of("copied", targets.copy(InsightsMonth.parseForPlanning(from, clock),
+                InsightsMonth.parseForPlanning(to, clock)));
     }
 }

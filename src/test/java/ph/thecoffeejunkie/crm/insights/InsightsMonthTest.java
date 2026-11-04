@@ -44,6 +44,12 @@ class InsightsMonthTest {
     }
 
     @Test
+    void planningAllowsOneMonthAhead() {
+        assertThat(InsightsMonth.parseForPlanning("2026-12", CLOCK)).isEqualTo(YearMonth.of(2026, 12));
+        assertThatThrownBy(() -> InsightsMonth.parseForPlanning("2027-01", CLOCK)).isInstanceOf(DomainException.class);
+    }
+
+    @Test
     void malformedRejected() {
         assertBad("2026-3");
         assertBad("abc");

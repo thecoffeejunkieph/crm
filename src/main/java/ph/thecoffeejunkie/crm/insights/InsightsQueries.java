@@ -96,11 +96,12 @@ class InsightsQueries {
                         money(rs.getBigDecimal("amount"))));
     }
 
+    /** Work lists follow the customer's current rep (who can open the order), unlike credit, which stays put. */
     NeedsAction needsAction(long repId, LocalDate today, int limit) {
         MapSqlParameterSource p = new MapSqlParameterSource("rep", repId).addValue("today", today)
                 .addValue("limit", limit);
         String select = "select o.id, o.number, c.display_name, %s amount, %s since from sales_order o "
-                + "join customer c on c.id = o.customer_id where o.rep_id = :rep and ";
+                + "join customer c on c.id = o.customer_id where c.assigned_rep_id = :rep and ";
         String balance = "o.total - o.settled_amount";
         List<OrderRef> quotes = refs(select.formatted("o.total", MANILA_DATE.formatted("o.updated_at"))
                 + "o.status = 'QUOTED' order by o.updated_at, o.id limit :limit", p);

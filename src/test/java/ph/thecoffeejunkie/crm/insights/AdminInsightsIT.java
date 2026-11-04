@@ -102,6 +102,14 @@ class AdminInsightsIT {
     }
 
     @Test
+    void departedRepStillListedForPastMonth() throws Exception {
+        payments();
+        jdbc.update("update app_user set archived_at = now() where id = ?", repA);
+        adminView(q).andExpect(jsonPath(rep(repA) + ".collected").value(contains(1000.0)))
+                .andExpect(jsonPath(rep(repA) + ".name").value(contains(f.tag + "repa U")));
+    }
+
+    @Test
     void marginSkipsLinesWithoutCost() throws Exception {
         long o = f.order(custA, repA, "FULFILLED", "1500.00", "0.00", null);
         f.line(o, f.product("costed", "600.00"), "1", "1000.00", "600.00");

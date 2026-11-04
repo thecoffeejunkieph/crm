@@ -192,6 +192,14 @@ class SalesInsightsIT {
     }
 
     @Test
+    void needsActionFollowsCurrentCustomerRep() throws Exception {
+        long unpaid = f.order(cust, repA, "CONFIRMED", "800.00", "300.00", null);
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", repB, cust);
+        sales(repA, m).andExpect(jsonPath("$.needsAction.unpaidConfirmed.length()").value(0));
+        sales(repB, m).andExpect(jsonPath("$.needsAction.unpaidConfirmed[0].orderId").value(unpaid));
+    }
+
+    @Test
     void noCostFieldsInResponse() throws Exception {
         long o = paidOrder(repA);
         f.line(o, f.product("p", "60.00"), "1", "100.00", "60.00");
