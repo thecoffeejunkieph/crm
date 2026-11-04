@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST),
+    INSIGHTS_BAD_MONTH(HttpStatus.BAD_REQUEST),
+    INSIGHTS_NOT_A_REP(HttpStatus.UNPROCESSABLE_CONTENT),
     NOT_FOUND(HttpStatus.NOT_FOUND),
     STALE_VERSION(HttpStatus.CONFLICT),
     APPROVAL_REQUIRED(HttpStatus.UNPROCESSABLE_CONTENT),
