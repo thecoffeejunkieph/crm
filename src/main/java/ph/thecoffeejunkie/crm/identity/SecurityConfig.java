@@ -74,6 +74,9 @@ class SecurityConfig {
                     a.requestMatchers("/api/admin/**", "/api/approvals/*/decision", "/api/insights/targets",
                                     "/api/insights/targets/**", "/api/insights/admin").hasRole("ADMIN")
                             .requestMatchers("/api/follow-ups", "/api/follow-ups/**").hasAnyRole("ADMIN", "SALES")
+                            .requestMatchers(HttpMethod.POST, "/api/lead-sources", "/api/lead-sources/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/lead-sources/**").hasRole("ADMIN")
+                            .requestMatchers("/api/leads", "/api/leads/**", "/api/lead-sources", "/api/lead-sources/**").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers("/api/attachments", "/api/attachments/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
                             .requestMatchers("/api/insights/sales").hasRole("SALES")
                             .requestMatchers("/api/insights/warehouse").hasAnyRole("ADMIN", "WAREHOUSE")

@@ -35,7 +35,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             "/api/orders/*/invoice/reissue", "/api/orders/*/payments",
             "/api/portal/orders/*/payments", "/api/stock/receipts",
             "/api/stock/adjustments", "/api/transfers", "/api/orders/*/cover-shortage",
-            "/api/pos/sales", "/api/follow-ups", "/api/attachments");
+            "/api/pos/sales", "/api/follow-ups", "/api/attachments", "/api/leads", "/api/leads/*/convert",
+            "/api/lead-sources");
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
     private static final String HEADER = "Idempotency-Key";
     private static final String IN_PROGRESS = "IN_PROGRESS";
