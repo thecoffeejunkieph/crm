@@ -80,4 +80,19 @@ class LogRedactorTest {
         assertThat(LogRedactor.render(42L)).isEqualTo("42");
         assertThat(LogRedactor.renderArgs(new String[]{"id"}, new Object[]{7L})).isEqualTo("id=7");
     }
+
+    @Test
+    void onlyOurOwnTypesAreOpenedUp() {
+        String out = LogRedactor.render(new org.springframework.mock.web.MockHttpServletRequest("GET", "/x"));
+        assertThat(out).isEqualTo("MockHttpServletRequest");
+    }
+
+    @Test
+    void masksSessionsAndKeyMaterial() {
+        String[] names = {"pendingBase32", "plaintext", "currentSessionId", "keepSessionId", "passphrase", "credentials",
+                "passwordHash"};
+        String out = LogRedactor.renderArgs(names, new Object[]{"JBSWY3DPEHPK3PXP", "s", "sid-1", "sid-2", "p", "c", "h"});
+        assertThat(out).isEqualTo("pendingBase32=***, plaintext=***, currentSessionId=***, keepSessionId=***, "
+                + "passphrase=***, credentials=***, passwordHash=***");
+    }
 }

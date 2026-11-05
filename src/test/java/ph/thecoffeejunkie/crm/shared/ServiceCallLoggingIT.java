@@ -122,4 +122,22 @@ class ServiceCallLoggingIT {
         assertThat(LoggingProbeService.seen.get("tickJobId")).startsWith("job-");
         assertThat(MDC.getCopyOfContextMap() == null || MDC.getCopyOfContextMap().isEmpty()).isTrue();
     }
+
+    @Test
+    void adviceAndKeyHandlingStayUnproxied() {
+        assertThat(ServiceCallLogging.candidate(ProblemDetailAdvice.class)).isFalse();
+        assertThat(ServiceCallLogging.candidate(EncryptionService.class)).isFalse();
+    }
+
+    /** A job's error line (logged by the scheduler) must carry the same jobId as the job's own lines. */
+    @Test
+    void scheduledJobKeepsTheSchedulersJobId() {
+        Map<String, String> outer = new HashMap<>();
+        JobMdc.decorate(() -> {
+            outer.put("jobId", MDC.get("jobId"));
+            probe.tick();
+        }).run();
+        assertThat(LoggingProbeService.seen.get("tickJobId")).isEqualTo(outer.get("jobId"));
+        assertThat(LoggingProbeService.seen.get("tickJob")).isEqualTo("LoggingProbeService.tick");
+    }
 }

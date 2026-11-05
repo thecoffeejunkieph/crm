@@ -29,4 +29,18 @@ class AuditLogLoggingIT {
         assertThat(out.getOut()).contains("CREATED CUSTOMER 987654 \"Created Acme\" changed=[displayName]")
                 .doesNotContain("Acme Secret Value");
     }
+
+    @Test
+    void emailsInSummariesAreMaskedAndFailedLoginsNameNobody(CapturedOutput out) {
+        TransactionTemplate tx = new TransactionTemplate(txm);
+        tx.executeWithoutResult(s -> {
+            audit.record(AuditAction.INVITE_SENT, "USER", 987655L, "Invited juan.cruz@acme.com", null);
+            audit.recordFor("SYSTEM", null, null, AuditAction.LOGIN_FAILED, "USER", null,
+                    "Failed login for MyTyped-Passw0rd");
+            s.setRollbackOnly();
+        });
+        assertThat(out.getOut()).contains("INVITE_SENT USER 987655 \"Invited j***@acme.com\"")
+                .doesNotContain("juan.cruz@acme.com").contains("LOGIN_FAILED USER null \"Failed login\"")
+                .doesNotContain("MyTyped-Passw0rd");
+    }
 }

@@ -21,8 +21,8 @@ import java.util.Set;
  */
 public final class LogRedactor {
 
-    private static final List<String> SECRET = List.of("password", "secret", "token", "code", "otp", "cookie",
-            "authorization", "link", "key");
+    private static final List<String> SECRET = List.of("password", "passphrase", "secret", "token", "code", "otp",
+            "cookie", "authorization", "link", "key", "session", "base32", "plaintext", "credential", "hash");
     private static final int MAX_STRING = 200;
     private static final int MAX_ITEMS = 5;
     private static final int MAX_DEPTH = 3;
@@ -140,6 +140,11 @@ public final class LogRedactor {
     private static String fields(Object v, int depth, Map<Object, Boolean> seen) {
         List<String> parts = new ArrayList<>();
         Class<?> type = v.getClass();
+        // Only our own types are opened up: a framework object (request, session, binding result) can hold
+        // session ids and create sessions from its getters.
+        if (!type.getName().startsWith("ph.thecoffeejunkie.crm.")) {
+            return type.getSimpleName();
+        }
         if (type.isRecord()) {
             for (RecordComponent rc : type.getRecordComponents()) {
                 parts.add(rc.getName() + "=" + read(rc.getName(), rc.getAccessor(), v, depth, seen));

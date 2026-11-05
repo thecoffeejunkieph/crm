@@ -51,6 +51,7 @@ class SecretsNotLoggedIT {
     void clean() {
         jdbc.update("delete from one_time_token where subject_type = 'USER' and subject_id in "
                 + "(select id from app_user where email like '%@secrets.it')");
+        jdbc.update("delete from recovery_code where user_id in (select id from app_user where email like '%@secrets.it')");
         jdbc.update("delete from app_user where email like '%@secrets.it'");
         var keys = redis.keys("login:*");
         if (!keys.isEmpty()) {
@@ -81,7 +82,23 @@ class SecretsNotLoggedIT {
         String token = MailSupport.token(mails.get(0));
         json("/api/auth/password/reset", "{\"token\":\"" + token + "\",\"password\":\"" + NEW_PW + "\"}");
 
+        // 2FA setup: the shared secret and the recovery codes.
+        var login = json("/api/auth/login", "{\"email\":\"ana@secrets.it\",\"password\":\"" + NEW_PW + "\"}")
+                .andReturn().getResponse().getCookie("TCJSESSION");
+        String setup = mvc.perform(post("/api/me/totp/setup").with(csrf(mvc)).cookie(login)).andReturn().getResponse()
+                .getContentAsString();
+        String totpSecret = com.jayway.jsonpath.JsonPath.read(setup, "$.secret");
+        String code = String.format("%06d", Totp.codeAt(Base32.decode(totpSecret), Totp.stepAt(java.time.Instant.now())));
+        String enabled = mvc.perform(post("/api/me/totp/enable").with(csrf(mvc)).cookie(login)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"" + code + "\"}")).andReturn()
+                .getResponse().getContentAsString();
+        List<String> recovery = com.jayway.jsonpath.JsonPath.read(enabled, "$.codes");
+        assertThat(recovery).isNotEmpty();
+
         String log = out.getOut();
+        for (String secret : new java.util.ArrayList<>(recovery) {{ add(totpSecret); add(code); add(login.getValue()); }}) {
+            assertThat(log).as("log must not contain a 2FA secret, code or session id").doesNotContain(secret);
+        }
         assertThat(log).as("service calls were logged at DEBUG").contains("→ ").contains("***");
         for (String secret : List.of(PW, WRONG_PW, NEW_PW, TOTP, token, link)) {
             assertThat(log).as("log must not contain " + secret.substring(0, 3) + "…").doesNotContain(secret);

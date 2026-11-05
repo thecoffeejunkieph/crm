@@ -4,6 +4,7 @@ import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.aop.Advisor;
 import org.springframework.aop.ClassFilter;
 import org.springframework.aop.MethodMatcher;
@@ -78,7 +79,9 @@ class ServiceCallLogging {
                 && !"ph.thecoffeejunkie.crm.audit.AuditLog".equals(type.getName())
                 && AnnotatedElementUtils.hasAnnotation(type, Component.class)
                 && !AnnotatedElementUtils.hasAnnotation(type, Configuration.class)
-                && !AnnotatedElementUtils.hasAnnotation(type, Controller.class);
+                && !AnnotatedElementUtils.hasAnnotation(type, Controller.class)
+                && !AnnotatedElementUtils.hasAnnotation(type, org.springframework.web.bind.annotation.ControllerAdvice.class)
+                && !"ph.thecoffeejunkie.crm.shared.EncryptionService".equals(type.getName());
     }
 
     private static Pointcut pointcut() {
@@ -109,8 +112,11 @@ class ServiceCallLogging {
         Method method = AopUtils.getMostSpecificMethod(inv.getMethod(), type);
         if (isJob(method)) {
             String job = type.getSimpleName() + "." + method.getName();
+            // A scheduled run already has its jobId from the scheduler's decorator; keep it so the scheduler's own
+            // error line and the job's lines share one id.
+            boolean keepId = AnnotatedElementUtils.hasAnnotation(method, Scheduled.class) && MDC.get("jobId") != null;
             Throwable[] thrown = new Throwable[1];
-            Object result = JobMdc.call(job, () -> {
+            Object result = JobMdc.call(job, keepId, () -> {
                 try {
                     return logged(inv, type, method);
                 } catch (Throwable t) {

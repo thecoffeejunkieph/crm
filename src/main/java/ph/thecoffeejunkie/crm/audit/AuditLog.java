@@ -22,6 +22,8 @@ public class AuditLog {
     private static final Set<String> SORTABLE = Set.of("at", "id");
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "at");
 
+    private static final java.util.regex.Pattern EMAIL =
+            java.util.regex.Pattern.compile("\\b([A-Za-z0-9])[A-Za-z0-9._%+-]*(@[A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
     private static final org.slf4j.Logger STEPS = org.slf4j.LoggerFactory.getLogger("crm.audit");
 
     private final AuditEventRepository repo;
@@ -108,7 +110,10 @@ public class AuditLog {
                              AuditChanges changes) {
         try {
             String changed = changes == null || changes.isEmpty() ? "" : " changed=" + changes.toMap().keySet();
-            STEPS.info("{} {} {} \"{}\"{}{}", action, entityType, entityId, summary, changed,
+            // A failed login names whatever was typed (possibly a password); emails are masked like in arguments.
+            String text = action == AuditAction.LOGIN_FAILED ? "Failed login"
+                    : EMAIL.matcher(summary == null ? "" : summary).replaceAll(m -> m.group(1) + "***" + m.group(2));
+            STEPS.info("{} {} {} \"{}\"{}{}", action, entityType, entityId, text, changed,
                     "USER".equals(actorType) ? "" : " by=" + actorType);
         } catch (RuntimeException ex) {
             STEPS.warn("log-render-failed {}", ex.toString());

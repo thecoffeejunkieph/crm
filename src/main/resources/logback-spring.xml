@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
-    <!-- Boot's console appender honours logging.structured.format.console (ecs in staging/prod);
-         dev keeps logging.pattern.console, which carries %X{requestId}. -->
-    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
-    <!-- Rolling file next to the console (spec 2026-11-05 logging): logging.file.name and the
-         logging.logback.rollingpolicy.* keys are set per profile; ecs JSON via logging.structured.format.file. -->
-    <include resource="org/springframework/boot/logging/logback/file-appender.xml"/>
+    <!-- Staging/prod: ECS JSON on the console and in the rolling file (logging.structured.format.*), carrying
+         requestId/jobId/userId from MDC. Everything else: readable patterns that print %X{requestId}%X{jobId}
+         (logging.pattern.console / logging.pattern.file). Spec 2026-11-05 logging. -->
+    <springProfile name="staging | prod">
+        <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
+        <include resource="org/springframework/boot/logging/logback/structured-file-appender.xml"/>
+    </springProfile>
+    <springProfile name="!(staging | prod)">
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+        <include resource="org/springframework/boot/logging/logback/file-appender.xml"/>
+    </springProfile>
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>

@@ -6,8 +6,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,18 +39,20 @@ public class AccessLogFilter extends OncePerRequestFilter {
         long start = System.nanoTime();
         try {
             chain.doFilter(req, res);
-        } finally {
-            write(req, res, (System.nanoTime() - start) / 1_000_000);
+            write(req, res.getStatus(), (System.nanoTime() - start) / 1_000_000);
+        } catch (IOException | ServletException | RuntimeException e) {
+            // The container turns an escaped exception into a 500 only after we return.
+            write(req, 500, (System.nanoTime() - start) / 1_000_000);
+            throw e;
         }
     }
 
-    private void write(HttpServletRequest req, HttpServletResponse res, long ms) {
+    private void write(HttpServletRequest req, int status, long ms) {
         try {
-            int status = res.getStatus();
             List<String> params = Collections.list(req.getParameterNames());
             StringBuilder line = new StringBuilder().append(req.getMethod()).append(' ').append(req.getRequestURI())
                     .append(" → ").append(status).append(" in ").append(ms).append("ms user=")
-                    .append(MDC.get("userId") == null ? "-" : MDC.get("userId")).append(' ').append(role());
+                    .append(user()).append(' ').append(role());
             if (!params.isEmpty()) {
                 line.append(" q=").append(params);
             }
@@ -72,9 +72,14 @@ public class AccessLogFilter extends OncePerRequestFilter {
         }
     }
 
+    private static String user() {
+        Authentication a = SecurityContextHolder.getContext().getAuthentication();
+        return a == null || !a.isAuthenticated() || "anonymousUser".equals(a.getName()) ? "-" : a.getName();
+    }
+
     private static String role() {
         Authentication a = SecurityContextHolder.getContext().getAuthentication();
-        if (a == null || !a.isAuthenticated()) {
+        if (a == null || !a.isAuthenticated() || "anonymousUser".equals(a.getName())) {
             return "-";
         }
         return a.getAuthorities().stream().map(GrantedAuthority::getAuthority).filter(r -> r.startsWith("ROLE_"))
@@ -89,11 +94,11 @@ public class AccessLogFilter extends OncePerRequestFilter {
             return new AccessLogFilter();
         }
 
-        /** After {@code UserIdMdcFilter} (security + 1), so the user is in MDC. */
+        /** Runs inside the security chain (see SecurityConfig), not as a separate servlet filter. */
         @Bean
         FilterRegistrationBean<AccessLogFilter> accessLogRegistration(AccessLogFilter filter) {
             var reg = new FilterRegistrationBean<>(filter);
-            reg.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 2);
+            reg.setEnabled(false);
             return reg;
         }
     }

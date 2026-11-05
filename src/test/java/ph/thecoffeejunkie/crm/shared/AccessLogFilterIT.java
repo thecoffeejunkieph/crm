@@ -57,4 +57,14 @@ class AccessLogFilterIT {
         assertThat(filter.shouldNotFilter(new MockHttpServletRequest("GET", "/actuator/health"))).isTrue();
         assertThat(filter.shouldNotFilter(new MockHttpServletRequest("GET", "/api/customers"))).isFalse();
     }
+
+    @Test
+    void securityRejectionsStillGetALine(CapturedOutput out) throws Exception {
+        mvc.perform(get("/api/customers"));
+        mvc.perform(get("/api/admin/users").with(authentication(new UsernamePasswordAuthenticationToken(
+                new StaffPrincipal(2, "s@x.it", "Rep", Role.SALES, Set.of()), null,
+                List.of(new SimpleGrantedAuthority("ROLE_SALES"))))));
+        assertThat(out.getOut()).containsPattern("WARN .*GET /api/customers → 401 in \\d+ms user=- -")
+                .containsPattern("WARN .*GET /api/admin/users → 403 in \\d+ms user=user:2 SALES");
+    }
 }

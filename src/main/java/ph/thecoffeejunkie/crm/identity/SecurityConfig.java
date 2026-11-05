@@ -37,6 +37,7 @@ class SecurityConfig {
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, Environment env, Clock clock,
+                                    ph.thecoffeejunkie.crm.shared.AccessLogFilter accessLog,
                                     @Value("${app.csrf.cookie-domain:}") String csrfCookieDomain) throws Exception {
         var csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfRepository.setCookieCustomizer(c -> {
@@ -96,6 +97,8 @@ class SecurityConfig {
                                 ProblemResponses.write(res, ErrorCode.UNAUTHORIZED, "Login required."))
                         .accessDeniedHandler((req, res, ex) ->
                                 ProblemResponses.write(res, ErrorCode.FORBIDDEN, "You do not have access to this resource.")))
+                // First after the context loads: sees the user and every 401/403 the chain answers itself.
+                .addFilterAfter(accessLog, SecurityContextHolderFilter.class)
                 .addFilterAfter(new AbsoluteSessionTimeoutFilter(clock), SecurityContextHolderFilter.class)
                 // A 401 must not create a session just to remember the request.
                 .requestCache(c -> c.disable())

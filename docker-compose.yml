@@ -21,6 +21,9 @@ services:
   api:
     build: .
     restart: unless-stopped
+    # Rolling ECS JSON log files (14 days, 1 GB cap) that survive redeploys.
+    volumes:
+      - ./logs:/app/logs
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: postgres
@@ -41,6 +44,7 @@ services:
       MINIO_BUCKET: crm
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      LOG_PATH: /app/logs
       APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
       APP_FRONTEND_URL: ${APP_FRONTEND_URL:?APP_FRONTEND_URL is required}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}

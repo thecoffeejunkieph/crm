@@ -76,6 +76,14 @@ class LogLevelIT {
         mvc.perform(get("/api/admin/log-level").with(as(Role.ADMIN)));
         Path file = Path.of("build/test-logs/crm.log");
         assertThat(file).exists();
-        assertThat(Files.readString(file)).contains("crm.access");
+        assertThat(Files.readString(file)).containsPattern("reqId=[0-9a-f-]{36}\\S*\\] crm\\.access");
+    }
+
+    /** Staging/prod files and console are ECS JSON (Boot's structured appenders), not the dev pattern. */
+    @Test
+    void stagingAndProdUseStructuredAppenders() throws Exception {
+        String xml = new String(getClass().getResourceAsStream("/logback-spring.xml").readAllBytes());
+        assertThat(xml).contains("<springProfile name=\"staging | prod\">")
+                .contains("structured-file-appender.xml").contains("structured-console-appender.xml");
     }
 }
