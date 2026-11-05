@@ -99,6 +99,12 @@ class DealService {
             requireOpen(d);
         }
         requireVersion(d, req.version());
+        if (d.stage == DealStage.LOST) {
+            // Reopening hands the deal to the customer's current rep; a rep who lost the customer cannot reopen it.
+            CustomerSalesProfile c = customers.salesProfileVisible(s, d.customerId)
+                    .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Deal not found"));
+            d.repId = c.assignedRepId();
+        }
         if (req.stage() == DealStage.WON) {
             long orderId = confirmedOrder(d).orElseThrow(() -> new DomainException(ErrorCode.DEAL_WON_NEEDS_ORDER,
                     "Link a confirmed order before marking this deal won."));
@@ -174,7 +180,7 @@ class DealService {
     PageResponse<DealResponse> list(Scope s, DealStage stage, String q, Long customerId, Long repId, int page,
                                     int size) {
         Specification<Deal> spec = DealScopes.visibleTo(s)
-                .and(DealScopes.matches(q, customers.idsNamed(q)))
+                .and(DealScopes.matches(q, customers.idsNamed(s, q)))
                 .and(DealScopes.eq("customerId", customerId))
                 .and(DealScopes.eq("repId", s.isAdmin() ? repId : null))
                 .and(stage != null ? DealScopes.eq("stage", stage) : DealScopes.stageIn(DealStage.OPEN));
@@ -247,6 +253,9 @@ class DealService {
     DealResponse link(Scope s, long id, long orderId) {
         Deal d = findVisible(s, id);
         requireOpen(d);
+        if (customers.salesProfileVisible(s, d.customerId).isEmpty()) {
+            throw mismatch(); // the deal outlived the rep's access to its customer
+        }
         java.util.Optional<DealOrder> existing = links.findByOrderId(orderId);
         if (existing.isPresent() && existing.get().dealId.equals(d.id)) {
             return toResponse(d);

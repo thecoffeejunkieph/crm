@@ -116,6 +116,16 @@ class DealsIT {
     }
 
     @Test
+    void customerNameSearchIsNotCutOffByOtherRepsCustomers() throws Exception {
+        jdbc.update("insert into customer (type, display_name, payment_terms, assigned_rep_id) "
+                + "select 'INDIVIDUAL', ?, 'NET_30', ? from generate_series(1, 501)", f.tag + "Cafe other", other);
+        long mine = f.customer("Cafe mine", rep);
+        long deal = f.deal(mine, rep, "Espresso", "DISCOVERY", null, null);
+        mvc.perform(get("/api/deals?q=" + f.tag + "cafe").with(asRep))
+                .andExpect(jsonPath("$.content[*].id", containsInAnyOrder((int) deal)));
+    }
+
+    @Test
     void listSortsByExpectedCloseNullsLast() throws Exception {
         long none = f.deal(acme, rep, "None", "DISCOVERY", null, null);
         long late = f.deal(acme, rep, "Late", "DISCOVERY", null, LocalDate.of(2027, 3, 1));

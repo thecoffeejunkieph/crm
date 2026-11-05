@@ -88,6 +88,17 @@ class DealEditIT {
     }
 
     @Test
+    void reopeningGoesToTheCustomersCurrentRep() throws Exception {
+        long id = f.deal(acme, rep, "Beans", "LOST", null, null);
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", other, acme);
+        stage(asRep, id, "PROPOSAL", null, 0).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("select stage from deal where id = ?", String.class, id)).isEqualTo("LOST");
+        long admin = f.user("adm", Role.ADMIN);
+        stage(as(admin, Role.ADMIN), id, "PROPOSAL", null, 0).andExpect(status().isOk())
+                .andExpect(jsonPath("$.repId").value(other));
+    }
+
+    @Test
     void wonIsFinal() throws Exception {
         long id = f.deal(acme, rep, "Beans", "WON", null, null);
         edit(id, "", 0).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DEAL_CLOSED"));

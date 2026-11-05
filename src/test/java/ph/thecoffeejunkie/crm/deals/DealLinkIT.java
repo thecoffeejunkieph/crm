@@ -107,6 +107,15 @@ class DealLinkIT {
     }
 
     @Test
+    void cannotLinkOnceTheCustomerIsNoLongerVisible() throws Exception {
+        jdbc.update("update customer set assigned_rep_id = null where id = ?", acme); // deal stays with rep
+        long draft = f.order(acme, "DRAFT");
+        link(deal, draft).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("DEAL_ORDER_MISMATCH"));
+        assertThat(links(draft)).isZero();
+    }
+
+    @Test
     void unlinkRules() throws Exception {
         long o = f.order(acme, "QUOTED");
         f.link(deal, o);

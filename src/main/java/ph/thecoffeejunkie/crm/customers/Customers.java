@@ -314,16 +314,18 @@ public class Customers {
         }
     }
 
-    /** Ids of customers whose display or business name contains {@code q} (any case); unscoped, callers scope. */
+    /** Ids of customers the caller can see whose display or business name contains {@code q} (any case). */
     @Transactional(readOnly = true)
-    public List<Long> idsNamed(String q) {
+    public List<Long> idsNamed(Scope s, String q) {
         if (q == null || q.isBlank()) {
             return List.of();
         }
         String like = "%" + q.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%")
                 .replace("_", "\\_") + "%";
-        return jdbc.queryForList("select id from customer where lower(display_name) like ? escape '\\' "
-                + "or lower(coalesce(business_name, '')) like ? escape '\\' limit 500", Long.class, like, like);
+        Specification<Customer> named = (r, cq, cb) -> cb.or(cb.like(cb.lower(r.get("displayName")), like, '\\'),
+                cb.like(cb.lower(cb.coalesce(r.<String>get("businessName"), "")), like, '\\'));
+        // Scoped and uncapped: a rep's matches are their own book, never cut off by other reps' customers.
+        return repo.findAll(CustomerScopes.visibleTo(s, true).and(named)).stream().map(c -> c.id).toList();
     }
 
     /** Active customers with this email (any case) or phone key; either may be null. */
