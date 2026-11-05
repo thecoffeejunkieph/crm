@@ -55,6 +55,9 @@ public class ProblemDetailAdvice extends ResponseEntityExceptionHandler {
                 pd.setProperty("code", ErrorCode.NOT_FOUND.name());
             }
         }
+        if (body instanceof ProblemDetail pd) {
+            markCode(pd);
+        }
         return super.handleExceptionInternal(e, body, headers, status, request);
     }
 
@@ -100,6 +103,17 @@ public class ProblemDetailAdvice extends ResponseEntityExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> respond(ProblemDetail pd) {
+        markCode(pd);
         return ResponseEntity.status(pd.getStatus()).body(pd);
+    }
+
+    /** Lets {@link AccessLogFilter} name the error code on the request line. */
+    private static void markCode(ProblemDetail pd) {
+        if (pd.getProperties() != null && pd.getProperties().get("code") != null
+                && org.springframework.web.context.request.RequestContextHolder.getRequestAttributes() != null) {
+            org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes().setAttribute(
+                    AccessLogFilter.PROBLEM_CODE, pd.getProperties().get("code"),
+                    org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+        }
     }
 }

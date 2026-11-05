@@ -22,6 +22,8 @@ public class AuditLog {
     private static final Set<String> SORTABLE = Set.of("at", "id");
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "at");
 
+    private static final org.slf4j.Logger STEPS = org.slf4j.LoggerFactory.getLogger("crm.audit");
+
     private final AuditEventRepository repo;
     private final CurrentActor actor;
 
@@ -46,6 +48,7 @@ public class AuditLog {
             e.actorName = c.displayName();
         }, () -> e.actorType = "SYSTEM"));
         repo.save(e);
+        step(e.actorType, action, entityType, entityId, summary, changes);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -56,6 +59,7 @@ public class AuditLog {
         e.actorId = actorId;
         e.actorName = actorName;
         repo.save(e);
+        step(actorType, action, entityType, entityId, summary, null);
     }
 
     /** Callers enforce scope on the entity first. */
@@ -97,5 +101,17 @@ public class AuditLog {
             e.ip = a.getRequest().getRemoteAddr();
         }
         return e;
+    }
+
+    /** The business-step log line (spec 2026-11-05 logging): changed field names, never their values. */
+    private static void step(String actorType, AuditAction action, String entityType, Long entityId, String summary,
+                             AuditChanges changes) {
+        try {
+            String changed = changes == null || changes.isEmpty() ? "" : " changed=" + changes.toMap().keySet();
+            STEPS.info("{} {} {} \"{}\"{}{}", action, entityType, entityId, summary, changed,
+                    "USER".equals(actorType) ? "" : " by=" + actorType);
+        } catch (RuntimeException ex) {
+            STEPS.warn("log-render-failed {}", ex.toString());
+        }
     }
 }
