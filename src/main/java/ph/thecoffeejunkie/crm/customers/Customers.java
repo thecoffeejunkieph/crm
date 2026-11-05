@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.customers;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -45,9 +46,11 @@ public class Customers {
     private final AuditLog audit;
     private final Users users;
     private final SessionAdmin sessions;
+    private final ApplicationEventPublisher events;
 
     Customers(CustomerRepository repo, CustomerContactRepository contacts, AuditLog audit, Users users,
-              SessionAdmin sessions) {
+              SessionAdmin sessions, ApplicationEventPublisher events) {
+        this.events = events;
         this.repo = repo;
         this.contacts = contacts;
         this.audit = audit;
@@ -135,10 +138,12 @@ public class Customers {
         if (changes.isEmpty()) {
             return toResponse(c);
         }
+        Long from = c.assignedRepId;
         c.assignedRepId = repId;
         c.updatedAt = Instant.now();
         repo.saveAndFlush(c);
         audit.record(AuditAction.ASSIGNMENT_CHANGED, ENTITY, id, "Changed assignment of " + c.displayName, changes);
+        events.publishEvent(new CustomerReassigned(id, from, repId));
         return toResponse(c);
     }
 

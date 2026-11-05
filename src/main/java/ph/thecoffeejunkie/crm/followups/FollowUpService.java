@@ -129,6 +129,17 @@ class FollowUpService {
         return toResponses(List.of(f)).getFirst();
     }
 
+    /** Runs inside the customer-assignment transaction. */
+    @Transactional
+    void moveOpen(long customerId, long fromRepId, long toRepId) {
+        for (FollowUp f : repo.findByCustomerIdAndAssigneeIdAndDoneAtIsNull(customerId, fromRepId)) {
+            f.assigneeId = toRepId;
+            touch(f);
+            audit.record(AuditAction.FOLLOW_UP_REASSIGNED, ENTITY, f.id, "Moved follow-up \"" + f.title
+                    + "\" with its customer", AuditChanges.diff().field("assigneeId", fromRepId, toRepId));
+        }
+    }
+
     private FollowUp findVisible(Scope s, long id) {
         return repo.findOne(visibleTo(s, null).and(eq("id", id)))
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Follow-up not found"));
