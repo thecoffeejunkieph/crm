@@ -722,6 +722,18 @@
         },
         "type" : "object"
       },
+      "DealRef" : {
+        "properties" : {
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "DealRequest" : {
         "properties" : {
           "customerId" : {
@@ -1695,6 +1707,16 @@
             "type" : "number"
           }
         },
+        "type" : "object"
+      },
+      "LinkRequest" : {
+        "properties" : {
+          "orderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "orderId" ],
         "type" : "object"
       },
       "LogLevelBody" : {
@@ -5605,6 +5627,33 @@
         "tags" : [ "deal-controller" ]
       }
     },
+    "/api/deals/by-order/{orderId}" : {
+      "get" : {
+        "operationId" : "byOrder",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DealRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "deal-controller" ]
+      }
+    },
     "/api/deals/summary" : {
       "get" : {
         "operationId" : "summary",
@@ -5670,6 +5719,78 @@
           },
           "required" : true
         },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DealResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "deal-controller" ]
+      }
+    },
+    "/api/deals/{id}/orders" : {
+      "post" : {
+        "operationId" : "link",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LinkRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DealResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "deal-controller" ]
+      }
+    },
+    "/api/deals/{id}/orders/{orderId}/unlink" : {
+      "post" : {
+        "operationId" : "unlink",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {

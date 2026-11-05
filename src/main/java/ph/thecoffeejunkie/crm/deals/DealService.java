@@ -13,6 +13,8 @@ import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.identity.Users;
 import ph.thecoffeejunkie.crm.sales.OrderBrief;
+import ph.thecoffeejunkie.crm.sales.OrderStatus;
+import ph.thecoffeejunkie.crm.sales.Orders;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
@@ -34,12 +36,17 @@ class DealService {
     private static final Sort SORT = Sort.by(Sort.Order.asc("expectedClose").nullsLast(), Sort.Order.asc("id"));
 
     private final DealRepository repo;
+    private final DealOrderRepository links;
+    private final Orders orders;
     private final Customers customers;
     private final Users users;
     private final AuditLog audit;
 
-    DealService(DealRepository repo, Customers customers, Users users, AuditLog audit) {
+    DealService(DealRepository repo, DealOrderRepository links, Orders orders, Customers customers, Users users,
+                AuditLog audit) {
         this.repo = repo;
+        this.links = links;
+        this.orders = orders;
         this.customers = customers;
         this.users = users;
         this.audit = audit;
@@ -200,9 +207,70 @@ class DealService {
                 Map.of("errors", List.of(Map.of("field", field, "message", message))));
     }
 
-    /** The deal's linked orders; filled from Task 3 on. */
+    /** Linked orders in link order. */
     List<OrderBrief> ordersOf(Deal d) {
-        return List.of();
+        List<Long> ids = links.findByDealIdOrderByLinkedAtAscOrderIdAsc(d.id).stream().map(l -> l.orderId).toList();
+        Map<Long, OrderBrief> by = new java.util.HashMap<>();
+        orders.briefs(ids).forEach(b -> by.put(b.id(), b));
+        return ids.stream().map(by::get).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Links a DRAFT/QUOTED order of the deal's customer that is on no other deal. Anything else, including an
+     * order that does not exist, is the same 422 so order ids and numbers cannot be probed through a deal.
+     */
+    @Transactional
+    DealResponse link(Scope s, long id, long orderId) {
+        Deal d = findVisible(s, id);
+        requireOpen(d);
+        java.util.Optional<DealOrder> existing = links.findByOrderId(orderId);
+        if (existing.isPresent() && existing.get().dealId.equals(d.id)) {
+            return toResponse(d);
+        }
+        OrderBrief o = orders.brief(orderId).orElse(null);
+        if (existing.isPresent() || o == null || o.customerId() != d.customerId
+                || (o.status() != OrderStatus.DRAFT && o.status() != OrderStatus.QUOTED)) {
+            throw mismatch();
+        }
+        DealOrder l = new DealOrder();
+        l.dealId = d.id;
+        l.orderId = orderId;
+        l.linkedBy = s.userId();
+        try {
+            links.saveAndFlush(l);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw mismatch(); // linked to another deal at the same moment
+        }
+        audit.record(AuditAction.DEAL_ORDER_LINKED, ENTITY, d.id, "Linked order " + o.number() + " to deal \""
+                + d.title + "\"", null);
+        return toResponse(d);
+    }
+
+    @Transactional
+    DealResponse unlink(Scope s, long id, long orderId) {
+        Deal d = findVisible(s, id);
+        requireOpen(d);
+        links.findById(new DealOrder.Key(d.id, orderId)).ifPresent(l -> {
+            links.delete(l);
+            links.flush();
+            String number = orders.brief(orderId).map(OrderBrief::number).orElse("#" + orderId);
+            audit.record(AuditAction.DEAL_ORDER_UNLINKED, ENTITY, d.id, "Unlinked order " + number + " from deal \""
+                    + d.title + "\"", null);
+        });
+        return toResponse(d);
+    }
+
+    /** The deal an order is on, if the caller can see that deal. */
+    @Transactional(readOnly = true)
+    java.util.Optional<DealRef> byOrder(Scope s, long orderId) {
+        return links.findByOrderId(orderId)
+                .flatMap(l -> repo.findOne(DealScopes.visibleTo(s).and(DealScopes.eq("id", l.dealId))))
+                .map(d -> new DealRef(d.id, d.title));
+    }
+
+    private static DomainException mismatch() {
+        return new DomainException(ErrorCode.DEAL_ORDER_MISMATCH,
+                "Only a draft or quoted order of this customer that is on no other deal can be linked.");
     }
 
     DealResponse toResponse(Deal d) {

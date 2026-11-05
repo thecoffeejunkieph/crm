@@ -63,6 +63,22 @@ class DealController {
         return deals.update(actor.scope(), id, req);
     }
 
+    @PostMapping("/{id}/orders")
+    DealResponse link(@PathVariable long id, @Valid @RequestBody LinkRequest req) {
+        return deals.link(actor.scope(), id, req.orderId());
+    }
+
+    @PostMapping("/{id}/orders/{orderId}/unlink")
+    DealResponse unlink(@PathVariable long id, @PathVariable long orderId) {
+        return deals.unlink(actor.scope(), id, orderId);
+    }
+
+    @GetMapping("/by-order/{orderId}")
+    org.springframework.http.ResponseEntity<DealRef> byOrder(@PathVariable long orderId) {
+        return deals.byOrder(actor.scope(), orderId).map(org.springframework.http.ResponseEntity::ok)
+                .orElseGet(() -> org.springframework.http.ResponseEntity.noContent().build());
+    }
+
     @PostMapping("/{id}/stage")
     DealResponse stage(@PathVariable long id, @Valid @RequestBody DealStageRequest req) {
         return deals.setStage(actor.scope(), id, req);
