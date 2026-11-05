@@ -9,6 +9,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -55,5 +56,21 @@ class LeadController {
     @ResponseStatus(HttpStatus.CREATED)
     LeadResponse create(@Valid @RequestBody LeadRequest req) {
         return leads.create(actor.scope(), req);
+    }
+
+    @PutMapping("/{id}")
+    LeadResponse update(@PathVariable long id, @Valid @RequestBody LeadRequest req) {
+        return leads.update(actor.scope(), id, req);
+    }
+
+    @PostMapping("/{id}/status")
+    LeadResponse status(@PathVariable long id, @Valid @RequestBody LeadStatusRequest req) {
+        return leads.setStatus(actor.scope(), id, req);
+    }
+
+    @PostMapping("/{id}/assign")
+    @PreAuthorize("hasRole('ADMIN')")
+    LeadResponse assign(@PathVariable long id, @Valid @RequestBody LeadAssignRequest req) {
+        return leads.assign(actor.scope(), id, req);
     }
 }

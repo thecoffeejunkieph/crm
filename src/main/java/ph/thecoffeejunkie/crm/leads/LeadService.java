@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
+import ph.thecoffeejunkie.crm.audit.AuditChanges;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.customers.LeadSources;
@@ -17,6 +18,7 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,89 @@ class LeadService {
         repo.saveAndFlush(l);
         audit.record(AuditAction.LEAD_CREATED, ENTITY, l.id, "Created lead " + l.contactName, null);
         return toResponse(l);
+    }
+
+    @Transactional
+    LeadResponse update(Scope s, long id, LeadRequest req) {
+        Lead l = findVisible(s, id);
+        requireNotConverted(l);
+        requireVersion(l, req.version());
+        requireContact(req);
+        if (!Objects.equals(l.sourceId, req.sourceId())) {
+            sources.requireActive(req.sourceId()); // an archived source may stay, but not be newly chosen
+        }
+        AuditChanges changes = AuditChanges.diff().field("contactName", l.contactName, req.contactName())
+                .field("company", l.company, req.company()).field("phone", l.phone, req.phone())
+                .field("email", l.email, req.email()).field("socialMedia", l.socialMedia, req.socialMedia())
+                .field("address", l.address, req.address()).field("interest", l.interest, req.interest())
+                .field("notes", l.notes, req.notes()).field("sourceId", l.sourceId, req.sourceId());
+        apply(l, req);
+        if (!changes.isEmpty()) {
+            touch(l);
+            audit.record(AuditAction.LEAD_UPDATED, ENTITY, id, "Updated lead " + l.contactName, changes);
+        }
+        return toResponse(l);
+    }
+
+    @Transactional
+    LeadResponse setStatus(Scope s, long id, LeadStatusRequest req) {
+        Lead l = findVisible(s, id);
+        requireNotConverted(l);
+        requireVersion(l, req.version());
+        if (req.status() == LeadStatus.CONVERTED) {
+            throw invalid("status", "Convert the lead to set it to Converted.");
+        }
+        if (req.status() == LeadStatus.LOST && req.lostReason() == null) {
+            throw new DomainException(ErrorCode.LEAD_LOST_REASON, "Say why the lead was lost.");
+        }
+        String reason = req.status() == LeadStatus.LOST ? req.lostReason() : null;
+        if (l.status != req.status() || !Objects.equals(l.lostReason, reason)) {
+            AuditChanges changes = AuditChanges.diff().field("status", l.status, req.status())
+                    .field("lostReason", l.lostReason, reason);
+            l.status = req.status();
+            l.lostReason = reason;
+            touch(l);
+            audit.record(AuditAction.LEAD_STATUS_CHANGED, ENTITY, id, "Lead " + l.contactName + " is now "
+                    + l.status, changes);
+        }
+        return toResponse(l);
+    }
+
+    @Transactional
+    LeadResponse assign(Scope s, long id, LeadAssignRequest req) {
+        Lead l = findVisible(s, id);
+        requireNotConverted(l);
+        requireVersion(l, req.version());
+        if (req.repId() != null) {
+            requireRep(req.repId());
+        }
+        if (!Objects.equals(l.assignedRepId, req.repId())) {
+            AuditChanges changes = AuditChanges.diff().field("assignedRepId", l.assignedRepId, req.repId());
+            l.assignedRepId = req.repId();
+            touch(l);
+            audit.record(AuditAction.LEAD_ASSIGNED, ENTITY, id, "Reassigned lead " + l.contactName, changes);
+        }
+        return toResponse(l);
+    }
+
+    static void requireNotConverted(Lead l) {
+        if (l.status == LeadStatus.CONVERTED) {
+            throw new DomainException(ErrorCode.LEAD_CONVERTED, "This lead is already a customer.");
+        }
+    }
+
+    static void requireVersion(Lead l, Long sent) {
+        if (sent == null) {
+            throw invalid("version", "must not be null");
+        }
+        if (sent != l.version) {
+            throw new DomainException(ErrorCode.STALE_VERSION, "Someone else changed this lead. Reload and retry.");
+        }
+    }
+
+    private void touch(Lead l) {
+        l.updatedAt = Instant.now();
+        repo.saveAndFlush(l);
     }
 
     @Transactional(readOnly = true)
