@@ -1189,6 +1189,169 @@
         },
         "type" : "object"
       },
+      "LeadCounts" : {
+        "properties" : {
+          "contacted" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "converted" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lost" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "newLeads" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "open" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qualified" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "LeadRequest" : {
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "assignedRepId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "company" : {
+            "maxLength" : 160,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "contactName" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "email" : {
+            "format" : "email",
+            "maxLength" : 254,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "interest" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "notes" : {
+            "maxLength" : 4000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 40,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "socialMedia" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "sourceId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "contactName" ],
+        "type" : "object"
+      },
+      "LeadResponse" : {
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "assignedRepId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "assignedRepName" : {
+            "type" : "string"
+          },
+          "company" : {
+            "type" : "string"
+          },
+          "contactName" : {
+            "type" : "string"
+          },
+          "convertedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "customerName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "interest" : {
+            "type" : "string"
+          },
+          "lostReason" : {
+            "type" : "string"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          },
+          "socialMedia" : {
+            "type" : "string"
+          },
+          "sourceId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sourceName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "NEW", "CONTACTED", "QUALIFIED", "LOST", "CONVERTED" ],
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "LeadSourceRequest" : {
         "properties" : {
           "name" : {
@@ -2015,6 +2178,33 @@
           "content" : {
             "items" : {
               "$ref" : "#/components/schemas/FollowUpResponse"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "PageResponseLeadResponse" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeadResponse"
             },
             "type" : "array"
           },
@@ -3887,7 +4077,7 @@
     },
     "/api/admin/users" : {
       "get" : {
-        "operationId" : "list_10",
+        "operationId" : "list_11",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -4134,7 +4324,7 @@
     },
     "/api/approvals" : {
       "get" : {
-        "operationId" : "list_9",
+        "operationId" : "list_10",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -4259,7 +4449,7 @@
     },
     "/api/attachments" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "query",
           "name" : "subjectType",
@@ -4576,7 +4766,7 @@
     },
     "/api/customers" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -4615,7 +4805,7 @@
         "tags" : [ "customer-controller" ]
       },
       "post" : {
-        "operationId" : "create_5",
+        "operationId" : "create_6",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -5030,7 +5220,7 @@
     },
     "/api/delivery-orders" : {
       "get" : {
-        "operationId" : "list_15",
+        "operationId" : "list_16",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -5079,7 +5269,7 @@
     },
     "/api/delivery-orders/{id}" : {
       "get" : {
-        "operationId" : "get_8",
+        "operationId" : "get_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5219,7 +5409,7 @@
     },
     "/api/follow-ups" : {
       "get" : {
-        "operationId" : "list_6",
+        "operationId" : "list_7",
         "parameters" : [ {
           "in" : "query",
           "name" : "bucket",
@@ -5288,7 +5478,7 @@
         "tags" : [ "follow-up-controller" ]
       },
       "post" : {
-        "operationId" : "create_4",
+        "operationId" : "create_5",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -5316,7 +5506,7 @@
     },
     "/api/follow-ups/counts" : {
       "get" : {
-        "operationId" : "counts",
+        "operationId" : "counts_1",
         "parameters" : [ {
           "in" : "query",
           "name" : "customerId",
@@ -5494,7 +5684,7 @@
     },
     "/api/insights/targets" : {
       "get" : {
-        "operationId" : "list_14",
+        "operationId" : "list_15",
         "parameters" : [ {
           "in" : "query",
           "name" : "month",
@@ -5689,7 +5879,7 @@
     },
     "/api/lead-sources" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "query",
           "name" : "includeArchived",
@@ -5832,6 +6022,148 @@
           }
         },
         "tags" : [ "lead-source-controller" ]
+      }
+    },
+    "/api/leads" : {
+      "get" : {
+        "operationId" : "list_5",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "NEW", "CONTACTED", "QUALIFIED", "LOST", "CONVERTED" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "sourceId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "repId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 1,
+            "format" : "int32",
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 20,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseLeadResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "lead-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_4",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LeadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeadResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "lead-controller" ]
+      }
+    },
+    "/api/leads/counts" : {
+      "get" : {
+        "operationId" : "counts",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeadCounts"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "lead-controller" ]
+      }
+    },
+    "/api/leads/{id}" : {
+      "get" : {
+        "operationId" : "get_8",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeadResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "lead-controller" ]
       }
     },
     "/api/me" : {
@@ -6017,7 +6349,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_13",
+        "operationId" : "list_14",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -6512,7 +6844,7 @@
     },
     "/api/orders/{id}/invoices" : {
       "get" : {
-        "operationId" : "list_12",
+        "operationId" : "list_13",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7021,7 +7353,7 @@
     },
     "/api/portal/orders" : {
       "get" : {
-        "operationId" : "list_11",
+        "operationId" : "list_12",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
