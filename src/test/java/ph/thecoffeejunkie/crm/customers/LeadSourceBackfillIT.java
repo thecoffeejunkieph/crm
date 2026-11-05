@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.customers;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,27 +13,38 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** V14 turns free-text customer sources into lead_source rows. Runs the migrations into a scratch schema. */
+/**
+ * V14 turns free-text customer sources into lead_source rows. Runs the migrations into a scratch database: V1
+ * grants on schema public, so a scratch schema in the shared database would re-grant the app role there.
+ */
 @IntegrationTest
 class LeadSourceBackfillIT {
 
-    private static final String SCHEMA = "backfill_t";
+    private static final String DB = "backfill_t";
 
     @Value("${spring.datasource.url}") String url;
 
     private DriverManagerDataSource owner() {
-        return new DriverManagerDataSource(url + "?currentSchema=" + SCHEMA, "crm_owner", "crm_owner");
+        return new DriverManagerDataSource(url.replaceFirst("/crm$", "/" + DB), "crm_owner", "crm_owner");
+    }
+
+    private JdbcTemplate main() {
+        return new JdbcTemplate(new DriverManagerDataSource(url, "crm_owner", "crm_owner"));
+    }
+
+    @BeforeEach
+    void create() {
+        drop();
+        main().execute("create database " + DB);
     }
 
     @AfterEach
     void drop() {
-        new JdbcTemplate(new DriverManagerDataSource(url, "crm_owner", "crm_owner"))
-                .execute("drop schema if exists " + SCHEMA + " cascade");
+        main().execute("drop database if exists " + DB + " with (force)");
     }
 
     private Flyway flyway(String target) {
-        var c = Flyway.configure().dataSource(owner()).schemas(SCHEMA).defaultSchema(SCHEMA)
-                .locations("classpath:db/migration");
+        var c = Flyway.configure().dataSource(owner()).locations("classpath:db/migration");
         return (target == null ? c : c.target(target)).load();
     }
 
@@ -60,8 +72,8 @@ class LeadSourceBackfillIT {
         assertThat(sourceOf(jdbc, "C3")).isEqualTo(ids.get("FB"));
         assertThat(sourceOf(jdbc, "C4")).isNull();
         assertThat(sourceOf(jdbc, "C5")).isNull();
-        assertThat(jdbc.queryForObject("select count(*) from information_schema.columns where table_schema = ? "
-                + "and table_name = 'customer' and column_name = 'source'", Integer.class, SCHEMA)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from information_schema.columns where table_schema = 'public' "
+                + "and table_name = 'customer' and column_name = 'source'", Integer.class)).isZero();
     }
 
     private static Long sourceOf(JdbcTemplate jdbc, String name) {
