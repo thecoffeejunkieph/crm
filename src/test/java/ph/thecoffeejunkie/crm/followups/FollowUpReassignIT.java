@@ -88,6 +88,14 @@ class FollowUpReassignIT {
     }
 
     @Test
+    void rowsMoveToTheRepAssignedAfterAnUnassignedSpell() throws Exception {
+        long a = f.followUp(acme, null, oldRep, "a", f.today, null);
+        assign(null);
+        assign(newRep);
+        assertThat(assignee(a)).isEqualTo(newRep);
+    }
+
+    @Test
     void oldRepLosesAccess() throws Exception {
         long a = f.followUp(acme, null, oldRep, "a", f.today, null);
         assign(newRep);

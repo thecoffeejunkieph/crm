@@ -24,6 +24,7 @@ class FollowUpEditIT {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired org.springframework.transaction.PlatformTransactionManager txManager;
 
     FollowUpsFixture f;
     long admin;
@@ -113,6 +114,37 @@ class FollowUpEditIT {
         action(asRep, "done").andExpect(status().isOk()).andExpect(jsonPath("$.doneAt").value(doneAt));
         assertThat(audits("FOLLOW_UP_DONE")).isEqualTo(1);
         assertThat(jdbc.queryForObject("select done_by from follow_up where id = ?", Long.class, fu)).isEqualTo(rep);
+    }
+
+    /** Tab B's tick lands while tab A's is still committing: B must get 200, not 409. */
+    @Test
+    void concurrentDoneIsNoop() throws Exception {
+        java.util.concurrent.CountDownLatch locked = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        org.springframework.transaction.support.TransactionTemplate tx = new org.springframework.transaction.support
+                .TransactionTemplate(txManager);
+        Thread tabA = new Thread(() -> tx.executeWithoutResult(s -> {
+            jdbc.update("update follow_up set done_at = now(), done_by = ?, version = version + 1 where id = ?", rep, fu);
+            locked.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }));
+        tabA.start();
+        locked.await();
+        var tabB = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            try {
+                return action(asRep, "done").andReturn().getResponse().getStatus();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        Thread.sleep(1000); // let tab B read the old row and block on A's row lock
+        release.countDown();
+        tabA.join();
+        assertThat(tabB.get()).isEqualTo(200);
     }
 
     @Test

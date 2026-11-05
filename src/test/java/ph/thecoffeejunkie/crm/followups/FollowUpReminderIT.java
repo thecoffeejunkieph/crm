@@ -32,11 +32,13 @@ class FollowUpReminderIT {
     void seed() {
         f = new FollowUpsFixture(jdbc, mvc);
         redis.delete("lock:follow-ups-due:" + day);
+        jdbc.update("delete from follow_up_reminder_run where day = ?", day);
     }
 
     @AfterEach
     void cleanUp() {
         redis.delete("lock:follow-ups-due:" + day);
+        jdbc.update("delete from follow_up_reminder_run where day = ?", day);
         f.cleanUp();
     }
 
@@ -65,6 +67,16 @@ class FollowUpReminderIT {
         long a = f.user("a", Role.SALES);
         f.followUp(f.customer("acme", a), null, a, "t1", day, null);
         assertThat(reminder.sendFor(day)).isPositive();
+        assertThat(reminder.sendFor(day)).isZero();
+        assertThat(bodies(a)).hasSize(1);
+    }
+
+    @Test
+    void sentOnceEvenWhenRedisLosesTheMarker() {
+        long a = f.user("a", Role.SALES);
+        f.followUp(f.customer("acme", a), null, a, "t1", day, null);
+        assertThat(reminder.sendFor(day)).isPositive();
+        redis.delete("lock:follow-ups-due:" + day); // Redis down/flushed, or a second instance whose lock failed open
         assertThat(reminder.sendFor(day)).isZero();
         assertThat(bodies(a)).hasSize(1);
     }

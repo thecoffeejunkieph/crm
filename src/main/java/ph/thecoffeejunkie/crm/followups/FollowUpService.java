@@ -104,39 +104,47 @@ class FollowUpService {
         return toResponses(List.of(f)).getFirst();
     }
 
-    /** Idempotent: ticking done twice (two tabs) answers with the current state. */
+    /** Idempotent, also when two tabs tick at the same moment: the second answers with the current state. */
     @Transactional
     FollowUpResponse complete(Scope s, long id) {
         FollowUp f = findVisible(s, id);
-        if (f.doneAt == null) {
-            f.doneAt = clock.instant().truncatedTo(ChronoUnit.MICROS); // what Postgres keeps, so a replay matches
-            f.doneBy = s.userId();
-            touch(f);
-            audit.record(AuditAction.FOLLOW_UP_DONE, ENTITY, f.id, "Completed follow-up \"" + f.title + "\"", null);
+        Instant at = clock.instant().truncatedTo(ChronoUnit.MICROS); // what Postgres keeps, so a replay matches
+        if (repo.markDone(id, at, s.userId()) == 1) {
+            audit.record(AuditAction.FOLLOW_UP_DONE, ENTITY, id, "Completed follow-up \"" + f.title + "\"", null);
         }
-        return toResponses(List.of(f)).getFirst();
+        return reload(id);
     }
 
     @Transactional
     FollowUpResponse reopen(Scope s, long id) {
         FollowUp f = findVisible(s, id);
-        if (f.doneAt != null) {
-            f.doneAt = null;
-            f.doneBy = null;
-            touch(f);
-            audit.record(AuditAction.FOLLOW_UP_REOPENED, ENTITY, f.id, "Reopened follow-up \"" + f.title + "\"", null);
+        if (repo.markOpen(id, clock.instant()) == 1) {
+            audit.record(AuditAction.FOLLOW_UP_REOPENED, ENTITY, id, "Reopened follow-up \"" + f.title + "\"", null);
         }
-        return toResponses(List.of(f)).getFirst();
+        return reload(id);
     }
 
-    /** Runs inside the customer-assignment transaction. */
+    private FollowUpResponse reload(long id) {
+        return toResponses(List.of(repo.findById(id).orElseThrow())).getFirst();
+    }
+
+    /**
+     * Runs inside the customer-assignment transaction. From a rep: that rep's open rows move. From no rep (after an
+     * unassigned spell): every open row moves, so nothing stays with someone who can no longer open the customer.
+     */
     @Transactional
-    void moveOpen(long customerId, long fromRepId, long toRepId) {
-        for (FollowUp f : repo.findByCustomerIdAndAssigneeIdAndDoneAtIsNull(customerId, fromRepId)) {
+    void moveOpen(long customerId, Long fromRepId, long toRepId) {
+        List<FollowUp> rows = fromRepId == null ? repo.findByCustomerIdAndDoneAtIsNull(customerId)
+                : repo.findByCustomerIdAndAssigneeIdAndDoneAtIsNull(customerId, fromRepId);
+        for (FollowUp f : rows) {
+            if (f.assigneeId == toRepId) {
+                continue;
+            }
+            long from = f.assigneeId;
             f.assigneeId = toRepId;
             touch(f);
             audit.record(AuditAction.FOLLOW_UP_REASSIGNED, ENTITY, f.id, "Moved follow-up \"" + f.title
-                    + "\" with its customer", AuditChanges.diff().field("assigneeId", fromRepId, toRepId));
+                    + "\" with its customer", AuditChanges.diff().field("assigneeId", from, toRepId));
         }
     }
 

@@ -16,8 +16,8 @@ class ReassignmentListener {
 
     @EventListener
     void on(CustomerReassigned e) {
-        // Unassigned: nobody to hand them to, so the old rep keeps them.
-        if (e.fromRepId() != null && e.toRepId() != null) {
+        // Unassigned: nobody to hand them to, so the old rep keeps them until the next assignment.
+        if (e.toRepId() != null) {
             followUps.moveOpen(e.customerId(), e.fromRepId(), e.toRepId());
         }
     }
