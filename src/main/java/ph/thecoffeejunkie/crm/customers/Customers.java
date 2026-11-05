@@ -314,6 +314,18 @@ public class Customers {
         }
     }
 
+    /** Ids of customers whose display or business name contains {@code q} (any case); unscoped, callers scope. */
+    @Transactional(readOnly = true)
+    public List<Long> idsNamed(String q) {
+        if (q == null || q.isBlank()) {
+            return List.of();
+        }
+        String like = "%" + q.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%")
+                .replace("_", "\\_") + "%";
+        return jdbc.queryForList("select id from customer where lower(display_name) like ? escape '\\' "
+                + "or lower(coalesce(business_name, '')) like ? escape '\\' limit 500", Long.class, like, like);
+    }
+
     /** Active customers with this email (any case) or phone key; either may be null. */
     @Transactional(readOnly = true)
     public ContactMatches matchContact(Scope s, String email, String phoneKey) {

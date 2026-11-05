@@ -77,6 +77,7 @@ class SecurityConfig {
                             .requestMatchers(HttpMethod.POST, "/api/lead-sources", "/api/lead-sources/**").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/lead-sources/**").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.POST, "/api/leads/*/assign").hasRole("ADMIN")
+                            .requestMatchers("/api/deals", "/api/deals/**").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers("/api/leads", "/api/leads/**", "/api/lead-sources", "/api/lead-sources/**").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers("/api/attachments", "/api/attachments/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
                             .requestMatchers("/api/insights/sales").hasRole("SALES")
