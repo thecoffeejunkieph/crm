@@ -285,15 +285,18 @@ public class Customers {
 
     /**
      * A customer made from a lead, in the caller's transaction: it goes to the lead's rep (null = unassigned) and
-     * remembers the lead. Credit-limit rules are those of a plain create.
+     * remembers the lead. Credit-limit rules are those of a plain create. The lead's own source carries over even
+     * if it was archived since: it is kept, not newly chosen.
      */
     @Transactional
-    public long createForLead(Scope s, CustomerRequest req, Long repId, long leadId) {
+    public long createForLead(Scope s, CustomerRequest req, Long repId, long leadId, Long leadSourceId) {
         Customer c = new Customer();
         c.assignedRepId = repId;
         c.creditLimit = s.role() == Role.SALES ? null : req.creditLimit();
         c.convertedFromLeadId = leadId;
-        leadSources.requireActive(req.sourceId());
+        if (!java.util.Objects.equals(req.sourceId(), leadSourceId)) {
+            leadSources.requireActive(req.sourceId());
+        }
         apply(c, req);
         repo.saveAndFlush(c);
         audit.record(AuditAction.CREATED, ENTITY, c.id, "Created customer " + c.displayName + " from a lead", null);

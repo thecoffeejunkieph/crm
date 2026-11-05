@@ -44,13 +44,14 @@ CREATE INDEX lead_customer_idx ON lead (customer_id);
 ALTER TABLE customer ADD COLUMN source_id bigint REFERENCES lead_source(id);
 ALTER TABLE customer ADD COLUMN converted_from_lead_id bigint REFERENCES lead(id);
 
--- One source per distinct spelling (ignoring case and padding), named as the oldest customer wrote it.
+-- One source per distinct spelling (ignoring case and padding, cut to the 60-character name limit), named as the
+-- oldest customer wrote it. The key is the cut name, so two long sources that differ only after character 60 share it.
 INSERT INTO lead_source (name)
-SELECT DISTINCT ON (lower(trim(source))) left(trim(source), 60)
+SELECT DISTINCT ON (lower(left(trim(source), 60))) left(trim(source), 60)
 FROM customer
 WHERE trim(coalesce(source, '')) <> ''
-  AND NOT EXISTS (SELECT 1 FROM lead_source s WHERE lower(s.name) = lower(trim(customer.source)))
-ORDER BY lower(trim(source)), id;
+  AND NOT EXISTS (SELECT 1 FROM lead_source s WHERE lower(s.name) = lower(left(trim(customer.source), 60)))
+ORDER BY lower(left(trim(source), 60)), id;
 
 UPDATE customer SET source_id = (SELECT s.id FROM lead_source s WHERE lower(s.name) = lower(left(trim(customer.source), 60)))
 WHERE trim(coalesce(source, '')) <> '';

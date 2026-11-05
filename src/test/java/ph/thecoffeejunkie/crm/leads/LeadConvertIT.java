@@ -101,6 +101,20 @@ class LeadConvertIT {
     }
 
     @Test
+    void leadsArchivedSourceCarriesOverToTheCustomer() throws Exception {
+        long lead = f.lead("Bea", rep, "QUALIFIED", "0917", null);
+        long old = f.archivedSource();
+        jdbc.update("update lead set source_id = ? where id = ?", old, lead);
+        String body = convert(asRep, lead, newCustomer("Kape", "")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long customer = ((Number) JsonPath.read(body, "$.customerId")).longValue();
+        assertThat(jdbc.queryForObject("select source_id from customer where id = ?", Long.class, customer)).isEqualTo(old);
+        long second = f.lead("Cy", rep, "QUALIFIED", "0918", null);
+        jdbc.update("update lead set source_id = ? where id = ?", old, second);
+        convert(asRep, second, newCustomer("Kape2", ",\"sourceId\":" + old)).andExpect(status().isOk());
+    }
+
+    @Test
     void adminConvertsUnassignedLead() throws Exception {
         long lead = f.lead("Bea", null, "NEW", "0917", null);
         convert(asAdmin, lead, newCustomer("Kape", "")).andExpect(status().isOk());

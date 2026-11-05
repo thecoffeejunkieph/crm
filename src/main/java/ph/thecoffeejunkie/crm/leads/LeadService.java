@@ -141,7 +141,7 @@ class LeadService {
             CustomerRequest withSource = r.sourceId() != null ? r : new CustomerRequest(r.type(), r.displayName(),
                     r.businessName(), r.tin(), r.address(), r.phone(), r.email(), r.creditLimit(), r.paymentTerms(),
                     l.sourceId, r.notes(), r.version(), r.taxTreatment(), r.socialMedia());
-            l.customerId = customers.createForLead(s, withSource, l.assignedRepId, l.id);
+            l.customerId = customers.createForLead(s, withSource, l.assignedRepId, l.id, l.sourceId);
             mode = "NEW";
         } else {
             customers.linkLead(s, req.customerId(), l.id);

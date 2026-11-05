@@ -52,7 +52,8 @@ class LeadSourceBackfillIT {
     void freeTextSourcesBecomeRows() {
         flyway("13").migrate();
         JdbcTemplate jdbc = new JdbcTemplate(owner());
-        String[] sources = {"facebook", " Facebook ", "FB", "fb", "", null};
+        String longer = "Referred by Juan dela Cruz from the Makati coffee expo booth, ";
+        String[] sources = {"facebook", " Facebook ", "FB", "fb", "", null, longer + "March", longer + "April"};
         for (int i = 0; i < sources.length; i++) {
             jdbc.update("insert into customer (type, display_name, payment_terms, source) values ('INDIVIDUAL', ?, "
                     + "'DUE_ON_RECEIPT', ?)", "C" + i, sources[i]);
@@ -64,8 +65,11 @@ class LeadSourceBackfillIT {
         jdbc.query("select id, name from lead_source", rs -> {
             ids.put(rs.getString("name"), rs.getLong("id"));
         });
-        assertThat(ids).hasSize(7).containsKeys("Walk-in", "Referral", "Facebook", "Website", "Phone call",
-                "Trade show", "FB");
+        String cut = (longer + "March").substring(0, 60);
+        assertThat(ids).hasSize(8).containsKeys("Walk-in", "Referral", "Facebook", "Website", "Phone call",
+                "Trade show", "FB", cut);
+        assertThat(sourceOf(jdbc, "C6")).isEqualTo(ids.get(cut));
+        assertThat(sourceOf(jdbc, "C7")).isEqualTo(ids.get(cut));
         assertThat(sourceOf(jdbc, "C0")).isEqualTo(ids.get("Facebook"));
         assertThat(sourceOf(jdbc, "C1")).isEqualTo(ids.get("Facebook"));
         assertThat(sourceOf(jdbc, "C2")).isEqualTo(ids.get("FB"));
