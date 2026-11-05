@@ -102,6 +102,19 @@ class DealEditIT {
     }
 
     @Test
+    void manualWonWithConfirmedOrder() throws Exception {
+        long id = f.deal(acme, rep, "Beans", "NEGOTIATION", null, null);
+        f.link(id, f.order(acme, "QUOTED"));
+        long confirmed = f.order(acme, "CONFIRMED");
+        f.link(id, confirmed);
+        stage(asRep, id, "WON", null, 0).andExpect(status().isOk())
+                .andExpect(jsonPath("$.stage").value("WON"))
+                .andExpect(jsonPath("$.wonOrderId").value(confirmed))
+                .andExpect(jsonPath("$.wonAt").isNotEmpty());
+        assertThat(f.audits("DEAL_WON", id)).isEqualTo(1);
+    }
+
+    @Test
     void otherRepGets404() throws Exception {
         long id = f.deal(acme, rep, "Beans", "DISCOVERY", null, null);
         stage(as(other, Role.SALES), id, "PROPOSAL", null, 0).andExpect(status().isNotFound());

@@ -121,9 +121,19 @@ class DealService {
         return toResponse(d);
     }
 
-    /** The earliest confirmed linked order, if any; filled from Task 4 on. */
+    /** The earliest confirmed linked order, if any (confirmed, released or fulfilled). */
     java.util.Optional<Long> confirmedOrder(Deal d) {
-        return java.util.Optional.empty();
+        return ordersOf(d).stream().filter(o -> o.confirmedAt() != null && (o.status() == OrderStatus.CONFIRMED
+                        || o.status() == OrderStatus.RELEASED || o.status() == OrderStatus.FULFILLED))
+                .min(java.util.Comparator.comparing(OrderBrief::confirmedAt)).map(OrderBrief::id);
+    }
+
+    /** A linked order was confirmed: an open deal is won by it; a Won or Lost deal is left alone. */
+    @Transactional
+    void orderConfirmed(long orderId) {
+        links.findByOrderId(orderId).flatMap(l -> repo.findById(l.dealId))
+                .filter(d -> DealStage.OPEN.contains(d.stage))
+                .ifPresent(d -> markWon(d, orderId));
     }
 
     void markWon(Deal d, long orderId) {

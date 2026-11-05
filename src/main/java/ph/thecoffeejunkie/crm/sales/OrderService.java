@@ -4,6 +4,7 @@ import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.approvals.ApprovalType;
@@ -85,12 +86,14 @@ class OrderService {
     private final Inventory inventory;
     private final Fulfilment fulfilment;
     private final Warehouses warehouses;
+    private final ApplicationEventPublisher events;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
                  Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
                  PaymentService payments, OrderRevisionRepository revisions, Inventory inventory,
-                 Fulfilment fulfilment, Warehouses warehouses) {
+                 Fulfilment fulfilment, Warehouses warehouses, ApplicationEventPublisher events) {
+        this.events = events;
         this.inventory = inventory;
         this.fulfilment = fulfilment;
         this.warehouses = warehouses;
@@ -525,6 +528,8 @@ class OrderService {
         o.confirmedAt = Instant.now();
         o.updatedAt = o.confirmedAt;
         repo.saveAndFlush(o);
+        // Every confirm path (staff, portal acceptance, approvals decided) passes here; a revision does not.
+        events.publishEvent(new OrderConfirmed(o.id, o.customerId));
     }
 
     /** Fills unit cost on lines that have none yet: at confirm, and for lines a revision adds. */
