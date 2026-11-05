@@ -72,6 +72,7 @@ class SecurityConfig {
                     // so without these a forbidden caller would get a 400 instead of a 403.
                     a.requestMatchers("/api/admin/**", "/api/approvals/*/decision", "/api/insights/targets",
                                     "/api/insights/targets/**", "/api/insights/admin").hasRole("ADMIN")
+                            .requestMatchers("/api/follow-ups", "/api/follow-ups/**").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers("/api/insights/sales").hasRole("SALES")
                             .requestMatchers("/api/insights/warehouse").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.POST, "/api/warehouses/**").hasRole("ADMIN")

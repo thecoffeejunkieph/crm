@@ -846,6 +846,107 @@
         },
         "type" : "object"
       },
+      "FollowUpCounts" : {
+        "properties" : {
+          "overdue" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "today" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "upcoming" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "FollowUpRequest" : {
+        "properties" : {
+          "assigneeId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "dueDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "note" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "orderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "title" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "customerId", "dueDate", "title" ],
+        "type" : "object"
+      },
+      "FollowUpResponse" : {
+        "properties" : {
+          "assigneeId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "assigneeName" : {
+            "type" : "string"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "customerName" : {
+            "type" : "string"
+          },
+          "doneAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "dueDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "orderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "orderNumber" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ForgotPasswordRequest" : {
         "properties" : {
           "email" : {
@@ -1790,6 +1891,33 @@
           "content" : {
             "items" : {
               "$ref" : "#/components/schemas/DeliveryOrderResponse"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "PageResponseFollowUpResponse" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FollowUpResponse"
             },
             "type" : "array"
           },
@@ -3525,7 +3653,7 @@
           "name" : "action",
           "required" : true,
           "schema" : {
-            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE" ],
+            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE", "FOLLOW_UP_CREATED", "FOLLOW_UP_UPDATED", "FOLLOW_UP_DONE", "FOLLOW_UP_REOPENED", "FOLLOW_UP_REASSIGNED" ],
             "type" : "string"
           }
         }, {
@@ -3618,7 +3746,7 @@
     },
     "/api/admin/users" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -3865,7 +3993,7 @@
     },
     "/api/approvals" : {
       "get" : {
-        "operationId" : "list_6",
+        "operationId" : "list_7",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -4139,7 +4267,7 @@
     },
     "/api/customers" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -4178,7 +4306,7 @@
         "tags" : [ "customer-controller" ]
       },
       "post" : {
-        "operationId" : "create_4",
+        "operationId" : "create_5",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -4593,7 +4721,7 @@
     },
     "/api/delivery-orders" : {
       "get" : {
-        "operationId" : "list_12",
+        "operationId" : "list_13",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -4780,6 +4908,138 @@
         "tags" : [ "delivery-order-controller" ]
       }
     },
+    "/api/follow-ups" : {
+      "get" : {
+        "operationId" : "list_5",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "bucket",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "customerId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "orderId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "assigneeId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 1,
+            "format" : "int32",
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 20,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseFollowUpResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "follow-up-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_4",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FollowUpRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FollowUpResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "follow-up-controller" ]
+      }
+    },
+    "/api/follow-ups/counts" : {
+      "get" : {
+        "operationId" : "counts",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "customerId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "orderId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FollowUpCounts"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "follow-up-controller" ]
+      }
+    },
     "/api/insights/admin" : {
       "get" : {
         "operationId" : "admin",
@@ -4834,7 +5094,7 @@
     },
     "/api/insights/targets" : {
       "get" : {
-        "operationId" : "list_11",
+        "operationId" : "list_12",
         "parameters" : [ {
           "in" : "query",
           "name" : "month",
@@ -5210,7 +5470,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_10",
+        "operationId" : "list_11",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -5705,7 +5965,7 @@
     },
     "/api/orders/{id}/invoices" : {
       "get" : {
-        "operationId" : "list_9",
+        "operationId" : "list_10",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6214,7 +6474,7 @@
     },
     "/api/portal/orders" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
