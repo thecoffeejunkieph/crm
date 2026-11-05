@@ -12,5 +12,6 @@ public enum NotificationType {
     SHORT_PICK,
     RESERVATION_TAKEN,
     DELIVERY_CREATED,
-    TRANSFER_INBOUND
+    TRANSFER_INBOUND,
+    FOLLOW_UPS_DUE
 }

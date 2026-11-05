@@ -37,6 +37,18 @@ class FollowUpQueries {
         return out;
     }
 
+    record Due(long assigneeId, long dueToday, long overdue) {
+    }
+
+    /** Assignees with anything open due today or earlier. */
+    List<Due> dueByAssignee(LocalDate today) {
+        return jdbc.query("select assignee_id, count(*) filter (where due_date = :today) due_today, "
+                + "count(*) filter (where due_date < :today) overdue from follow_up "
+                + "where done_at is null and due_date <= :today group by assignee_id order by assignee_id",
+                Map.of("today", today),
+                (rs, n) -> new Due(rs.getLong("assignee_id"), rs.getLong("due_today"), rs.getLong("overdue")));
+    }
+
     /** {@code assigneeId} null = everyone (ADMIN); customer and order filters are optional. */
     FollowUpCounts counts(Long assigneeId, Long customerId, Long orderId, LocalDate today) {
         MapSqlParameterSource p = new MapSqlParameterSource("today", today).addValue("a", assigneeId)
