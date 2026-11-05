@@ -1239,6 +1239,16 @@
         },
         "type" : "object"
       },
+      "LogLevelBody" : {
+        "properties" : {
+          "level" : {
+            "pattern" : "DEBUG|INFO|WARN",
+            "type" : "string"
+          }
+        },
+        "required" : [ "level" ],
+        "type" : "object"
+      },
       "LoginRequest" : {
         "properties" : {
           "email" : {
@@ -3695,6 +3705,50 @@
         "tags" : [ "activity-controller" ]
       }
     },
+    "/api/admin/log-level" : {
+      "get" : {
+        "operationId" : "get_6",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LogLevelBody"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "log-level-controller" ]
+      },
+      "put" : {
+        "operationId" : "set_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LogLevelBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LogLevelBody"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "log-level-controller" ]
+      }
+    },
     "/api/admin/settings" : {
       "get" : {
         "operationId" : "get_5",
@@ -4770,7 +4824,7 @@
     },
     "/api/delivery-orders/{id}" : {
       "get" : {
-        "operationId" : "get_7",
+        "operationId" : "get_8",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6591,7 +6645,7 @@
     },
     "/api/portal/orders/{id}" : {
       "get" : {
-        "operationId" : "get_6",
+        "operationId" : "get_7",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",

@@ -35,7 +35,11 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_URL: http://localhost:9000
       REDIS_HOST: redis
+      LOG_PATH: /app/logs
     ports: ["8080:8080"] # exposed for the frontend (dev server on :5173) to call
+    # Rolling JSON log files (14 days) next to the compose file, as well as `docker logs`.
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
