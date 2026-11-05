@@ -25,9 +25,11 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 class LeadController {
 
     private final LeadService leads;
+    private final LeadDuplicates duplicates;
     private final CurrentActor actor;
 
-    LeadController(LeadService leads, CurrentActor actor) {
+    LeadController(LeadService leads, LeadDuplicates duplicates, CurrentActor actor) {
+        this.duplicates = duplicates;
         this.leads = leads;
         this.actor = actor;
     }
@@ -45,6 +47,13 @@ class LeadController {
     @GetMapping("/counts")
     LeadCounts counts() {
         return leads.counts(actor.scope());
+    }
+
+    @GetMapping("/duplicates")
+    LeadDuplicates.LeadDuplicatesResponse duplicates(@RequestParam(required = false) String phone,
+                                       @RequestParam(required = false) String email,
+                                       @RequestParam(required = false) Long excludeId) {
+        return duplicates.find(actor.scope(), phone, email, excludeId);
     }
 
     @GetMapping("/{id}")

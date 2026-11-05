@@ -1232,6 +1232,27 @@
         },
         "type" : "object"
       },
+      "LeadDuplicatesResponse" : {
+        "properties" : {
+          "customers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Match"
+            },
+            "type" : "array"
+          },
+          "hidden" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "leads" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Match"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "LeadRequest" : {
         "properties" : {
           "address" : {
@@ -1570,6 +1591,18 @@
           },
           "pct" : {
             "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "Match" : {
+        "properties" : {
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -6163,6 +6196,47 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/LeadCounts"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "lead-controller" ]
+      }
+    },
+    "/api/leads/duplicates" : {
+      "get" : {
+        "operationId" : "duplicates",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "phone",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "email",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "excludeId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeadDuplicatesResponse"
                 }
               }
             },

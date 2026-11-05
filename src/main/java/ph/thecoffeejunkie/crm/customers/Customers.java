@@ -5,6 +5,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -20,6 +21,7 @@ import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.PhoneKey;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
@@ -48,9 +50,12 @@ public class Customers {
     private final SessionAdmin sessions;
     private final ApplicationEventPublisher events;
     private final LeadSources leadSources;
+    private final JdbcTemplate jdbc;
 
     Customers(CustomerRepository repo, CustomerContactRepository contacts, AuditLog audit, Users users,
-              SessionAdmin sessions, ApplicationEventPublisher events, LeadSources leadSources) {
+              SessionAdmin sessions, ApplicationEventPublisher events, LeadSources leadSources,
+              JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.leadSources = leadSources;
         this.events = events;
         this.repo = repo;
@@ -276,6 +281,29 @@ public class Customers {
         Map<Long, String> out = new java.util.HashMap<>();
         repo.findAllById(new HashSet<>(ids)).forEach(c -> out.put(c.id, c.displayName));
         return out;
+    }
+
+    /** Active customers with this email (any case) or phone key; either may be null. */
+    @Transactional(readOnly = true)
+    public ContactMatches matchContact(Scope s, String email, String phoneKey) {
+        List<String> where = new java.util.ArrayList<>();
+        List<Object> args = new java.util.ArrayList<>();
+        if (email != null && !email.isBlank()) {
+            where.add("lower(email) = ?");
+            args.add(normalise(email));
+        }
+        if (phoneKey != null) {
+            where.add(PhoneKey.sql("phone") + " = ?");
+            args.add(phoneKey);
+        }
+        if (where.isEmpty()) {
+            return new ContactMatches(List.of(), 0);
+        }
+        List<ContactMatches.Candidate> rows = jdbc.query("select id, display_name, assigned_rep_id from customer "
+                        + "where archived_at is null and (" + String.join(" or ", where) + ") order by id limit 200",
+                (rs, i) -> new ContactMatches.Candidate(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+                args.toArray());
+        return ContactMatches.split(rows, s);
     }
 
     /** Archived contacts included: payments keep showing who submitted them. */
