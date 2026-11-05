@@ -62,4 +62,22 @@ class StorageDetectTest {
         assertThat(StorageService.cleanFileName(null, ".csv")).isEqualTo("file.csv");
         assertThat(StorageService.cleanFileName("a".repeat(300) + ".pdf", ".pdf")).hasSize(255);
     }
+
+    @Test
+    void macroPartNamesAreCaseInsensitive() throws IOException {
+        assertThat(type(zip("word/document.xml", "WORD/vbaProject.bin"), "a.docx")).isNull();
+        assertThat(type(zip("xl/workbook.xml", "XL/VBAPROJECT.BIN"), "a.xlsx")).isNull();
+    }
+
+    @Test
+    void namesEndInTheCheckedTypeAndLoseHiddenCharacters() {
+        assertThat(StorageService.cleanFileName("report.hta", ".pdf")).isEqualTo("report.pdf");
+        assertThat(StorageService.cleanFileName("x.docm", ".docx")).isEqualTo("x.docx");
+        assertThat(StorageService.cleanFileName("notes", ".csv")).isEqualTo("notes.csv");
+        assertThat(StorageService.cleanFileName("PO 123.PDF", ".pdf")).isEqualTo("PO 123.PDF");
+        assertThat(StorageService.cleanFileName("INV‮fdp.exe", ".pdf")).isEqualTo("INVfdp.pdf");
+        String longName = StorageService.cleanFileName("😀".repeat(200) + ".pdf", ".pdf");
+        assertThat(longName).endsWith(".pdf");
+        assertThat(longName.codePointCount(0, longName.length())).isLessThanOrEqualTo(255);
+    }
 }

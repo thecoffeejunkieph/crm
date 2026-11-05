@@ -190,4 +190,34 @@ class AttachmentsIT {
         mvc.perform(get("/api/attachments/" + img + "/thumbnail").with(asRep)).andExpect(status().isFound());
         mvc.perform(get("/api/attachments/" + doc + "/thumbnail").with(asRep)).andExpect(status().isNotFound());
     }
+
+    /** Listing a read-only record must not 500 for the people who could otherwise remove its files. */
+    @Test
+    void readOnlyRecordsStillList() throws Exception {
+        upload(asRep, "ORDER", order, file("po.pdf", PDF)).andExpect(status().isCreated());
+        upload(asAdmin, "INVOICE", invoice, file("inv.pdf", PDF)).andExpect(status().isCreated());
+        jdbc.update("update invoice set status = 'VOID' where id = ?", invoice);
+        mvc.perform(get("/api/attachments").param("orderId", String.valueOf(order)).with(asAdmin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[?(@.subjectType == 'INVOICE')].canRemove",
+                        contains(false))).andExpect(jsonPath("$[?(@.subjectType == 'ORDER')].canRemove", contains(true)));
+        jdbc.update("update sales_order set status = 'CANCELLED' where id = ?", order);
+        mvc.perform(get("/api/attachments").param("orderId", String.valueOf(order)).with(asRep))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].canRemove").value(false));
+    }
+
+    /** Downloads end in the extension of the checked type, whatever the upload was called. */
+    @Test
+    void storedNameUsesTheCheckedType() throws Exception {
+        upload(asRep, "CUSTOMER", acme, file("report.hta", PDF)).andExpect(status().isCreated())
+                .andExpect(jsonPath("$[0].fileName").value("report.pdf"));
+    }
+
+    /** The app has no invoice history: invoice file events land on the order's Activity. */
+    @Test
+    void invoiceFileEventsShowOnTheOrder() throws Exception {
+        upload(asRep, "INVOICE", invoice, file("inv.pdf", PDF)).andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("select summary from audit_event where action = 'ATTACHMENT_ADDED' "
+                + "and entity_type = 'ORDER' and entity_id = ?", String.class, order))
+                .startsWith("Attached \"inv.pdf\" to invoice ");
+    }
 }

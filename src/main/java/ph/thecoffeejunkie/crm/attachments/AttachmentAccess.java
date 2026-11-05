@@ -51,14 +51,32 @@ class AttachmentAccess {
         if (!canSee(s, type, id)) {
             throw new DomainException(ErrorCode.NOT_FOUND, "Not found");
         }
-        boolean readOnly = s.role() == Role.WAREHOUSE || switch (type) {
-            case CUSTOMER -> customer(s, id).map(CustomerSalesProfile::archived).orElse(true);
-            case ORDER -> order(id).map(o -> "CANCELLED".equals(o.status())).orElse(true);
-            case INVOICE -> invoice(id).map(i -> "VOID".equals(i.status())).orElse(true);
-        };
-        if (readOnly) {
+        if (!writable(s, type, id)) {
             throw new DomainException(ErrorCode.ATTACHMENT_READ_ONLY, "Files can no longer be added here.");
         }
+    }
+
+    /**
+     * Never throws, so callers inside a transaction can ask without marking it rollback-only (a caught exception
+     * from a transactional proxy still dooms the surrounding transaction).
+     */
+    @Transactional(readOnly = true)
+    boolean writable(Scope s, SubjectType type, long id) {
+        return s.role() != Role.WAREHOUSE && switch (type) {
+            case CUSTOMER -> customer(s, id).map(c -> !c.archived()).orElse(false);
+            case ORDER -> order(id).map(o -> !"CANCELLED".equals(o.status())).orElse(false);
+            case INVOICE -> invoice(id).map(i -> !"VOID".equals(i.status())).orElse(false);
+        };
+    }
+
+    /** The order an invoice belongs to and its number, for audit lines on the order's Activity. */
+    record InvoiceRef(long orderId, String number) {
+    }
+
+    @Transactional(readOnly = true)
+    Optional<InvoiceRef> invoiceRef(long invoiceId) {
+        return jdbc.query("select order_id, number from invoice where id = :id", Map.of("id", invoiceId),
+                (rs, n) -> new InvoiceRef(rs.getLong(1), rs.getString(2))).stream().findFirst();
     }
 
     @Transactional(readOnly = true)

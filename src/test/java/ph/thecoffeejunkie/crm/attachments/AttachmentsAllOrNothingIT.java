@@ -51,7 +51,7 @@ class AttachmentsAllOrNothingIT {
                 throw new IllegalStateException("MinIO down");
             }
             return inv.callRealMethod();
-        }).when(storage).put(anyString(), any(byte[].class), anyString());
+        }).when(storage).put(anyString(), any(java.nio.file.Path.class), anyString());
 
         int status = mvc.perform(multipart("/api/attachments")
                 .file(AttachmentsIT.file("a.pdf", AttachmentsIT.PDF)).file(AttachmentsIT.file("b.pdf", AttachmentsIT.PDF))

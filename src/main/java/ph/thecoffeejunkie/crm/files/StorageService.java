@@ -126,15 +126,39 @@ public class StorageService {
     public static final String DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     public static final String XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    /** Attachments (spec 2026-11-05): PDF, JPEG, PNG, WebP, DOCX, XLSX (no macros), UTF-8 CSV. */
+    /** Attachments (spec 2026-11-05): PDF, JPEG, PNG, WebP, DOCX, XLSX (no macros), UTF-8 CSV. For tests. */
     public static java.util.Optional<Detected> detect(byte[] bytes, String fileName) {
-        String image = detectType(bytes);
+        java.nio.file.Path tmp = null;
+        try {
+            tmp = java.nio.file.Files.createTempFile("detect", ".bin");
+            java.nio.file.Files.write(tmp, bytes);
+            return detect(tmp, fileName);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to check file", e);
+        } finally {
+            deleteTemp(tmp);
+        }
+    }
+
+    /**
+     * Decides a file's type from its bytes on disk, never holding it in memory: magic bytes for PDF and images, the
+     * zip central directory (no decompression; part names case-insensitive) for Office files, a streamed UTF-8 check
+     * for CSV.
+     */
+    public static java.util.Optional<Detected> detect(java.nio.file.Path file, String fileName) throws IOException {
+        byte[] head = new byte[16];
+        int n;
+        try (var in = java.nio.file.Files.newInputStream(file)) {
+            n = in.readNBytes(head, 0, head.length);
+        }
+        head = java.util.Arrays.copyOf(head, n);
+        String image = detectType(head);
         if (image != null) {
             return java.util.Optional.of(new Detected(image, TYPE_INFO.get(image)[0]));
         }
-        if (startsWith(bytes, 0, 'P', 'K', 3, 4)) {
-            java.util.Set<String> entries = zipEntries(bytes);
-            if (entries.contains("word/vbaProject.bin") || entries.contains("xl/vbaProject.bin")) {
+        if (startsWith(head, 0, 'P', 'K', 3, 4)) {
+            java.util.Set<String> entries = zipEntries(file);
+            if (entries.contains("word/vbaproject.bin") || entries.contains("xl/vbaproject.bin")) {
                 return java.util.Optional.empty();
             }
             if (entries.contains("word/document.xml")) {
@@ -145,18 +169,19 @@ public class StorageService {
             }
             return java.util.Optional.empty();
         }
-        if (fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".csv") && isUtf8Text(bytes)) {
+        if (fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".csv") && isUtf8Text(file)) {
             return java.util.Optional.of(new Detected("text/csv", ".csv"));
         }
         return java.util.Optional.empty();
     }
 
-    // ponytail: reads every entry name; fine at 20 MB, cap entries if zip bombs ever matter (names only, no inflation).
-    private static java.util.Set<String> zipEntries(byte[] bytes) {
+    /** Central-directory names, lower-cased (Office part names are case-insensitive). Unreadable zip → none. */
+    private static java.util.Set<String> zipEntries(java.nio.file.Path file) {
         java.util.Set<String> names = new java.util.HashSet<>();
-        try (var z = new java.util.zip.ZipInputStream(new ByteArrayInputStream(bytes))) {
-            for (var e = z.getNextEntry(); e != null && names.size() < 10_000; e = z.getNextEntry()) {
-                names.add(e.getName());
+        try (var z = new java.util.zip.ZipFile(file.toFile())) {
+            var it = z.entries();
+            while (it.hasMoreElements() && names.size() < 10_000) {
+                names.add(it.nextElement().getName().toLowerCase(java.util.Locale.ROOT));
             }
         } catch (IOException | IllegalArgumentException e) {
             return java.util.Set.of();
@@ -164,32 +189,75 @@ public class StorageService {
         return names;
     }
 
-    private static boolean isUtf8Text(byte[] bytes) {
-        for (byte b : bytes) {
-            if (b == 0) {
-                return false;
+    private static boolean isUtf8Text(java.nio.file.Path file) throws IOException {
+        var decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT);
+        char[] buf = new char[8192];
+        try (var r = new java.io.InputStreamReader(java.nio.file.Files.newInputStream(file), decoder)) {
+            for (int n = r.read(buf); n != -1; n = r.read(buf)) {
+                for (int i = 0; i < n; i++) {
+                    if (buf[i] == '\0') {
+                        return false;
+                    }
+                }
             }
-        }
-        try {
-            java.nio.charset.StandardCharsets.UTF_8.newDecoder()
-                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
-                    .decode(java.nio.ByteBuffer.wrap(bytes));
             return true;
         } catch (java.nio.charset.CharacterCodingException e) {
             return false;
         }
     }
 
-    /** Last path segment, no control characters, at most 255 chars; empty becomes {@code file{ext}}. */
+    public static void deleteTemp(java.nio.file.Path tmp) {
+        if (tmp != null) {
+            try {
+                java.nio.file.Files.deleteIfExists(tmp);
+            } catch (IOException e) {
+                log.warn("Could not delete temp file {}", tmp);
+            }
+        }
+    }
+
+    private static final java.util.regex.Pattern HIDDEN = java.util.regex.Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]");
+
+    /**
+     * Last path segment, no control or invisible formatting characters (e.g. right-to-left override), ending in the
+     * checked type's extension (so {@code report.hta} that is really a PDF downloads as {@code report.pdf}), at most
+     * 255 code points with the extension kept.
+     */
     public static String cleanFileName(String raw, String ext) {
         String name = raw == null ? "" : raw;
         name = name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
-        name = name.replaceAll("\\p{Cntrl}", "").trim();
-        if (name.isEmpty()) {
-            name = "file" + ext;
+        name = HIDDEN.matcher(name).replaceAll("").trim();
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        boolean jpegAlias = ext.equals(".jpg") && lower.endsWith(".jpeg");
+        if (!lower.endsWith(ext) && !jpegAlias) {
+            int dot = name.lastIndexOf('.');
+            name = (dot > 0 ? name.substring(0, dot) : name) + ext;
         }
-        return name.length() > 255 ? name.substring(0, 255) : name;
+        String base = name.substring(0, name.length() - (jpegAlias ? 5 : ext.length())).trim();
+        String tail = name.substring(name.length() - (jpegAlias ? 5 : ext.length()));
+        if (base.isEmpty()) {
+            base = "file";
+        }
+        int max = 255 - tail.length();
+        if (base.codePointCount(0, base.length()) > max) {
+            base = base.substring(0, base.offsetByCodePoints(0, max));
+        }
+        return base + tail;
+    }
+
+    /** Streams a file already checked by {@link #detect}. */
+    public void put(String key, java.nio.file.Path file, String contentType) {
+        try (var in = java.nio.file.Files.newInputStream(file)) {
+            long size = java.nio.file.Files.size(file);
+            client.putObject(PutObjectArgs.builder().bucket(bucket).object(key).stream(in, size, -1)
+                    .contentType(contentType).build());
+            log.info("Stored object {} ({} bytes)", key, size);
+        } catch (Exception e) {
+            log.error("Failed to store object {}", key, e);
+            throw new IllegalStateException("Failed to store file", e);
+        }
     }
 
     /** Stores bytes already validated by {@link #detect}. */
