@@ -232,6 +232,50 @@
         },
         "type" : "object"
       },
+      "AttachmentResponse" : {
+        "properties" : {
+          "canRemove" : {
+            "type" : "boolean"
+          },
+          "contentType" : {
+            "type" : "string"
+          },
+          "fileName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "sizeBytes" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "subjectId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "subjectType" : {
+            "enum" : [ "CUSTOMER", "ORDER", "INVOICE" ],
+            "type" : "string"
+          },
+          "uploadedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "uploadedBy" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "uploadedByName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AuditEventResponse" : {
         "properties" : {
           "action" : {
@@ -3663,7 +3707,7 @@
           "name" : "action",
           "required" : true,
           "schema" : {
-            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE", "FOLLOW_UP_CREATED", "FOLLOW_UP_UPDATED", "FOLLOW_UP_DONE", "FOLLOW_UP_REOPENED", "FOLLOW_UP_REASSIGNED" ],
+            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE", "FOLLOW_UP_CREATED", "FOLLOW_UP_UPDATED", "FOLLOW_UP_DONE", "FOLLOW_UP_REOPENED", "FOLLOW_UP_REASSIGNED", "ATTACHMENT_ADDED", "ATTACHMENT_REMOVED" ],
             "type" : "string"
           }
         }, {
@@ -3800,7 +3844,7 @@
     },
     "/api/admin/users" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -3912,7 +3956,7 @@
     },
     "/api/admin/users/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_3",
+        "operationId" : "archive_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4047,7 +4091,7 @@
     },
     "/api/approvals" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -4168,6 +4212,174 @@
           }
         },
         "tags" : [ "approval-controller" ]
+      }
+    },
+    "/api/attachments" : {
+      "get" : {
+        "operationId" : "list_7",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "subjectType",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "CUSTOMER", "ORDER", "INVOICE" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "subjectId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "orderId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AttachmentResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "attachment-controller" ]
+      },
+      "post" : {
+        "operationId" : "upload",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "subjectType",
+          "required" : true,
+          "schema" : {
+            "enum" : [ "CUSTOMER", "ORDER", "INVOICE" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "subjectId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "note",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "files" : {
+                    "items" : {
+                      "format" : "binary",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  }
+                },
+                "required" : [ "files" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AttachmentResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "attachment-controller" ]
+      }
+    },
+    "/api/attachments/{id}/archive" : {
+      "post" : {
+        "operationId" : "archive_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "attachment-controller" ]
+      }
+    },
+    "/api/attachments/{id}/download" : {
+      "get" : {
+        "operationId" : "download",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "attachment-controller" ]
+      }
+    },
+    "/api/attachments/{id}/thumbnail" : {
+      "get" : {
+        "operationId" : "thumbnail",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "attachment-controller" ]
       }
     },
     "/api/auth/csrf" : {
@@ -4775,7 +4987,7 @@
     },
     "/api/delivery-orders" : {
       "get" : {
-        "operationId" : "list_13",
+        "operationId" : "list_14",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -5239,7 +5451,7 @@
     },
     "/api/insights/targets" : {
       "get" : {
-        "operationId" : "list_12",
+        "operationId" : "list_13",
         "parameters" : [ {
           "in" : "query",
           "name" : "month",
@@ -5615,7 +5827,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_11",
+        "operationId" : "list_12",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -6110,7 +6322,7 @@
     },
     "/api/orders/{id}/invoices" : {
       "get" : {
-        "operationId" : "list_10",
+        "operationId" : "list_11",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6619,7 +6831,7 @@
     },
     "/api/portal/orders" : {
       "get" : {
-        "operationId" : "list_9",
+        "operationId" : "list_10",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
