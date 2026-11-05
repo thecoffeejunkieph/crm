@@ -168,6 +168,7 @@ class SecurityMatrixTest {
             Map.entry("PUT /api/leads/{id}", AS),
             Map.entry("POST /api/leads/{id}/status", AS),
             Map.entry("POST /api/leads/{id}/assign", A),
+            Map.entry("POST /api/leads/{id}/convert", AS),
             Map.entry("GET /api/lead-sources", AS),
             Map.entry("POST /api/lead-sources", A),
             Map.entry("PUT /api/lead-sources/{id}", A),

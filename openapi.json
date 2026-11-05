@@ -1203,6 +1203,23 @@
         "required" : [ "version" ],
         "type" : "object"
       },
+      "LeadConvertRequest" : {
+        "properties" : {
+          "customer" : {
+            "$ref" : "#/components/schemas/CustomerRequest"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "version" ],
+        "type" : "object"
+      },
       "LeadCounts" : {
         "properties" : {
           "contacted" : {
@@ -6325,6 +6342,43 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/LeadAssignRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeadResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "lead-controller" ]
+      }
+    },
+    "/api/leads/{id}/convert" : {
+      "post" : {
+        "operationId" : "convert",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LeadConvertRequest"
               }
             }
           },

@@ -77,6 +77,11 @@ class LeadController {
         return leads.setStatus(actor.scope(), id, req);
     }
 
+    @PostMapping("/{id}/convert")
+    LeadResponse convert(@PathVariable long id, @Valid @RequestBody LeadConvertRequest req) {
+        return leads.convert(actor.scope(), id, req);
+    }
+
     @PostMapping("/{id}/assign")
     @PreAuthorize("hasRole('ADMIN')")
     LeadResponse assign(@PathVariable long id, @Valid @RequestBody LeadAssignRequest req) {

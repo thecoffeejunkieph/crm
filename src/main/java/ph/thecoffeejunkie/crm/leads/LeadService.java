@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditChanges;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
+import ph.thecoffeejunkie.crm.customers.CustomerRequest;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.customers.LeadSources;
 import ph.thecoffeejunkie.crm.identity.Users;
@@ -122,6 +123,38 @@ class LeadService {
             touch(l);
             audit.record(AuditAction.LEAD_ASSIGNED, ENTITY, id, "Reassigned lead " + l.contactName, changes);
         }
+        return toResponse(l);
+    }
+
+    /** Customer and lead change together or not at all. */
+    @Transactional
+    LeadResponse convert(Scope s, long id, LeadConvertRequest req) {
+        Lead l = findVisible(s, id);
+        requireNotConverted(l);
+        if (l.status == LeadStatus.LOST) {
+            throw new DomainException(ErrorCode.LEAD_LOST, "Reopen this lead before converting it.");
+        }
+        requireVersion(l, req.version());
+        String mode;
+        if (req.customer() != null) {
+            CustomerRequest r = req.customer();
+            CustomerRequest withSource = r.sourceId() != null ? r : new CustomerRequest(r.type(), r.displayName(),
+                    r.businessName(), r.tin(), r.address(), r.phone(), r.email(), r.creditLimit(), r.paymentTerms(),
+                    l.sourceId, r.notes(), r.version(), r.taxTreatment(), r.socialMedia());
+            l.customerId = customers.createForLead(s, withSource, l.assignedRepId, l.id);
+            mode = "NEW";
+        } else {
+            customers.linkLead(s, req.customerId(), l.id);
+            l.customerId = req.customerId();
+            mode = "LINKED";
+        }
+        l.status = LeadStatus.CONVERTED;
+        l.lostReason = null;
+        l.convertedAt = Instant.now();
+        l.convertedBy = s.userId();
+        touch(l);
+        audit.record(AuditAction.LEAD_CONVERTED, ENTITY, id, "Converted lead " + l.contactName + " to a customer",
+                AuditChanges.diff().field("customerId", null, l.customerId).field("mode", null, mode));
         return toResponse(l);
     }
 

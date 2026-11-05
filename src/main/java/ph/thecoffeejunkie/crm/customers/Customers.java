@@ -283,6 +283,34 @@ public class Customers {
         return out;
     }
 
+    /**
+     * A customer made from a lead, in the caller's transaction: it goes to the lead's rep (null = unassigned) and
+     * remembers the lead. Credit-limit rules are those of a plain create.
+     */
+    @Transactional
+    public long createForLead(Scope s, CustomerRequest req, Long repId, long leadId) {
+        Customer c = new Customer();
+        c.assignedRepId = repId;
+        c.creditLimit = s.role() == Role.SALES ? null : req.creditLimit();
+        c.convertedFromLeadId = leadId;
+        leadSources.requireActive(req.sourceId());
+        apply(c, req);
+        repo.saveAndFlush(c);
+        audit.record(AuditAction.CREATED, ENTITY, c.id, "Created customer " + c.displayName + " from a lead", null);
+        return c.id;
+    }
+
+    /** Links a lead to an existing active customer the caller can see; the first lead linked is the one kept. */
+    @Transactional
+    public void linkLead(Scope s, long customerId, long leadId) {
+        Customer c = findVisible(customerId, s, false);
+        if (c.convertedFromLeadId == null) {
+            c.convertedFromLeadId = leadId;
+            c.updatedAt = Instant.now();
+            repo.saveAndFlush(c);
+        }
+    }
+
     /** Active customers with this email (any case) or phone key; either may be null. */
     @Transactional(readOnly = true)
     public ContactMatches matchContact(Scope s, String email, String phoneKey) {
