@@ -128,6 +128,20 @@ class DealService {
                 .min(java.util.Comparator.comparing(OrderBrief::confirmedAt)).map(OrderBrief::id);
     }
 
+    @Transactional
+    void moveOpen(long customerId, long toRepId) {
+        for (Deal d : repo.findByCustomerIdAndStageIn(customerId, DealStage.OPEN)) {
+            if (Objects.equals(d.repId, toRepId)) {
+                continue;
+            }
+            Long from = d.repId;
+            d.repId = toRepId;
+            touch(d);
+            audit.record(AuditAction.DEAL_REASSIGNED, ENTITY, d.id, "Moved deal \"" + d.title + "\" with its customer",
+                    AuditChanges.diff().field("repId", from, toRepId));
+        }
+    }
+
     /** A linked order was confirmed: an open deal is won by it; a Won or Lost deal is left alone. */
     @Transactional
     void orderConfirmed(long orderId) {
