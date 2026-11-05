@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
+import ph.thecoffeejunkie.crm.audit.AuditChanges;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.Customers;
@@ -18,6 +19,7 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -61,6 +63,75 @@ class DealService {
         repo.saveAndFlush(d);
         audit.record(AuditAction.DEAL_CREATED, ENTITY, d.id, "Created deal \"" + d.title + "\"", null);
         return toResponse(d);
+    }
+
+    @Transactional
+    DealResponse update(Scope s, long id, DealRequest req) {
+        Deal d = findVisible(s, id);
+        requireOpen(d);
+        requireVersion(d, req.version());
+        AuditChanges changes = AuditChanges.diff().field("title", d.title, req.title())
+                .field("value", d.value, req.value()).field("expectedClose", d.expectedClose, req.expectedClose())
+                .field("notes", d.notes, req.notes());
+        d.title = req.title();
+        d.value = req.value();
+        d.expectedClose = req.expectedClose();
+        d.notes = req.notes();
+        if (!changes.isEmpty()) {
+            touch(d);
+            audit.record(AuditAction.DEAL_UPDATED, ENTITY, id, "Updated deal \"" + d.title + "\"", changes);
+        }
+        return toResponse(d);
+    }
+
+    /** Open stages move freely; Lost needs a reason and only reopens; Won is final (see {@link #markWon}). */
+    @Transactional
+    DealResponse setStage(Scope s, long id, DealStageRequest req) {
+        Deal d = findVisible(s, id);
+        if (d.stage == DealStage.WON || (d.stage == DealStage.LOST && !DealStage.OPEN.contains(req.stage()))) {
+            requireOpen(d);
+        }
+        requireVersion(d, req.version());
+        if (req.stage() == DealStage.WON) {
+            long orderId = confirmedOrder(d).orElseThrow(() -> new DomainException(ErrorCode.DEAL_WON_NEEDS_ORDER,
+                    "Link a confirmed order before marking this deal won."));
+            markWon(d, orderId);
+            return toResponse(d);
+        }
+        if (req.stage() == DealStage.LOST && req.lostReason() == null) {
+            throw new DomainException(ErrorCode.DEAL_LOST_REASON, "Say why the deal was lost.");
+        }
+        String reason = req.stage() == DealStage.LOST ? req.lostReason() : null;
+        if (d.stage != req.stage() || !Objects.equals(d.lostReason, reason)) {
+            AuditChanges changes = AuditChanges.diff().field("stage", d.stage, req.stage())
+                    .field("lostReason", d.lostReason, reason);
+            d.stage = req.stage();
+            d.lostReason = reason;
+            touch(d);
+            audit.record(AuditAction.DEAL_STAGE_CHANGED, ENTITY, id, "Deal \"" + d.title + "\" is now " + d.stage,
+                    changes);
+        }
+        return toResponse(d);
+    }
+
+    /** The earliest confirmed linked order, if any; filled from Task 4 on. */
+    java.util.Optional<Long> confirmedOrder(Deal d) {
+        return java.util.Optional.empty();
+    }
+
+    void markWon(Deal d, long orderId) {
+        d.stage = DealStage.WON;
+        d.lostReason = null;
+        d.wonAt = Instant.now();
+        d.wonOrderId = orderId;
+        touch(d);
+        audit.record(AuditAction.DEAL_WON, ENTITY, d.id, "Won deal \"" + d.title + "\"",
+                AuditChanges.diff().field("wonOrderId", null, orderId));
+    }
+
+    void touch(Deal d) {
+        d.updatedAt = Instant.now();
+        repo.saveAndFlush(d);
     }
 
     @Transactional(readOnly = true)

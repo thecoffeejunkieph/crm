@@ -9,6 +9,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -55,5 +56,15 @@ class DealController {
     @ResponseStatus(HttpStatus.CREATED)
     DealResponse create(@Valid @RequestBody DealRequest req) {
         return deals.create(actor.scope(), req);
+    }
+
+    @PutMapping("/{id}")
+    DealResponse update(@PathVariable long id, @Valid @RequestBody DealRequest req) {
+        return deals.update(actor.scope(), id, req);
+    }
+
+    @PostMapping("/{id}/stage")
+    DealResponse stage(@PathVariable long id, @Valid @RequestBody DealStageRequest req) {
+        return deals.setStage(actor.scope(), id, req);
     }
 }

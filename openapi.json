@@ -822,6 +822,25 @@
         },
         "type" : "object"
       },
+      "DealStageRequest" : {
+        "properties" : {
+          "lostReason" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "stage" : {
+            "enum" : [ "DISCOVERY", "PROPOSAL", "NEGOTIATION", "WON", "LOST" ],
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "stage", "version" ],
+        "type" : "object"
+      },
       "DealSummary" : {
         "properties" : {
           "openCount" : {
@@ -4255,7 +4274,7 @@
     },
     "/api/admin/log-level" : {
       "get" : {
-        "operationId" : "get_7",
+        "operationId" : "get_8",
         "responses" : {
           "200" : {
             "content" : {
@@ -4299,7 +4318,7 @@
     },
     "/api/admin/settings" : {
       "get" : {
-        "operationId" : "get_6",
+        "operationId" : "get_7",
         "responses" : {
           "200" : {
             "content" : {
@@ -4423,7 +4442,7 @@
     },
     "/api/admin/users/{id}" : {
       "put" : {
-        "operationId" : "update_8",
+        "operationId" : "update_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5133,7 +5152,7 @@
     },
     "/api/customers/{id}" : {
       "get" : {
-        "operationId" : "get_5",
+        "operationId" : "get_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5158,7 +5177,7 @@
         "tags" : [ "customer-controller" ]
       },
       "put" : {
-        "operationId" : "update_7",
+        "operationId" : "update_8",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5606,7 +5625,7 @@
     },
     "/api/deals/{id}" : {
       "get" : {
-        "operationId" : "get_10",
+        "operationId" : "get_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5616,6 +5635,78 @@
             "type" : "integer"
           }
         } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DealResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "deal-controller" ]
+      },
+      "put" : {
+        "operationId" : "update_7",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DealRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DealResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "deal-controller" ]
+      }
+    },
+    "/api/deals/{id}/stage" : {
+      "post" : {
+        "operationId" : "stage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DealStageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "content" : {
@@ -5682,7 +5773,7 @@
     },
     "/api/delivery-orders/{id}" : {
       "get" : {
-        "operationId" : "get_9",
+        "operationId" : "get_10",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7979,7 +8070,7 @@
     },
     "/api/portal/orders/{id}" : {
       "get" : {
-        "operationId" : "get_8",
+        "operationId" : "get_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
