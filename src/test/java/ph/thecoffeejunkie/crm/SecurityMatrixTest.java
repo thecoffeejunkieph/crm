@@ -157,6 +157,9 @@ class SecurityMatrixTest {
             Map.entry("GET /api/follow-ups", AS),
             Map.entry("GET /api/follow-ups/counts", AS),
             Map.entry("POST /api/follow-ups", AS),
+            Map.entry("PUT /api/follow-ups/{id}", AS),
+            Map.entry("POST /api/follow-ups/{id}/done", AS),
+            Map.entry("POST /api/follow-ups/{id}/reopen", AS),
             Map.entry("GET /api/reports/missing-2307", AS),
             Map.entry("GET /api/reports/missing-2307.csv", AS),
 

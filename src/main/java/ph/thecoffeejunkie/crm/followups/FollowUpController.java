@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,5 +51,20 @@ class FollowUpController {
     @ResponseStatus(HttpStatus.CREATED)
     FollowUpResponse create(@Valid @RequestBody FollowUpRequest req) {
         return followUps.create(actor.scope(), req);
+    }
+
+    @PutMapping("/{id}")
+    FollowUpResponse update(@PathVariable long id, @Valid @RequestBody FollowUpRequest req) {
+        return followUps.update(actor.scope(), id, req);
+    }
+
+    @PostMapping("/{id}/done")
+    FollowUpResponse complete(@PathVariable long id) {
+        return followUps.complete(actor.scope(), id);
+    }
+
+    @PostMapping("/{id}/reopen")
+    FollowUpResponse reopen(@PathVariable long id) {
+        return followUps.reopen(actor.scope(), id);
     }
 }

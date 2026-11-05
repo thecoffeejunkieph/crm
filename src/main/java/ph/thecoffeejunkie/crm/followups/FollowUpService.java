@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
+import ph.thecoffeejunkie.crm.audit.AuditChanges;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.Customers;
@@ -18,7 +19,9 @@ import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +65,78 @@ class FollowUpService {
         repo.saveAndFlush(f);
         audit.record(AuditAction.FOLLOW_UP_CREATED, ENTITY, f.id, "Created follow-up \"" + f.title + "\"", null);
         return toResponses(List.of(f)).getFirst();
+    }
+
+    @Transactional
+    FollowUpResponse update(Scope s, long id, FollowUpRequest req) {
+        FollowUp f = findVisible(s, id);
+        if (req.version() == null) {
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "version is required", Map.of("field", "version"));
+        }
+        if (req.version() != f.version) {
+            throw new DomainException(ErrorCode.STALE_VERSION, "Someone else changed this follow-up.");
+        }
+        checkOrder(req.orderId(), f.customerId);
+        String title = req.title().trim();
+        String note = blankToNull(req.note());
+        AuditChanges changes = AuditChanges.diff().field("title", f.title, title).field("note", f.note, note)
+                .field("dueDate", f.dueDate, req.dueDate()).field("orderId", f.orderId, req.orderId());
+        Long assignee = s.isAdmin() && req.assigneeId() != null ? req.assigneeId() : null;
+        long from = f.assigneeId;
+        if (assignee != null && assignee != from) {
+            requireRep(assignee);
+            f.assigneeId = assignee;
+        }
+        f.title = title;
+        f.note = note;
+        f.dueDate = req.dueDate();
+        f.orderId = req.orderId();
+        if (!changes.isEmpty() || f.assigneeId != from) {
+            touch(f);
+        }
+        if (!changes.isEmpty()) {
+            audit.record(AuditAction.FOLLOW_UP_UPDATED, ENTITY, f.id, "Updated follow-up \"" + f.title + "\"", changes);
+        }
+        if (f.assigneeId != from) {
+            audit.record(AuditAction.FOLLOW_UP_REASSIGNED, ENTITY, f.id, "Reassigned follow-up \"" + f.title + "\"",
+                    AuditChanges.diff().field("assigneeId", from, f.assigneeId));
+        }
+        return toResponses(List.of(f)).getFirst();
+    }
+
+    /** Idempotent: ticking done twice (two tabs) answers with the current state. */
+    @Transactional
+    FollowUpResponse complete(Scope s, long id) {
+        FollowUp f = findVisible(s, id);
+        if (f.doneAt == null) {
+            f.doneAt = clock.instant().truncatedTo(ChronoUnit.MICROS); // what Postgres keeps, so a replay matches
+            f.doneBy = s.userId();
+            touch(f);
+            audit.record(AuditAction.FOLLOW_UP_DONE, ENTITY, f.id, "Completed follow-up \"" + f.title + "\"", null);
+        }
+        return toResponses(List.of(f)).getFirst();
+    }
+
+    @Transactional
+    FollowUpResponse reopen(Scope s, long id) {
+        FollowUp f = findVisible(s, id);
+        if (f.doneAt != null) {
+            f.doneAt = null;
+            f.doneBy = null;
+            touch(f);
+            audit.record(AuditAction.FOLLOW_UP_REOPENED, ENTITY, f.id, "Reopened follow-up \"" + f.title + "\"", null);
+        }
+        return toResponses(List.of(f)).getFirst();
+    }
+
+    private FollowUp findVisible(Scope s, long id) {
+        return repo.findOne(visibleTo(s, null).and(eq("id", id)))
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Follow-up not found"));
+    }
+
+    private void touch(FollowUp f) {
+        f.updatedAt = Instant.now();
+        repo.saveAndFlush(f);
     }
 
     @Transactional(readOnly = true)
