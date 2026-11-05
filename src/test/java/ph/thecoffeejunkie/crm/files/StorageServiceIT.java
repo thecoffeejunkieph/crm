@@ -58,6 +58,23 @@ class StorageServiceIT {
     }
 
     @Test
+    void putThenDownloadUnderTheOriginalName() throws Exception {
+        byte[] csv = "name,qty\nBeans,2\n".getBytes();
+        String key = "attachments/customer/9/" + java.util.UUID.randomUUID() + ".csv";
+        storage.put(key, csv, "text/csv");
+        String url = storage.presignedDownloadUrl(key, "Price list\r\nX: 1.csv");
+        assertTrue(url.contains("response-content-disposition"));
+        var response = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(url)).build(),
+                java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, response.statusCode());
+        assertArrayEquals(csv, response.body());
+        String disposition = response.headers().firstValue("Content-Disposition").orElse("");
+        assertTrue(disposition.startsWith("attachment; filename*=UTF-8''Price%20list"), disposition);
+        assertTrue(!disposition.contains("\r") && !disposition.contains("\n"), disposition);
+        storage.deleteQuietly(key);
+    }
+
+    @Test
     void rejectsFilesWhoseBytesAreNotAnAllowedType() {
         var pdf = new MockMultipartFile("file", "x.png", "image/png", "%PDF-1.7 ...".getBytes());
         var text = new MockMultipartFile("file", "x.jpg", "image/jpeg", "hello".getBytes());

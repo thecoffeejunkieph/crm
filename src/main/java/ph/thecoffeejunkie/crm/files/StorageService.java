@@ -119,6 +119,105 @@ public class StorageService {
         return key;
     }
 
+    /** A file's real type, decided by its bytes (and, for CSV, its name), never by what the client claims. */
+    public record Detected(String contentType, String ext) {
+    }
+
+    public static final String DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    public static final String XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    /** Attachments (spec 2026-11-05): PDF, JPEG, PNG, WebP, DOCX, XLSX (no macros), UTF-8 CSV. */
+    public static java.util.Optional<Detected> detect(byte[] bytes, String fileName) {
+        String image = detectType(bytes);
+        if (image != null) {
+            return java.util.Optional.of(new Detected(image, TYPE_INFO.get(image)[0]));
+        }
+        if (startsWith(bytes, 0, 'P', 'K', 3, 4)) {
+            java.util.Set<String> entries = zipEntries(bytes);
+            if (entries.contains("word/vbaProject.bin") || entries.contains("xl/vbaProject.bin")) {
+                return java.util.Optional.empty();
+            }
+            if (entries.contains("word/document.xml")) {
+                return java.util.Optional.of(new Detected(DOCX, ".docx"));
+            }
+            if (entries.contains("xl/workbook.xml")) {
+                return java.util.Optional.of(new Detected(XLSX, ".xlsx"));
+            }
+            return java.util.Optional.empty();
+        }
+        if (fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".csv") && isUtf8Text(bytes)) {
+            return java.util.Optional.of(new Detected("text/csv", ".csv"));
+        }
+        return java.util.Optional.empty();
+    }
+
+    // ponytail: reads every entry name; fine at 20 MB, cap entries if zip bombs ever matter (names only, no inflation).
+    private static java.util.Set<String> zipEntries(byte[] bytes) {
+        java.util.Set<String> names = new java.util.HashSet<>();
+        try (var z = new java.util.zip.ZipInputStream(new ByteArrayInputStream(bytes))) {
+            for (var e = z.getNextEntry(); e != null && names.size() < 10_000; e = z.getNextEntry()) {
+                names.add(e.getName());
+            }
+        } catch (IOException | IllegalArgumentException e) {
+            return java.util.Set.of();
+        }
+        return names;
+    }
+
+    private static boolean isUtf8Text(byte[] bytes) {
+        for (byte b : bytes) {
+            if (b == 0) {
+                return false;
+            }
+        }
+        try {
+            java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(bytes));
+            return true;
+        } catch (java.nio.charset.CharacterCodingException e) {
+            return false;
+        }
+    }
+
+    /** Last path segment, no control characters, at most 255 chars; empty becomes {@code file{ext}}. */
+    public static String cleanFileName(String raw, String ext) {
+        String name = raw == null ? "" : raw;
+        name = name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+        name = name.replaceAll("\\p{Cntrl}", "").trim();
+        if (name.isEmpty()) {
+            name = "file" + ext;
+        }
+        return name.length() > 255 ? name.substring(0, 255) : name;
+    }
+
+    /** Stores bytes already validated by {@link #detect}. */
+    public void put(String key, byte[] bytes, String contentType) {
+        try {
+            client.putObject(PutObjectArgs.builder().bucket(bucket).object(key)
+                    .stream(new ByteArrayInputStream(bytes), bytes.length, -1).contentType(contentType).build());
+        } catch (Exception e) {
+            log.error("Failed to store object {}", key, e);
+            throw new IllegalStateException("Failed to store file", e);
+        }
+        log.info("Stored object {} ({} bytes)", key, bytes.length);
+    }
+
+    /** A presigned link that downloads under the original name (RFC 5987 encoded, so no header injection). */
+    public String presignedDownloadUrl(String key, String fileName) {
+        String encoded = java.net.URLEncoder.encode(fileName, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
+        try {
+            return presignClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET).bucket(bucket).object(key).expiry(presignExpirySeconds)
+                    .extraQueryParams(java.util.Map.of("response-content-disposition",
+                            "attachment; filename*=UTF-8''" + encoded))
+                    .build());
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to create download link", e);
+        }
+    }
+
     /** For the health check only. */
     boolean bucketExists() throws Exception {
         return client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
