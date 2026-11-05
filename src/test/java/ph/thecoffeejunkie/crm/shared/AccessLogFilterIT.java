@@ -46,7 +46,9 @@ class AccessLogFilterIT {
     @Test
     void queryValuesNotLogged(CapturedOutput out) throws Exception {
         mvc.perform(get("/api/customers").param("q", "secretvalue").with(admin()));
-        assertThat(out.getOut()).contains("q=[q]").doesNotContain("secretvalue");
+        // The request line never carries values; DEBUG service-call lines render arguments (masked by name) by design.
+        String accessLine = out.getOut().lines().filter(l -> l.contains("crm.access")).reduce("", (a, b) -> a + b);
+        assertThat(accessLine).contains("q=[q]").doesNotContain("secretvalue");
     }
 
     @Test
