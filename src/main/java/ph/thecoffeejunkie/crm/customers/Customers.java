@@ -47,9 +47,11 @@ public class Customers {
     private final Users users;
     private final SessionAdmin sessions;
     private final ApplicationEventPublisher events;
+    private final LeadSources leadSources;
 
     Customers(CustomerRepository repo, CustomerContactRepository contacts, AuditLog audit, Users users,
-              SessionAdmin sessions, ApplicationEventPublisher events) {
+              SessionAdmin sessions, ApplicationEventPublisher events, LeadSources leadSources) {
+        this.leadSources = leadSources;
         this.events = events;
         this.repo = repo;
         this.contacts = contacts;
@@ -79,6 +81,7 @@ public class Customers {
         boolean sales = s.role() == Role.SALES;
         c.assignedRepId = sales ? s.userId() : null;
         c.creditLimit = sales ? null : req.creditLimit();
+        leadSources.requireActive(req.sourceId());
         apply(c, req);
         repo.saveAndFlush(c);
         audit.record(AuditAction.CREATED, ENTITY, c.id, "Created customer " + c.displayName, null);
@@ -92,6 +95,9 @@ public class Customers {
             throw new DomainException(ErrorCode.FORBIDDEN, "Only an admin can change the credit limit.");
         }
         requireVersion(c.version, req.version());
+        if (!java.util.Objects.equals(c.sourceId, req.sourceId())) {
+            leadSources.requireActive(req.sourceId()); // an archived source may stay, but not be newly chosen
+        }
         AuditChanges changes = AuditChanges.diff()
                 .field("type", c.type, req.type())
                 .field("displayName", c.displayName, req.displayName().trim())
@@ -103,7 +109,7 @@ public class Customers {
                 .field("creditLimit", c.creditLimit, req.creditLimit())
                 .field("paymentTerms", c.paymentTerms, req.paymentTerms())
                 .field("taxTreatment", c.taxTreatment, req.taxTreatment())
-                .field("source", c.source, req.source())
+                .field("sourceId", c.sourceId, req.sourceId())
                 .field("notes", c.notes, req.notes())
                 .field("socialMedia", c.socialMedia, req.socialMedia());
         apply(c, req);
@@ -352,7 +358,7 @@ public class Customers {
         c.email = normaliseOrNull(r.email());
         c.paymentTerms = r.paymentTerms();
         c.taxTreatment = r.taxTreatment();
-        c.source = r.source();
+        c.sourceId = r.sourceId();
         c.notes = r.notes();
         c.socialMedia = r.socialMedia();
         if (c.id != null) {
@@ -389,7 +395,7 @@ public class Customers {
                 .map(Customers::toResponse).toList();
         String rep = c.assignedRepId == null ? null : repNames(List.of(c.assignedRepId)).get(c.assignedRepId);
         return new CustomerResponse(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.phone, c.email,
-                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.source, c.notes, c.socialMedia, cs, c.archivedAt, c.version);
+                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.sourceId, leadSources.name(c.sourceId), c.notes, c.socialMedia, c.convertedFromLeadId, cs, c.archivedAt, c.version);
     }
 
     private static ContactResponse toResponse(CustomerContact k) {

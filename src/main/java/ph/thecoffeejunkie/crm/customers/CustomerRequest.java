@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 public record CustomerRequest(@NotNull CustomerType type, @NotBlank String displayName, String businessName,
                               String tin, String address, String phone, @Email String email,
                               @PositiveOrZero BigDecimal creditLimit, @NotNull PaymentTerms paymentTerms,
-                              String source, String notes, Long version,
+                              Long sourceId, String notes, Long version,
                               TaxTreatment taxTreatment, @Size(max = 1000) String socialMedia) {
 
     // Trim before @Email runs, so padded input is accepted and stored normalised.

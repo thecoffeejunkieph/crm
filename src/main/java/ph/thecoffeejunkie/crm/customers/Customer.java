@@ -34,7 +34,8 @@ class Customer {
     @Enumerated(EnumType.STRING)
     TaxTreatment taxTreatment = TaxTreatment.REGULAR;
     Long assignedRepId;
-    String source;
+    Long sourceId;
+    Long convertedFromLeadId;
     String notes;
     Instant archivedAt;
     Instant createdAt = Instant.now();
