@@ -27,6 +27,7 @@ import java.util.Set;
 class ReportService {
 
     static final String UNASSIGNED = "Unassigned";
+    static final String SHIPPING = "Shipping";
     private static final BigDecimal HUNDRED = new BigDecimal(100);
 
     private final ReportQueries queries;
@@ -52,7 +53,7 @@ class ReportService {
             case REP -> reps(r, f, collected);
             case CUSTOMER -> queries.byCustomer(r, f).stream()
                     .map(n -> row(n.id(), n.name(), n.sum(), collected)).toList();
-            case PRODUCT -> List.of();
+            case PRODUCT -> products(r, f, admin);
         };
         return new SalesReport(r.from(), r.to(), by, new SalesReport.Total(collected, total.payments()), rows);
     }
@@ -82,6 +83,27 @@ class ReportService {
             rows.add(row(null, UNASSIGNED, found.get(null), total));
         }
         rows.sort(Comparator.comparing(ReportRow::collected).reversed().thenComparing(ReportRow::name));
+        return rows;
+    }
+
+    /** Products plus one "Shipping" row, highest first; cost fields only for ADMIN. Rows are rounded one by one. */
+    private List<ReportRow> products(ReportRange r, RepFilter f, boolean withCost) {
+        List<ReportRow> rows = new ArrayList<>();
+        for (ReportQueries.ProductSum p : queries.byProduct(r, f)) {
+            BigDecimal amount = money(p.collected());
+            if (amount.signum() == 0) {
+                continue;
+            }
+            rows.add(new ReportRow(null, p.id(), p.name(), amount, null, null,
+                    withCost && p.margin() != null ? money(p.margin()) : null,
+                    withCost && p.margin() != null ? pct(p.margin(), p.costed()) : null,
+                    withCost ? p.linesWithoutCost() : null));
+        }
+        BigDecimal shipping = money(queries.shipping(r, f));
+        if (shipping.signum() > 0) {
+            rows.add(new ReportRow(null, null, SHIPPING, shipping, null, null, null, null, null));
+        }
+        rows.sort(Comparator.comparing(ReportRow::collected).reversed());
         return rows;
     }
 

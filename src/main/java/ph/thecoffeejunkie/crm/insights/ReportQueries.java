@@ -77,6 +77,35 @@ class ReportQueries {
                         new Sum(rs.getBigDecimal("amount"), rs.getLong("n"))));
     }
 
+    /** {@code margin} and {@code costed} cover only lines with a cost; both null when no line has one. */
+    record ProductSum(long id, String name, BigDecimal collected, BigDecimal margin, BigDecimal costed,
+                      int linesWithoutCost) {
+    }
+
+    /** Payments in range on orders with a positive total; the split below divides by that total. */
+    private static final String PAID_ORDERS = "with paid as (select o.id oid, o.total, o.shipping_fee, " + PAID + " amt"
+            + FILTER + "%s and o.total > 0) ";
+
+    /** Each payment split over its order's lines by {@code line_total / total}. */
+    List<ProductSum> byProduct(ReportRange r, RepFilter f) {
+        String costed = "l.unit_cost is not null and l.line_total > 0";
+        return jdbc.query(PAID_ORDERS.formatted(f.sql())
+                + "select pr.id, pr.name, sum(paid.amt * l.line_total / paid.total) collected, "
+                + "sum(paid.amt * (l.line_total - l.unit_cost * l.qty) / paid.total) filter (where " + costed + ") margin, "
+                + "sum(paid.amt * l.line_total / paid.total) filter (where " + costed + ") costed, "
+                + "count(distinct l.id) filter (where l.unit_cost is null) missing "
+                + "from paid join order_line l on l.order_id = paid.oid join product pr on pr.id = l.product_id "
+                + "group by pr.id, pr.name", params(r, f),
+                (rs, i) -> new ProductSum(rs.getLong("id"), rs.getString("name"), rs.getBigDecimal("collected"),
+                        rs.getBigDecimal("margin"), rs.getBigDecimal("costed"), rs.getInt("missing")));
+    }
+
+    /** The shipping fee's share of each payment. */
+    BigDecimal shipping(ReportRange r, RepFilter f) {
+        return jdbc.queryForObject(PAID_ORDERS.formatted(f.sql()) + "select sum(amt * shipping_fee / total) from paid",
+                params(r, f), BigDecimal.class);
+    }
+
     private static MapSqlParameterSource params(ReportRange r, RepFilter f) {
         return new MapSqlParameterSource("start", Timestamp.from(r.start()))
                 .addValue("end", Timestamp.from(r.end()))
