@@ -52,6 +52,10 @@ New `ReportController` and `ReportQueries`. They reuse `PAID`, `MANILA_DATE` and
   rows: [ ... ] }                          // all rows, no paging
 ```
 
+All reports share one row shape, `{ month, id, name, collected, payments, sharePct, margin, marginPct,
+linesWithoutCost }`. Fields a report does not use are null. `id` is the rep, customer or product id, depending on
+the report.
+
 **Rows:**
 
 | by | Row fields | Rows and order |
