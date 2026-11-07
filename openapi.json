@@ -3536,6 +3536,41 @@
         },
         "type" : "object"
       },
+      "ReportRow" : {
+        "properties" : {
+          "collected" : {
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "linesWithoutCost" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "margin" : {
+            "type" : "number"
+          },
+          "marginPct" : {
+            "type" : "number"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "payments" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sharePct" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "ResetPasswordRequest" : {
         "properties" : {
           "password" : {
@@ -3623,6 +3658,32 @@
               "$ref" : "#/components/schemas/CustomerAmount"
             },
             "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "SalesReport" : {
+        "properties" : {
+          "by" : {
+            "enum" : [ "MONTH", "REP", "CUSTOMER", "PRODUCT" ],
+            "type" : "string"
+          },
+          "from" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReportRow"
+            },
+            "type" : "array"
+          },
+          "to" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "total" : {
+            "$ref" : "#/components/schemas/Total"
           }
         },
         "type" : "object"
@@ -3839,6 +3900,18 @@
             "type" : "integer"
           },
           "toPick" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "Total" : {
+        "properties" : {
+          "collected" : {
+            "type" : "number"
+          },
+          "payments" : {
             "format" : "int64",
             "type" : "integer"
           }
@@ -6283,7 +6356,7 @@
     },
     "/api/insights/sales" : {
       "get" : {
-        "operationId" : "sales",
+        "operationId" : "sales_1",
         "parameters" : [ {
           "in" : "query",
           "name" : "month",
@@ -8791,6 +8864,54 @@
           }
         },
         "tags" : [ "report-controller" ]
+      }
+    },
+    "/api/reports/sales" : {
+      "get" : {
+        "operationId" : "sales",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "by",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "repId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SalesReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "sales-report-controller" ]
       }
     },
     "/api/scan/{code}" : {

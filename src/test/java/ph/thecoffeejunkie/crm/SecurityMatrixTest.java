@@ -191,6 +191,7 @@ class SecurityMatrixTest {
             Map.entry("GET /api/attachments/{id}/download", STAFF),
             Map.entry("GET /api/attachments/{id}/thumbnail", STAFF),
             Map.entry("GET /api/reports/missing-2307", AS),
+            Map.entry("GET /api/reports/sales", AS),
             Map.entry("GET /api/reports/missing-2307.csv", AS),
 
             Map.entry("GET /api/orders", AS),
