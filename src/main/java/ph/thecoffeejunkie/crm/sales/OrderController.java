@@ -69,6 +69,12 @@ class OrderController {
         return orders.sendQuote(actor.scope(), id, req);
     }
 
+    @PostMapping("/{id}/resend-quote")
+    @PreAuthorize("@salesPermissions.canWrite()")
+    ResendResponse resendQuote(@PathVariable long id) {
+        return orders.resendQuote(actor.scope(), id);
+    }
+
     @PostMapping("/{id}/confirm")
     @PreAuthorize("@salesPermissions.canWrite()")
     OrderResponse confirm(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {

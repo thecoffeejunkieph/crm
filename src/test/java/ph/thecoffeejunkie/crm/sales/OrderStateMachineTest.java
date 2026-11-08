@@ -21,7 +21,7 @@ class OrderStateMachineTest {
     // Spec §3 / plan Task 5 table, written out independently of the implementation.
     private static final Map<OrderStatus, Set<OrderAction>> TABLE = Map.of(
             OrderStatus.DRAFT, EnumSet.of(EDIT, SEND_QUOTE, CONFIRM, CANCEL),
-            OrderStatus.QUOTED, EnumSet.of(EDIT, SEND_QUOTE, CONFIRM, ACCEPT, DECLINE, CANCEL),
+            OrderStatus.QUOTED, EnumSet.of(EDIT, SEND_QUOTE, RESEND_QUOTE, CONFIRM, ACCEPT, DECLINE, CANCEL),
             OrderStatus.CONFIRMED, EnumSet.of(REVISE, RELEASE, CANCEL, ISSUE_INVOICE, REISSUE_INVOICE, RECORD_PAYMENT,
                     COVER_SHORTAGE),
             OrderStatus.RELEASED, EnumSet.of(REVISE, CANCEL, ISSUE_INVOICE, REISSUE_INVOICE, RECORD_PAYMENT),

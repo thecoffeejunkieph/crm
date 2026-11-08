@@ -2076,7 +2076,7 @@
           },
           "allowedActions" : {
             "items" : {
-              "enum" : [ "EDIT", "SEND_QUOTE", "CONFIRM", "ACCEPT", "DECLINE", "REVISE", "RELEASE", "CANCEL", "ISSUE_INVOICE", "REISSUE_INVOICE", "COVER_SHORTAGE", "RECORD_PAYMENT" ],
+              "enum" : [ "EDIT", "SEND_QUOTE", "RESEND_QUOTE", "CONFIRM", "ACCEPT", "DECLINE", "REVISE", "RELEASE", "CANCEL", "ISSUE_INVOICE", "REISSUE_INVOICE", "COVER_SHORTAGE", "RECORD_PAYMENT" ],
               "type" : "string"
             },
             "type" : "array",
@@ -3574,6 +3574,17 @@
         },
         "type" : "object"
       },
+      "ResendResponse" : {
+        "properties" : {
+          "emailedTo" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "ResetPasswordRequest" : {
         "properties" : {
           "password" : {
@@ -4328,7 +4339,7 @@
           "name" : "action",
           "required" : true,
           "schema" : {
-            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE", "FOLLOW_UP_CREATED", "FOLLOW_UP_UPDATED", "FOLLOW_UP_DONE", "FOLLOW_UP_REOPENED", "FOLLOW_UP_REASSIGNED", "ATTACHMENT_ADDED", "ATTACHMENT_REMOVED", "LEAD_CREATED", "LEAD_UPDATED", "LEAD_STATUS_CHANGED", "LEAD_ASSIGNED", "LEAD_CONVERTED", "LEAD_SOURCE_ADDED", "LEAD_SOURCE_RENAMED", "LEAD_SOURCE_ARCHIVED", "LEAD_SOURCE_RESTORED", "DEAL_CREATED", "DEAL_UPDATED", "DEAL_STAGE_CHANGED", "DEAL_WON", "DEAL_ORDER_LINKED", "DEAL_ORDER_UNLINKED", "DEAL_REASSIGNED" ],
+            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "INVOICE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE", "FOLLOW_UP_CREATED", "FOLLOW_UP_UPDATED", "FOLLOW_UP_DONE", "FOLLOW_UP_REOPENED", "FOLLOW_UP_REASSIGNED", "ATTACHMENT_ADDED", "ATTACHMENT_REMOVED", "LEAD_CREATED", "LEAD_UPDATED", "LEAD_STATUS_CHANGED", "LEAD_ASSIGNED", "LEAD_CONVERTED", "LEAD_SOURCE_ADDED", "LEAD_SOURCE_RENAMED", "LEAD_SOURCE_ARCHIVED", "LEAD_SOURCE_RESTORED", "DEAL_CREATED", "DEAL_UPDATED", "DEAL_STAGE_CHANGED", "DEAL_WON", "DEAL_ORDER_LINKED", "DEAL_ORDER_UNLINKED", "DEAL_REASSIGNED" ],
             "type" : "string"
           }
         }, {
@@ -6567,6 +6578,33 @@
         "tags" : [ "invoice-controller" ]
       }
     },
+    "/api/invoices/{id}/resend" : {
+      "post" : {
+        "operationId" : "resend",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResendResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invoice-controller" ]
+      }
+    },
     "/api/labels" : {
       "get" : {
         "operationId" : "labels",
@@ -7975,6 +8013,33 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/OrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      }
+    },
+    "/api/orders/{id}/resend-quote" : {
+      "post" : {
+        "operationId" : "resendQuote",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResendResponse"
                 }
               }
             },

@@ -57,6 +57,7 @@ import static ph.thecoffeejunkie.crm.sales.OrderAction.COVER_SHORTAGE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.DECLINE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.ISSUE_INVOICE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.REISSUE_INVOICE;
+import static ph.thecoffeejunkie.crm.sales.OrderAction.RESEND_QUOTE;
 
 /** Orders: create, edit, transitions. Scoped lookups go through {@link OrderAccess}. */
 @Service
@@ -339,6 +340,22 @@ class OrderService {
         return new SendQuoteResponse(toResponse(o, s), to);
     }
 
+    /** Mails a live quote again. Unlike sendQuote it changes nothing: validity and any acceptance stay as they are. */
+    @Transactional
+    ResendResponse resendQuote(Scope s, long id) {
+        SalesOrder o = access.findVisible(id, s);
+        OrderStateMachine.require(o.status, OrderAction.RESEND_QUOTE);
+        if (o.quoteValidUntil == null || quoteExpired(o, SalesTime.today(clock))) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "This quote has expired. Send a new quote instead.");
+        }
+        List<String> to = customers.portalContactEmails(o.customerId);
+        if (!to.isEmpty()) {
+            audit.record(AuditAction.QUOTE_SENT, ENTITY, id, "Resent quote " + o.number, null);
+            mailer.quoteAfterCommit(to, o.number, o.quoteValidUntil, quotes.render(o));
+        }
+        return new ResendResponse(to);
+    }
+
     /** DRAFT|QUOTED → CONFIRMED by staff. Every failing approval check is reported in one 422. */
     @Transactional
     OrderResponse confirm(Scope s, long id, TransitionRequest req) {
@@ -584,18 +601,21 @@ class OrderService {
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),
                 withholding, invoice, o.quotedAt, o.customerAcceptedAt, o.confirmedAt, o.releasedAt, o.fulfilledAt,
-                o.cancelledAt, o.cancelReason, allowedActions(o, invoice != null, totalShort.signum() > 0),
+                o.cancelledAt, o.cancelReason, allowedActions(o, invoice != null, totalShort.signum() > 0, today),
                 OrderFingerprint.of(o), o.updatedAt, o.version, o.shipFromWarehouseId,
                 warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
                 fulfilment.forOrder(o.id).orElse(null), o.channel);
     }
 
-    static Set<OrderAction> allowedActions(SalesOrder o, boolean hasInvoice, boolean isShort) {
+    static Set<OrderAction> allowedActions(SalesOrder o, boolean hasInvoice, boolean isShort, LocalDate today) {
         Set<OrderAction> a = OrderStateMachine.allowed(o.status);
         a.removeAll(EnumSet.of(ACCEPT, DECLINE));
         a.remove(hasInvoice ? ISSUE_INVOICE : REISSUE_INVOICE);
         if (!isShort) {
             a.remove(COVER_SHORTAGE);
+        }
+        if (o.quoteValidUntil == null || quoteExpired(o, today)) {
+            a.remove(RESEND_QUOTE);
         }
         return a;
     }

@@ -39,6 +39,12 @@ class InvoiceController {
         return invoices.reissue(actor.scope(), id, req);
     }
 
+    @PostMapping("/api/invoices/{id}/resend")
+    @PreAuthorize("@salesPermissions.canWrite()")
+    ResendResponse resend(@PathVariable long id) {
+        return invoices.resend(actor.scope(), id);
+    }
+
     @GetMapping("/api/orders/{id}/invoices")
     @PreAuthorize("@salesPermissions.canRead()")
     List<InvoiceResponse> list(@PathVariable long id) {

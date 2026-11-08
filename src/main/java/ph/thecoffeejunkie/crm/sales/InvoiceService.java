@@ -45,11 +45,12 @@ class InvoiceService {
     private final CurrentActor actor;
     private final DocumentCounters counters;
     private final InvoiceDocument document;
+    private final SalesMailer mailer;
     private final Clock clock;
 
     InvoiceService(InvoiceRepository repo, SalesOrderRepository orderRepo, OrderAccess access, Customers customers,
                    Catalog catalog, Settings settings, Approvals approvals, AuditLog audit, CurrentActor actor,
-                   DocumentCounters counters, InvoiceDocument document, Clock clock) {
+                   DocumentCounters counters, InvoiceDocument document, SalesMailer mailer, Clock clock) {
         this.repo = repo;
         this.orderRepo = orderRepo;
         this.access = access;
@@ -61,6 +62,7 @@ class InvoiceService {
         this.actor = actor;
         this.counters = counters;
         this.document = document;
+        this.mailer = mailer;
         this.clock = clock;
     }
 
@@ -94,6 +96,27 @@ class InvoiceService {
 
     @Transactional(readOnly = true)
     PdfFile pdf(Scope s, long invoiceId) {
+        Invoice i = visible(s, invoiceId);
+        return new PdfFile(i.number + ".pdf", document.render(i));
+    }
+
+    /** Mails the invoice to the customer's portal contacts. The invoice itself never changes. */
+    @Transactional
+    ResendResponse resend(Scope s, long invoiceId) {
+        Invoice i = visible(s, invoiceId);
+        if (i.status != InvoiceStatus.ISSUED) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "A voided invoice cannot be sent.");
+        }
+        List<String> to = customers.portalContactEmails(orderRepo.findById(i.orderId).orElseThrow().customerId);
+        if (!to.isEmpty()) {
+            byte[] pdf = document.render(i);
+            audit.record(AuditAction.INVOICE_SENT, OrderService.ENTITY, i.orderId, "Sent invoice " + i.number, null);
+            mailer.invoiceAfterCommit(to, i.number, () -> pdf);
+        }
+        return new ResendResponse(to);
+    }
+
+    private Invoice visible(Scope s, long invoiceId) {
         Invoice i = repo.findById(invoiceId)
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Invoice not found"));
         try {
@@ -101,7 +124,7 @@ class InvoiceService {
         } catch (DomainException e) {
             throw new DomainException(ErrorCode.NOT_FOUND, "Invoice not found");
         }
-        return new PdfFile(i.number + ".pdf", document.render(i));
+        return i;
     }
 
     /** Unscoped, for the after-commit mail of an invoice the caller just issued. */
@@ -205,14 +228,20 @@ class InvoiceService {
 
     private void requireCompanySettings() {
         List<Map<String, String>> missing = new ArrayList<>();
-        for (SettingKey k : List.of(SettingKey.COMPANY_NAME, SettingKey.COMPANY_TIN, SettingKey.COMPANY_ADDRESS)) {
+        List<String> labels = new ArrayList<>();
+        Map<SettingKey, String> required = new LinkedHashMap<>();
+        required.put(SettingKey.COMPANY_NAME, "name");
+        required.put(SettingKey.COMPANY_TIN, "TIN");
+        required.put(SettingKey.COMPANY_ADDRESS, "address");
+        required.forEach((k, label) -> {
             if (settings.text(k).isBlank()) {
-                missing.add(Map.of("field", k.key(), "message", "Fill in " + k.key() + " in Settings first."));
+                labels.add(label);
+                missing.add(Map.of("field", k.key(), "message", "Fill in your company's " + label + " in Settings first."));
             }
-        }
+        });
         if (!missing.isEmpty()) {
-            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Company details are required on invoices.",
-                    Map.of("errors", missing));
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "Your own company's " + String.join(" and ", labels)
+                    + " must be set in Admin > Settings before an invoice can be issued.", Map.of("errors", missing));
         }
     }
 }

@@ -63,6 +63,7 @@ class SendQuoteIT {
     void cleanUp() {
         f.cleanUp();
         jdbc.update("update app_setting set value = '15' where key = 'sales.quoteValidityDays'");
+        jdbc.update("update app_setting set value = to_jsonb(''::text) where key like 'company.%'");
         caches.getCache("settings").clear();
     }
 
@@ -120,6 +121,57 @@ class SendQuoteIT {
                 .andExpect(jsonPath("$.order.quoteValidUntil")
                         .value(LocalDate.now(ZoneId.of("Asia/Manila")).plusDays(7).toString()))
                 .andExpect(jsonPath("$.order.quoteExpired").value(false));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions resend(String path) throws Exception {
+        return mvc.perform(f.json(post(path), "{}").with(asRep));
+    }
+
+    @Test
+    void resendMailsTheQuoteAndChangesNothing() throws Exception {
+        f.contact(customer, "one", true);
+        long id = f.createdOrder(asRep, customer, line(product, "1"));
+        f.transition(asRep, id, "send-quote", null).andExpect(status().isOk());
+        MailSupport.awaitMail(mail, 1);
+        var before = jdbc.queryForMap("select version, quoted_at, quote_valid_until from sales_order where id = ?", id);
+
+        resend("/api/orders/" + id + "/resend-quote").andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailedTo", containsInAnyOrder(f.contactEmail("one"))));
+
+        MailSupport.awaitMail(mail, 2);
+        assertThat(jdbc.queryForMap("select version, quoted_at, quote_valid_until from sales_order where id = ?", id)).isEqualTo(before);
+    }
+
+    @Test
+    void resendRefusedUntilSentAndOnceExpired() throws Exception {
+        long id = f.createdOrder(asRep, customer, line(product, "1"));
+        resend("/api/orders/" + id + "/resend-quote").andExpect(status().is4xxClientError());
+        f.transition(asRep, id, "send-quote", null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.order.allowedActions", org.hamcrest.Matchers.hasItem("RESEND_QUOTE")));
+        jdbc.update("update sales_order set quote_valid_until = current_date - 2 where id = ?", id);
+        resend("/api/orders/" + id + "/resend-quote").andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void resendMailsAnIssuedInvoiceButNotAVoidOne() throws Exception {
+        for (String k : List.of("name", "tin", "address")) {
+            jdbc.update("update app_setting set value = to_jsonb('x'::text) where key = ?", "company." + k);
+        }
+        caches.getCache("settings").clear();
+        f.contact(customer, "one", true);
+        long id = f.createdOrder(asRep, customer, line(product, "1"));
+        f.setStatus(id, "CONFIRMED");
+        long invoice = com.jayway.jsonpath.JsonPath.<Number>read(mvc.perform(f.json(post("/api/orders/" + id + "/invoice"), "{\"version\":" + f.version(id) + "}")
+                .with(asRep).header("Idempotency-Key", java.util.UUID.randomUUID().toString())).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.id").longValue();
+        String number = jdbc.queryForObject("select number from invoice where id = ?", String.class, invoice);
+
+        resend("/api/invoices/" + invoice + "/resend").andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailedTo", containsInAnyOrder(f.contactEmail("one"))));
+
+        assertThat(attachments(MailSupport.awaitMail(mail, 1).get(0))).containsExactly(number + ".pdf");
+        jdbc.update("update invoice set status = 'VOID' where id = ?", invoice);
+        resend("/api/invoices/" + invoice + "/resend").andExpect(status().is4xxClientError());
     }
 
     @Test
