@@ -131,6 +131,31 @@ services:
       minio:
         condition: service_healthy
 
+  # One-off MySQL -> Postgres migration; see deploy/migrate/CUTOVER.md. Rolls back unless ETL_COMMIT=1 and every check passes.
+  data-migrate:
+    image: python:3.13-slim
+    profiles: ["migrate"]
+    environment:
+      ETL_COMMIT: "0"
+      LEGACY_DB_HOST: ${LEGACY_DB_HOST:-}
+      LEGACY_DB_PORT: ${LEGACY_DB_PORT:-3306}
+      LEGACY_DB_USER: ${LEGACY_DB_USER:-}
+      LEGACY_DB_PASSWORD: ${LEGACY_DB_PASSWORD:-}
+      LEGACY_DB_NAME: ${LEGACY_DB_NAME:-crm_db}
+      LEGACY_TZ: ${LEGACY_TZ:-UTC}
+      PG_HOST: postgres
+      PG_DB: crm
+      PG_USER: crm_owner
+      PG_PASSWORD: ${DB_OWNER_PASSWORD:?DB_OWNER_PASSWORD is required}
+      STORAGE_DIR: /old-storage
+    entrypoint: ["sh", "-c", "pip install -q --root-user-action=ignore --disable-pip-version-check -r /etl/requirements.txt && exec python /etl/migrate.py"]
+    volumes:
+      - ./deploy/migrate:/etl:ro
+      - api_storage:/old-storage:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pg_data:
   minio_data:
