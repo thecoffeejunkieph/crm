@@ -477,6 +477,16 @@ class DeliveryOrdersIT {
     }
 
     @Test
+    void pdfShowsTheDeliveryAndIsScoped() throws Exception {
+        f.receive(p, wh, "10");
+        long id = delivery("4");
+        byte[] pdf = mvc.perform(get("/api/delivery-orders/" + id + ".pdf").with(whUser)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(ph.thecoffeejunkie.crm.sales.PdfText.of(pdf)).contains("DELIVERY ORDER", "DO-");
+        mvc.perform(get("/api/delivery-orders/" + id + ".pdf").with(otherWhUser)).andExpect(status().isNotFound());
+    }
+
+    @Test
     void warehouseUserOtherWarehouse404() throws Exception {
         f.receive(p, wh, "10");
         long id = delivery("4");

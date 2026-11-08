@@ -2,25 +2,15 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
 <meta charset="UTF-8"/>
-<style>
-  @page { size: 62mm 40mm; margin: 2mm; }
-  body { font-family: Helvetica, sans-serif; margin: 0; }
-  .label { height: 36mm; overflow: hidden; }
-  .label + .label { page-break-before: always; }
-  table { width: 100%; border-collapse: collapse; }
-  td { vertical-align: middle; padding: 0; }
-  img { width: 24mm; height: 24mm; }
-  .number { font-size: 15pt; font-weight: bold; padding-left: 2mm; }
-  .name { font-size: 8pt; margin-top: 1.5mm; }
-</style>
+<style>@page { size: 62mm 40mm; margin: 2mm; }</style>
 </head>
 <body>
-<div class="label" th:each="l : ${labels}">
-  <table><tr>
-    <td style="width: 26mm"><img th:src="${l.qr}" src="" alt="QR"/></td>
-    <td class="number" th:text="${l.number}">NUMBER</td>
-  </tr></table>
-  <div class="name" th:text="${l.name}">Name</div>
+<div th:each="l : ${labels}" class="h-[35.5mm] overflow-hidden break-after-page last:break-after-auto">
+  <div class="flex items-center gap-[2mm]">
+    <img class="size-[24mm] shrink-0" th:src="${l.qr}" src="" alt="QR"/>
+    <div class="min-w-0 text-[11pt] leading-tight font-bold break-words" th:text="${l.number}">NUMBER</div>
+  </div>
+  <div class="mt-[1.5mm] text-[8pt] leading-tight" th:text="${l.name}">Name</div>
 </div>
 </body>
 </html>

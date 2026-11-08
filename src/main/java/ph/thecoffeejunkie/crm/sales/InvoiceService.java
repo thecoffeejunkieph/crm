@@ -13,6 +13,7 @@ import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.settings.SettingKey;
 import ph.thecoffeejunkie.crm.settings.Settings;
+import ph.thecoffeejunkie.crm.shared.PdfFile;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;

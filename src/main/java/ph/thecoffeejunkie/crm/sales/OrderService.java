@@ -29,6 +29,7 @@ import ph.thecoffeejunkie.crm.inventory.LineStock;
 import ph.thecoffeejunkie.crm.inventory.TransferResponse;
 import ph.thecoffeejunkie.crm.settings.SettingKey;
 import ph.thecoffeejunkie.crm.settings.Settings;
+import ph.thecoffeejunkie.crm.shared.PdfFile;
 import ph.thecoffeejunkie.crm.shared.Like;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;

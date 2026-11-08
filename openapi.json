@@ -1785,6 +1785,9 @@
       },
       "MeResponse" : {
         "properties" : {
+          "avatarUrl" : {
+            "type" : "string"
+          },
           "email" : {
             "type" : "string"
           },
@@ -5992,6 +5995,34 @@
         "tags" : [ "delivery-order-controller" ]
       }
     },
+    "/api/delivery-orders/{id}.pdf" : {
+      "get" : {
+        "operationId" : "delivery",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "document-controller" ]
+      }
+    },
     "/api/delivery-orders/{id}/deliver" : {
       "post" : {
         "operationId" : "deliver",
@@ -7079,6 +7110,56 @@
             }
           },
           "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "me-controller" ]
+      }
+    },
+    "/api/me/avatar" : {
+      "delete" : {
+        "operationId" : "removeAvatar",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "me-controller" ]
+      },
+      "put" : {
+        "operationId" : "setAvatar",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
         },
         "responses" : {
           "200" : {
@@ -9323,6 +9404,34 @@
         "tags" : [ "transfer-controller" ]
       }
     },
+    "/api/transfers/{id}.pdf" : {
+      "get" : {
+        "operationId" : "transfer",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "document-controller" ]
+      }
+    },
     "/api/transfers/{id}/cancel" : {
       "post" : {
         "operationId" : "cancel",
@@ -9412,6 +9521,25 @@
           }
         },
         "tags" : [ "transfer-controller" ]
+      }
+    },
+    "/api/v1/files/{key}" : {
+      "get" : {
+        "operationId" : "file",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "file-controller" ]
       }
     },
     "/api/warehouses" : {

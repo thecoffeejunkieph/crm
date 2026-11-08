@@ -8,7 +8,7 @@ import ph.thecoffeejunkie.crm.settings.Settings;
 import java.math.BigDecimal;
 import java.util.Map;
 
-import static ph.thecoffeejunkie.crm.sales.QuoteDocument.vars;
+import static ph.thecoffeejunkie.crm.shared.PdfRenderer.vars;
 
 /** Renders on demand from the frozen invoice, so a reprint is identical (spec §4 Documents). */
 @Component

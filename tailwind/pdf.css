@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@source "../src/main/resources/templates/pdf";
+
+@theme {
+  --font-sans: Helvetica, Arial, "Liberation Sans", sans-serif;
+}

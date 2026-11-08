@@ -29,6 +29,7 @@ out/
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
+tailwind/node_modules/
 /dist/
 /nbdist/
 /.nb-gradle/

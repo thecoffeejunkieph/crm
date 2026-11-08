@@ -40,4 +40,30 @@ class PdfRendererTest {
         assertThat(text).contains("QUOTATION", "SO-26-00042", "VATable Sales", "PHP 300.00", "PHP 336.00",
                 "Acme & Sons");
     }
+
+    @Test
+    void rendersDeliveryOrderWithoutPrices() throws Exception {
+        byte[] pdf = new PdfRenderer().render("delivery-order", PdfRenderer.vars("number", "DO-26-00007", "status", "DISPATCHED",
+                "date", "2026-11-08", "company", Map.of("name", "The Coffee Junkie Inc.", "tin", "123", "address", "Makati"),
+                "customer", "Acme & Sons", "shipTo", "Pasig", "orderNumber", "SO-26-00042", "warehouse", "Main",
+                "receiverName", "Juan", "pickup", null, "dispatched", null, "delivered", null,
+                "lines", List.of(Map.of("sku", "ARB-1", "description", "Arabica 1kg", "unit", "KG", "qty", "3", "picked", "3"))));
+
+        assertThat(PdfText.of(pdf)).contains("DELIVERY ORDER", "DO-26-00007", "Acme & Sons", "Arabica 1kg", "Juan")
+                .doesNotContain("PHP");
+    }
+
+    @Test
+    void embedsDataUriImagesAndPrintsAtTheCssPageSize() throws Exception {
+        String dot = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        byte[] pdf = new PdfRenderer().render("labels", Map.of("labels", List.of(Map.of("qr", dot, "number", "PR-1", "name", "Beans"))));
+
+        try (var doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+            var page = doc.getPage(0);
+            assertThat(doc.getNumberOfPages()).isEqualTo(1);
+            assertThat(page.getMediaBox().getWidth()).isCloseTo(175.7f, org.assertj.core.data.Offset.offset(2f)); // 62 mm
+            assertThat(page.getResources().getXObjectNames()).isNotEmpty(); // the data: image was not blocked
+        }
+        assertThat(PdfText.of(pdf)).contains("PR-1", "Beans");
+    }
 }

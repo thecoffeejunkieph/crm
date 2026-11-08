@@ -33,6 +33,8 @@ class AppUser {
     String firstName;
     String lastName;
     String phone;
+    /** Object key of the profile image in storage. */
+    String avatarKey;
     @Enumerated(EnumType.STRING)
     Role role;
     String totpSecretEnc;

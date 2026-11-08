@@ -14,6 +14,7 @@ import ph.thecoffeejunkie.crm.fulfilment.DeliverySummary;
 import ph.thecoffeejunkie.crm.fulfilment.Fulfilment;
 import ph.thecoffeejunkie.crm.notifications.NotificationType;
 import ph.thecoffeejunkie.crm.notifications.Notifications;
+import ph.thecoffeejunkie.crm.shared.PdfFile;
 import ph.thecoffeejunkie.crm.shared.ContactPrincipal;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;

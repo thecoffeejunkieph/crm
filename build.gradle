@@ -40,7 +40,8 @@ dependencies {
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 	implementation 'com.google.zxing:core:3.5.3'
-	implementation 'io.github.openhtmltopdf:openhtmltopdf-pdfbox:1.1.97'
+	// Keep the version in step with the Dockerfile's base image and the CI browser install.
+	implementation 'com.microsoft.playwright:playwright:1.64.0'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -48,6 +49,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-mail-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.apache.pdfbox:pdfbox:3.0.5'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-minio'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'

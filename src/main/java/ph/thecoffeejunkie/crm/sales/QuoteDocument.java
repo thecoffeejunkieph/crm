@@ -9,9 +9,9 @@ import ph.thecoffeejunkie.crm.settings.Settings;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+
+import static ph.thecoffeejunkie.crm.shared.PdfRenderer.vars;
 
 /** The quote PDF renders from the live order (spec §4 Documents). */
 @Component
@@ -53,16 +53,5 @@ class QuoteDocument {
     static Map<String, Object> company(Settings settings) {
         return vars("name", settings.text(SettingKey.COMPANY_NAME), "tin", settings.text(SettingKey.COMPANY_TIN),
                 "address", settings.text(SettingKey.COMPANY_ADDRESS));
-    }
-
-    /** Template variables from key/value pairs; null values become "" so templates need no null checks. */
-    static Map<String, Object> vars(Object... kv) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        for (int i = 0; i < kv.length; i += 2) {
-            Object v = kv[i + 1];
-            m.put((String) kv[i], v == null ? "" : v instanceof List<?> || v instanceof Map<?, ?> || v instanceof Number
-                    ? v : v.toString());
-        }
-        return m;
     }
 }

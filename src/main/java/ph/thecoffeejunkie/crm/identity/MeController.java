@@ -13,11 +13,16 @@ import ph.thecoffeejunkie.crm.audit.AuditLog;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import java.util.Map;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import ph.thecoffeejunkie.crm.files.StorageService;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
@@ -40,9 +45,10 @@ class MeController {
     private final SessionAdmin sessionAdmin;
     private final AuditLog audit;
     private final TransactionTemplate tx;
+    private final StorageService storage;
 
     MeController(AppUserRepository users, CurrentActor actor, PasswordEncoder encoder, LoginThrottle throttle,
-                 SessionAdmin sessionAdmin, AuditLog audit, TransactionTemplate tx) {
+                 SessionAdmin sessionAdmin, AuditLog audit, TransactionTemplate tx, StorageService storage) {
         this.users = users;
         this.actor = actor;
         this.encoder = encoder;
@@ -50,6 +56,7 @@ class MeController {
         this.sessionAdmin = sessionAdmin;
         this.audit = audit;
         this.tx = tx;
+        this.storage = storage;
     }
 
     @GetMapping
@@ -86,6 +93,25 @@ class MeController {
         var session = request.getSession(false);
         sessionAdmin.revokeAllExcept("user:" + u.id, session == null ? null : session.getId());
         throttle.clear(u.email);
+    }
+
+    @PutMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    MeResponse setAvatar(@RequestPart("file") MultipartFile file) {
+        AppUser u = current();
+        return replaceAvatar(u, storage.store("users/" + u.id + "/avatar", file, StorageService.IMAGE_TYPES));
+    }
+
+    @DeleteMapping("/avatar")
+    MeResponse removeAvatar() {
+        return replaceAvatar(current(), null);
+    }
+
+    private MeResponse replaceAvatar(AppUser u, String key) {
+        String old = u.avatarKey;
+        u.avatarKey = key;
+        MeResponse saved = MeResponse.of(users.save(u));
+        storage.deleteQuietly(old);
+        return saved;
     }
 
     private AppUser current() {

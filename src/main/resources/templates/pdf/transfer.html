@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<style>@page { size: A4; margin: 16mm 15mm; }</style>
+</head>
+<body class="text-[10pt] leading-snug text-gray-700">
+<header class="flex items-start justify-between gap-6 border-b-2 border-gray-900 pb-3">
+  <div th:replace="~{fragments/parts :: company}"></div>
+  <div class="text-right">
+    <div class="text-[17pt] font-bold tracking-tight text-gray-900">STOCK TRANSFER</div>
+    <div>No. <span class="font-semibold text-gray-900" th:text="${number}">TR-00000</span></div>
+    <div>Date: <span th:text="${date}">date</span></div>
+    <div>Status: <span th:text="${status}">DRAFT</span></div>
+  </div>
+</header>
+
+<section class="my-4 grid grid-cols-2 gap-4 rounded border border-gray-300 p-3">
+  <div>
+    <div><b class="text-gray-900">From:</b> <span th:text="${from}">Warehouse</span></div>
+    <div><b class="text-gray-900">To:</b> <span th:text="${to}">Warehouse</span></div>
+  </div>
+  <div>
+    <div th:if="${createdBy != ''}">Prepared by: <span th:text="${createdBy}">Name</span></div>
+    <div th:if="${dispatched != ''}">Dispatched: <span th:text="${dispatched}">date</span></div>
+    <div th:if="${received != ''}">Received: <span th:text="${received}">date</span></div>
+  </div>
+</section>
+
+<table class="w-full">
+  <thead>
+    <tr class="border-b border-gray-500 bg-gray-100 text-left text-gray-900">
+      <th class="p-1.5">SKU</th><th class="p-1.5">Product</th><th class="p-1.5 text-right">Qty</th>
+      <th class="p-1.5">Unit</th><th class="p-1.5 text-right">Received</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="l : ${lines}" class="break-inside-avoid border-b border-gray-200">
+      <td class="p-1.5" th:text="${l.sku}">SKU</td>
+      <td class="p-1.5" th:text="${l.name}">Item</td>
+      <td class="p-1.5 text-right" th:text="${l.qty}">1</td>
+      <td class="p-1.5" th:text="${l.unit}">PC</td>
+      <td class="p-1.5 text-right" th:text="${l.received}"></td>
+    </tr>
+  </tbody>
+</table>
+
+<div th:if="${notes != ''}" class="mt-4 text-[8.5pt] text-gray-500"><b>Notes:</b> <span th:text="${notes}">notes</span></div>
+
+<div class="mt-14 flex break-inside-avoid gap-10">
+  <div th:replace="~{fragments/parts :: signature('Released by', '')}"></div>
+  <div th:replace="~{fragments/parts :: signature('Received by', '')}"></div>
+</div>
+</body>
+</html>

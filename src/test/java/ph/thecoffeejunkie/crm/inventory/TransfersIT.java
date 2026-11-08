@@ -245,6 +245,16 @@ class TransfersIT {
     }
 
     @Test
+    void pdfShowsTheTransferAndIsScoped() throws Exception {
+        long id = create("2", null);
+        byte[] pdf = mvc.perform(get("/api/transfers/" + id + ".pdf").with(dstUser)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        org.assertj.core.api.Assertions.assertThat(ph.thecoffeejunkie.crm.sales.PdfText.of(pdf)).contains("STOCK TRANSFER");
+        mvc.perform(get("/api/transfers/" + id + ".pdf").with(as(f.user("w3"), Role.WAREHOUSE, other)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void listFiltersByNumber() throws Exception {
         long first = create("2", null);
         long second = create("2", null);
