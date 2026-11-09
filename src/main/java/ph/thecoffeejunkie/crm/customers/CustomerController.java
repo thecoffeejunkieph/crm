@@ -16,7 +16,12 @@ import ph.thecoffeejunkie.crm.audit.AuditEventResponse;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.Sheets;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -25,10 +30,12 @@ class CustomerController {
 
     private final Customers customers;
     private final CurrentActor actor;
+    private final CustomerSheets sheets;
 
-    CustomerController(Customers customers, CurrentActor actor) {
+    CustomerController(Customers customers, CurrentActor actor, CustomerSheets sheets) {
         this.customers = customers;
         this.actor = actor;
+        this.sheets = sheets;
     }
 
     @GetMapping
@@ -44,6 +51,20 @@ class CustomerController {
     @PreAuthorize("@customerPermissions.canRead()")
     List<CustomerLookupItem> lookup(@RequestParam(required = false) String q) {
         return customers.lookup(q);
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("@customerPermissions.canRead()")
+    ResponseEntity<byte[]> export(@RequestParam(defaultValue = "csv") String format) {
+        return sheets.export(actor.scope(), format);
+    }
+
+    /** Dry run unless {@code dryRun=false}. */
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@customerPermissions.canCreate()")
+    Sheets.ImportResult importCsv(@RequestParam MultipartFile file,
+                                  @RequestParam(defaultValue = "true") boolean dryRun) throws IOException {
+        return sheets.importCsv(actor.scope(), file.getBytes(), dryRun);
     }
 
     @GetMapping("/{id}")

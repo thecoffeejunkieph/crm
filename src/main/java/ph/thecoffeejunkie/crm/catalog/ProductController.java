@@ -14,15 +14,37 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.Sheets;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/products")
 class ProductController {
 
     private final Catalog catalog;
+    private final ProductSheets sheets;
 
-    ProductController(Catalog catalog) {
+    ProductController(Catalog catalog, ProductSheets sheets) {
         this.catalog = catalog;
+        this.sheets = sheets;
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("@catalogPermissions.canRead()")
+    ResponseEntity<byte[]> export(@RequestParam(defaultValue = "csv") String format) {
+        return sheets.export(format);
+    }
+
+    /** Dry run unless {@code dryRun=false}. */
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@catalogPermissions.canWrite()")
+    Sheets.ImportResult importCsv(@RequestParam MultipartFile file,
+                                  @RequestParam(defaultValue = "true") boolean dryRun) throws IOException {
+        return sheets.importCsv(file.getBytes(), dryRun);
     }
 
     @GetMapping

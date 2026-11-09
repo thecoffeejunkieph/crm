@@ -272,14 +272,14 @@ public class StorageService {
         log.info("Stored object {} ({} bytes)", key, bytes.length);
     }
 
-    /** A presigned link that downloads under the original name (RFC 5987 encoded, so no header injection). */
+    /** A presigned link that opens in the browser when it can (PDFs, images) and otherwise downloads under the original name (RFC 5987 encoded, so no header injection). */
     public String presignedDownloadUrl(String key, String fileName) {
         String encoded = java.net.URLEncoder.encode(fileName, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
         try {
             return presignClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET).bucket(bucket).object(key).expiry(presignExpirySeconds)
                     .extraQueryParams(java.util.Map.of("response-content-disposition",
-                            "attachment; filename*=UTF-8''" + encoded))
+                            "inline; filename*=UTF-8''" + encoded))
                     .build());
         } catch (Exception e) {
             throw new IllegalStateException("Failed to create download link", e);

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -22,8 +23,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
@@ -140,5 +144,31 @@ class CatalogIT {
         assertThat(info.archived()).isTrue();
         assertThat(info.cost()).isEqualByComparingTo("7.50");
         assertThat(info.unit()).isEqualTo(ProductUnit.KG);
+    }
+
+    private ResultActions importCsv(long uid, Role role, String csv, boolean dryRun) throws Exception {
+        var file = new MockMultipartFile("file", "p.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return mvc.perform(multipart("/api/products/import").file(file).param("dryRun", String.valueOf(dryRun))
+                .with(authentication(as(uid, role))).with(csrf(mvc)));
+    }
+
+    @Test
+    void importChecksEveryRowThenCreatesAllAndExportsWithoutCostForSales() throws Exception {
+        String bad = "sku,name,unit,price,cost,taxClass\n%s-i1,%s beans,KG,10,5,VATABLE\n%s-i1,Dup,KG,1,,\n".formatted(tag, tag, tag);
+        importCsv(admin, Role.ADMIN, bad, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.created").value(0)).andExpect(jsonPath("$.errors[0].row").value(3));
+        String good = "sku,name,unit,price\n%s-i1,%s beans,KG,10\n%s-i2,%s cups,pc,2.50\n".formatted(tag, tag, tag, tag);
+        importCsv(admin, Role.ADMIN, good, true).andExpect(jsonPath("$.created").value(0)).andExpect(jsonPath("$.errors").isEmpty());
+        assertThat(jdbc.queryForObject("select count(*) from product where sku like ?", Long.class, tag + "%")).isZero();
+        importCsv(admin, Role.ADMIN, good, false).andExpect(jsonPath("$.created").value(2));
+        importCsv(sales, Role.SALES, good, true).andExpect(status().isForbidden());
+
+        mvc.perform(get("/api/products/export?format=csv").with(authentication(as(sales, Role.SALES))))
+                .andExpect(status().isOk()).andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith("attachment")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(tag + "-i2")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(",cost,"))));
+        mvc.perform(get("/api/products/export?format=xlsx").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
     }
 }

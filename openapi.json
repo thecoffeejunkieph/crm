@@ -1160,6 +1160,28 @@
         "required" : [ "email" ],
         "type" : "object"
       },
+      "ImportResult" : {
+        "properties" : {
+          "created" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "dryRun" : {
+            "type" : "boolean"
+          },
+          "errors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RowError"
+            },
+            "type" : "array"
+          },
+          "rows" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "InviteUserRequest" : {
         "properties" : {
           "email" : {
@@ -3631,6 +3653,18 @@
         },
         "type" : "object"
       },
+      "RowError" : {
+        "properties" : {
+          "message" : {
+            "type" : "string"
+          },
+          "row" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "SalesInsights" : {
         "properties" : {
           "collected" : {
@@ -5230,6 +5264,77 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CustomerResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "customer-controller" ]
+      }
+    },
+    "/api/customers/export" : {
+      "get" : {
+        "operationId" : "export_1",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "format",
+          "required" : false,
+          "schema" : {
+            "default" : "csv",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "customer-controller" ]
+      }
+    },
+    "/api/customers/import" : {
+      "post" : {
+        "operationId" : "importCsv_1",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "dryRun",
+          "required" : false,
+          "schema" : {
+            "default" : true,
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ImportResult"
                 }
               }
             },
@@ -8790,6 +8895,77 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "product-controller" ]
+      }
+    },
+    "/api/products/export" : {
+      "get" : {
+        "operationId" : "export",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "format",
+          "required" : false,
+          "schema" : {
+            "default" : "csv",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "product-controller" ]
+      }
+    },
+    "/api/products/import" : {
+      "post" : {
+        "operationId" : "importCsv",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "dryRun",
+          "required" : false,
+          "schema" : {
+            "default" : true,
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ImportResult"
                 }
               }
             },

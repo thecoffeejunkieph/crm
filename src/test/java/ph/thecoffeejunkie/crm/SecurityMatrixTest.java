@@ -113,6 +113,8 @@ class SecurityMatrixTest {
             Map.entry("POST /api/products", A),
             Map.entry("PUT /api/products/{id}", A),
             Map.entry("POST /api/products/{id}/archive", A),
+            Map.entry("GET /api/products/export", STAFF),
+            Map.entry("POST /api/products/import", A),
 
             Map.entry("GET /api/products/{id}/availability", AS),
             Map.entry("GET /api/stock", STAFF),
@@ -141,6 +143,8 @@ class SecurityMatrixTest {
 
             Map.entry("GET /api/customers", AS),
             Map.entry("GET /api/customers/lookup", AS),
+            Map.entry("GET /api/customers/export", AS),
+            Map.entry("POST /api/customers/import", AS),
             Map.entry("GET /api/customers/{id}", AS),
             Map.entry("POST /api/customers", AS),
             Map.entry("PUT /api/customers/{id}", AS),

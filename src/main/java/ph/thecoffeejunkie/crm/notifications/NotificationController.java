@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.notifications;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,17 +18,12 @@ import java.util.Map;
 /** The signed-in user's own notifications; every endpoint is scoped to the caller. */
 @RestController
 @RequestMapping("/api/notifications")
+@RequiredArgsConstructor
 class NotificationController {
 
     private final Notifications notifications;
     private final NotificationStreams streams;
     private final CurrentActor actor;
-
-    NotificationController(Notifications notifications, NotificationStreams streams, CurrentActor actor) {
-        this.notifications = notifications;
-        this.streams = streams;
-        this.actor = actor;
-    }
 
     @GetMapping
     PageResponse<NotificationResponse> list(PageQuery page) {

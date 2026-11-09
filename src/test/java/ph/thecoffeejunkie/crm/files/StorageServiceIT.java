@@ -69,7 +69,7 @@ class StorageServiceIT {
         assertEquals(200, response.statusCode());
         assertArrayEquals(csv, response.body());
         String disposition = response.headers().firstValue("Content-Disposition").orElse("");
-        assertTrue(disposition.startsWith("attachment; filename*=UTF-8''Price%20list"), disposition);
+        assertTrue(disposition.startsWith("inline; filename*=UTF-8''Price%20list"), disposition);
         assertTrue(!disposition.contains("\r") && !disposition.contains("\n"), disposition);
         storage.deleteQuietly(key);
     }

@@ -1,0 +1,69 @@
+# Dev infra only: values match the fallbacks in application-dev.properties, so the api runs on the host
+# with no env vars:
+#   docker compose -f docker-compose.dev.yml up -d
+#   ./gradlew bootRun
+# MinIO console http://localhost:9001 · Mailpit http://localhost:8025
+# Publishes the same host ports as docker-compose.local.yml - run one stack at a time.
+name: crm-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm_owner
+      POSTGRES_PASSWORD: crm_owner
+      # Read by deploy/postgres/init/01-roles.sh on first start to create crm_app.
+      DB_APP_PASSWORD: crm_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_owner -d crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4.2-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "devredis"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "devredis", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      # The api logs in as root; the bucket is created by the api on startup.
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000" # S3 API - browsers follow presigned links here
+      - "9001:9001" # console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # UI + API
+
+volumes:
+  pg_data:
+  minio_data:
+  redis_data:
