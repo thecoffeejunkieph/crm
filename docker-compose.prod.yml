@@ -37,6 +37,10 @@ services:
       REDIS_HOST: redis
       LOG_PATH: /app/logs
     ports: ["8080:8080"] # exposed for the frontend (dev server on :5173) to call
+    # default keeps postgres/redis/minio reachable; those stay off the shared proxy network.
+    networks:
+      - default
+      - dokploy-network
     # Rolling JSON log files (14 days) next to the compose file, as well as `docker logs`.
     volumes:
       - ./logs:/app/logs
@@ -85,3 +89,5 @@ volumes:
 networks:
   default:
     name: crm-network
+  dokploy-network:
+    external: true

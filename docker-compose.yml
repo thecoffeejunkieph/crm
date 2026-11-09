@@ -62,14 +62,14 @@ services:
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.api.rule=Host(`api.thecoffeejunkie.ph`)
+      - traefik.http.routers.api.rule=Host(`new-crm.thecoffeejunkie.ph`) && PathPrefix(`/api`)
       - traefik.http.routers.api.entrypoints=websecure
       - traefik.http.routers.api.tls.certresolver=letsencrypt
       - traefik.http.services.api.loadbalancer.server.port=8080
       - traefik.http.routers.api.tls=true
     # Port 8081 (actuator health) is neither published nor routed; probe it from inside the network.
     # Not published to the host - Traefik (running as its own stack on the VPS,
-    # watching the external "traefik-proxy" network) is the only thing that
+    # watching the external "dokploy-network" network) is the only thing that
     # talks to :8080, routed in via the labels above.
 
   minio:
