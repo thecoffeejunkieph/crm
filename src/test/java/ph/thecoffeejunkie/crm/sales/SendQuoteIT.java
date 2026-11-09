@@ -165,13 +165,29 @@ class SendQuoteIT {
                 .with(asRep).header("Idempotency-Key", java.util.UUID.randomUUID().toString())).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(), "$.id").longValue();
         String number = jdbc.queryForObject("select number from invoice where id = ?", String.class, invoice);
+        // Issuing mails it once by itself.
+        assertThat(attachments(MailSupport.awaitMail(mail, 1).get(0))).containsExactly(number + ".pdf");
 
         resend("/api/invoices/" + invoice + "/resend").andExpect(status().isOk())
                 .andExpect(jsonPath("$.emailedTo", containsInAnyOrder(f.contactEmail("one"))));
 
-        assertThat(attachments(MailSupport.awaitMail(mail, 1).get(0))).containsExactly(number + ".pdf");
+        assertThat(attachments(MailSupport.awaitMail(mail, 2).get(1))).containsExactly(number + ".pdf");
         jdbc.update("update invoice set status = 'VOID' where id = ?", invoice);
         resend("/api/invoices/" + invoice + "/resend").andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void issuingWithoutPortalContactsSaysNobodyWasMailed() throws Exception {
+        for (String k : List.of("name", "tin", "address")) {
+            jdbc.update("update app_setting set value = to_jsonb('x'::text) where key = ?", "company." + k);
+        }
+        caches.getCache("settings").clear();
+        long id = f.createdOrder(asRep, customer, line(product, "1"));
+        f.setStatus(id, "CONFIRMED");
+        mvc.perform(f.json(post("/api/orders/" + id + "/invoice"), "{\"version\":" + f.version(id) + "}")
+                .with(asRep).header("Idempotency-Key", java.util.UUID.randomUUID().toString())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailedTo.length()").value(0));
+        assertThat(MailSupport.sent(mail)).isEmpty();
     }
 
     @Test

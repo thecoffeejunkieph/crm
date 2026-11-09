@@ -66,6 +66,13 @@ class InvoiceService {
         this.clock = clock;
     }
 
+    /** Issuing from an order mails the customer. POS calls issue() directly: there the cashier decides. */
+    @Transactional
+    InvoiceResponse issueAndSend(Scope s, long orderId, TransitionRequest req) {
+        InvoiceResponse r = issue(s, orderId, req);
+        return r.withEmailedTo(send(repo.findById(r.id()).orElseThrow()));
+    }
+
     @Transactional
     InvoiceResponse issue(Scope s, long orderId, TransitionRequest req) {
         SalesOrder o = access.findVisibleForUpdate(orderId, s);
@@ -85,7 +92,8 @@ class InvoiceService {
         Invoice current = active(o).orElseThrow(() ->
                 new DomainException(ErrorCode.INVALID_STATE, "This order has no active invoice to reissue."));
         approvals.ensureAllApproved(List.of(voidApproval(current, OrderFingerprint.of(o), req.reason())));
-        return voidAndReplace(o, req.reason()).toResponse();
+        Invoice replacement = voidAndReplace(o, req.reason());
+        return replacement.toResponse().withEmailedTo(send(replacement));
     }
 
     @Transactional(readOnly = true)
@@ -107,13 +115,18 @@ class InvoiceService {
         if (i.status != InvoiceStatus.ISSUED) {
             throw new DomainException(ErrorCode.INVALID_STATE, "A voided invoice cannot be sent.");
         }
+        return new ResendResponse(send(i));
+    }
+
+    /** Mails the customer's portal contacts after commit; the PDF is rendered off-thread, outside the order lock. */
+    List<String> send(Invoice i) {
         List<String> to = customers.portalContactEmails(orderRepo.findById(i.orderId).orElseThrow().customerId);
         if (!to.isEmpty()) {
-            byte[] pdf = document.render(i);
+            long id = i.id;
             audit.record(AuditAction.INVOICE_SENT, OrderService.ENTITY, i.orderId, "Sent invoice " + i.number, null);
-            mailer.invoiceAfterCommit(to, i.number, () -> pdf);
+            mailer.invoiceAfterCommit(to, i.number, () -> document.render(repo.findById(id).orElseThrow()));
         }
-        return new ResendResponse(to);
+        return to;
     }
 
     private Invoice visible(Scope s, long invoiceId) {

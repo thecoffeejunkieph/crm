@@ -47,11 +47,11 @@ class AuthController {
             throw new DomainException(ErrorCode.VALIDATION_FAILED, "X-Client-Type must be WEB or ANDROID",
                     Map.of("field", "X-Client-Type"));
         }
-        LoginService.Outcome outcome = loginService.login(req);
+        LoginService.Outcome outcome = loginService.login(req, request);
         Principals.establish(request, response, outcome.authentication());
         String token = HeaderOrCookieSessionIdResolver.ANDROID.equals(clientType)
                 ? request.getSession().getId() : null;
-        return new LoginResponse(outcome.next(), token);
+        return new LoginResponse(outcome.next(), token, null);
     }
 
     @PostMapping("/logout")

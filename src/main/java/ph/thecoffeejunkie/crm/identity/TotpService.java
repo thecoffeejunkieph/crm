@@ -221,7 +221,7 @@ class TotpService {
         return s.substring(0, 5) + "-" + s.substring(5, 10);
     }
 
-    private static String hash(String code) {
+    static String hash(String code) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(code.getBytes(StandardCharsets.UTF_8)));

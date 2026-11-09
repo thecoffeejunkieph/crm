@@ -38,9 +38,9 @@ public final class MailSupport {
         return captor.getAllValues();
     }
 
-    /** Mail sent off-thread: waits (up to 5 s, returns as soon as met) until exactly n messages were sent. */
+    /** Mail sent off-thread: waits (up to 15 s, returns as soon as met) until exactly n messages were sent; the first PDF starts Chromium. */
     public static List<MimeMessage> awaitMail(JavaMailSender sender, int n) {
-        verify(sender, timeout(5000).times(n)).send(any(MimeMessage.class));
+        verify(sender, timeout(15000).times(n)).send(any(MimeMessage.class));
         return sent(sender);
     }
 

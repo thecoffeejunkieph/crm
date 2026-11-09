@@ -271,7 +271,7 @@ class OrderService {
                     shipChanges);
         }
         if (invoice.isPresent()) {
-            invoiceService.voidAndReplace(o, reason);
+            invoiceService.send(invoiceService.voidAndReplace(o, reason));
         }
         audit.record(AuditAction.REVISED, ENTITY, o.id, "Revised order " + o.number + ": " + reason, changes);
         return toResponse(o, s);

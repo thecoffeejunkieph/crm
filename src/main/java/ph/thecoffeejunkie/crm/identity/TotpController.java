@@ -26,10 +26,12 @@ class TotpController {
     private static final String PENDING_SECRET = "pendingTotpSecret";
 
     private final TotpService service;
+    private final TrustedDevices devices;
     private final CurrentActor actor;
 
-    TotpController(TotpService service, CurrentActor actor) {
+    TotpController(TotpService service, TrustedDevices devices, CurrentActor actor) {
         this.service = service;
+        this.devices = devices;
         this.actor = actor;
     }
 
@@ -41,12 +43,15 @@ class TotpController {
             throw new DomainException(ErrorCode.UNAUTHORIZED, "Login required.");
         }
         boolean recovery = req.recoveryCode() != null && !req.recoveryCode().isBlank();
+        String deviceToken = null;
         if (recovery) {
+            // Someone without their authenticator may be on a borrowed machine, so it is not remembered.
             service.verifyRecovery(p.userId(), req.recoveryCode());
         } else {
             service.verifyLogin(p.userId(), req.code());
+            deviceToken = devices.remember(p.userId(), request, response);
         }
-        return new LoginResponse("DONE", upgrade(p, request, response));
+        return new LoginResponse("DONE", upgrade(p, request, response), deviceToken);
     }
 
     @PostMapping("/api/me/totp/setup")
@@ -70,6 +75,7 @@ class TotpController {
         }
         RecoveryCodesResponse r = service.enable(userId, stored.substring(prefix.length()), req.code());
         session.removeAttribute(PENDING_SECRET);
+        devices.remember(userId, request, response);
         // An ENROL_2FA session becomes a full one only now that the DB transaction has committed.
         String token = null;
         if (hasAuthority(auth, "ENROL_2FA") && auth.getPrincipal() instanceof StaffPrincipal p) {

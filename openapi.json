@@ -1200,6 +1200,12 @@
             "format" : "date",
             "type" : "string"
           },
+          "emailedTo" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "id" : {
             "format" : "int64",
             "type" : "integer"
@@ -1747,6 +1753,9 @@
       },
       "LoginResponse" : {
         "properties" : {
+          "deviceToken" : {
+            "type" : "string"
+          },
           "next" : {
             "type" : "string"
           },

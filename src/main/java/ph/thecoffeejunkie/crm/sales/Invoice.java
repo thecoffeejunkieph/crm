@@ -55,6 +55,6 @@ class Invoice {
 
     InvoiceResponse toResponse() {
         return new InvoiceResponse(id, number, status, orderRevision, issuedAt, dueDate, total, voidReason, voidedAt,
-                replacedById);
+                replacedById, null);
     }
 }

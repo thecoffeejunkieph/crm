@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.identity;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -28,17 +29,19 @@ class LoginService {
     private final PasswordEncoder encoder;
     private final AuditLog audit;
     private final LoginThrottle throttle;
+    private final TrustedDevices devices;
     private final Clock clock;
     private final TransactionTemplate tx;
     /** Checked when there is no real hash, so every path costs the same bcrypt time. */
     private final String dummyHash;
 
     LoginService(AppUserRepository users, PasswordEncoder encoder, AuditLog audit, LoginThrottle throttle,
-                 Clock clock, PlatformTransactionManager transactionManager) {
+                 TrustedDevices devices, Clock clock, PlatformTransactionManager transactionManager) {
         this.users = users;
         this.encoder = encoder;
         this.audit = audit;
         this.throttle = throttle;
+        this.devices = devices;
         this.clock = clock;
         this.tx = new TransactionTemplate(transactionManager);
         this.dummyHash = encoder.encode("timing-equaliser-not-a-password");
@@ -51,7 +54,7 @@ class LoginService {
      * connection held, so a login flood cannot drain Hikari. The lookup is its own short repository read; the
      * mirror UPDATE and audit rows go in one short write transaction afterwards.
      */
-    Outcome login(LoginRequest req) {
+    Outcome login(LoginRequest req, HttpServletRequest request) {
         String email = req.email().trim().toLowerCase(Locale.ROOT);
         if (throttle.isLocked(email)) {
             encoder.matches(req.password(), dummyHash);
@@ -69,27 +72,28 @@ class LoginService {
         }
 
         throttle.clear(email);
-        return tx.execute(s -> succeed(u));
+        boolean trusted = u.totpEnabledAt != null && devices.isTrusted(u, request);
+        return tx.execute(s -> succeed(u, trusted));
     }
 
-    private Outcome succeed(AppUser u) {
+    private Outcome succeed(AppUser u, boolean trusted) {
         if (u.failedLogins != 0 || u.lockedUntil != null) {
             users.resetFailedLogins(u.id);
         }
         var principal = Principals.staffOf(u, u.warehouseIds);
         String next;
         String authority;
-        if (u.totpEnabledAt != null) {
+        if (u.totpEnabledAt != null && !trusted) {
             next = "TOTP";
             authority = "PRE_2FA";
-        } else if (u.role == Role.ADMIN) {
+        } else if (u.totpEnabledAt == null && u.role == Role.ADMIN) {
             next = "ENROL_TOTP";
             authority = "ENROL_2FA";
         } else {
             next = "DONE";
             authority = "ROLE_" + u.role;
             audit.recordFor("USER", u.id, u.displayName(), AuditAction.LOGIN_SUCCEEDED, "USER", u.id,
-                    "Logged in");
+                    trusted ? "Logged in on a remembered device" : "Logged in");
         }
         return new Outcome(next, UsernamePasswordAuthenticationToken.authenticated(
                 principal, null, List.of(new SimpleGrantedAuthority(authority))));

@@ -29,7 +29,7 @@ class InvoiceController {
     @PreAuthorize("@salesPermissions.canWrite()")
     InvoiceResponse issue(@PathVariable long id, @RequestHeader("Idempotency-Key") String key,
                           @Valid @RequestBody TransitionRequest req) {
-        return invoices.issue(actor.scope(), id, req);
+        return invoices.issueAndSend(actor.scope(), id, req);
     }
 
     @PostMapping("/api/orders/{id}/invoice/reissue")

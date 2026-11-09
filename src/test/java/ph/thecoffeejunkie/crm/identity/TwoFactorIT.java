@@ -146,6 +146,10 @@ class TwoFactorIT {
         String code = String.format("%06d", Totp.codeAt(Base32.decode(base32), Totp.stepAt(Instant.now())));
         MvcResult enabled = send("POST", "/api/me/totp/enable", s, "{\"code\":\"" + code + "\"}")
                 .andExpect(status().isOk()).andExpect(jsonPath("$.codes.length()").value(10)).andReturn();
+        // Enrolling proves the authenticator, so the next login here asks for nothing.
+        long enrolledId = users.findByEmailAndArchivedAtIsNull("enrol@totp.it").orElseThrow().id;
+        assertThat(next(loginOn("enrol@totp.it", enabled.getResponse().getCookie(TrustedDevices.COOKIE_PREFIX + enrolledId))))
+                .isEqualTo("DONE");
         List<String> codes = JsonPath.read(enabled.getResponse().getContentAsString(), "$.codes");
         assertThat(codes).allMatch(c -> c.matches("[a-z2-7]{5}-[a-z2-7]{5}"));
 
@@ -176,6 +180,96 @@ class TwoFactorIT {
         mvc.perform(get("/api/me").cookie(session(l))).andExpect(status().isForbidden());
         Cookie full = fullSession("req@totp.it", secret);
         mvc.perform(get("/api/me").cookie(full)).andExpect(status().isOk());
+    }
+
+    private MvcResult loginOn(String email, Cookie device) throws Exception {
+        return mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).cookie(device)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + PW + "\"}").with(csrf(mvc)))
+                .andExpect(status().isOk()).andReturn();
+    }
+
+    private Cookie rememberedDevice(String email, byte[] secret) throws Exception {
+        long id = users.findByEmailAndArchivedAtIsNull(email).orElseThrow().id;
+        Cookie pre = session(login(email));
+        return send("POST", "/api/auth/totp", pre, "{\"code\":\"" + code(email, secret) + "\"}")
+                .andExpect(status().isOk()).andReturn().getResponse().getCookie(TrustedDevices.COOKIE_PREFIX + id);
+    }
+
+    @Test
+    void rememberedDeviceSkipsTheCodeButNewDevicesDoNot() throws Exception {
+        String email = "device@totp.it";
+        Cookie device = rememberedDevice(email, enrolled(email, Role.SALES));
+        assertThat(device.isHttpOnly()).isTrue();
+
+        MvcResult again = loginOn(email, device);
+        assertThat(next(again)).isEqualTo("DONE");
+        mvc.perform(get("/api/me").cookie(session(again))).andExpect(status().isOk());
+
+        assertThat(next(login(email))).isEqualTo("TOTP");
+        assertThat(next(loginOn(email, new Cookie(device.getName(), "forged")))).isEqualTo("TOTP");
+    }
+
+    @Test
+    void rememberedDeviceStillNeedsThePassword() throws Exception {
+        String email = "devicepw@totp.it";
+        Cookie device = rememberedDevice(email, enrolled(email, Role.SALES));
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).cookie(device)
+                .content("{\"email\":\"" + email + "\",\"password\":\"wrong-password\"}").with(csrf(mvc)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anotherUsersDeviceCookieDoesNotCount() throws Exception {
+        Cookie device = rememberedDevice("deva@totp.it", enrolled("deva@totp.it", Role.SALES));
+        enrolled("devb@totp.it", Role.SALES);
+        long b = users.findByEmailAndArchivedAtIsNull("devb@totp.it").orElseThrow().id;
+        assertThat(next(loginOn("devb@totp.it", new Cookie(TrustedDevices.COOKIE_PREFIX + b, device.getValue()))))
+                .isEqualTo("TOTP");
+    }
+
+    @Test
+    void changingThePasswordForgetsDevices() throws Exception {
+        String email = "devicechg@totp.it";
+        Cookie device = rememberedDevice(email, enrolled(email, Role.SALES));
+        jdbc.update("update app_user set password_hash = ? where email = ?", BCRYPT.encode(PW), email);
+        assertThat(next(loginOn(email, device))).isEqualTo("TOTP");
+    }
+
+    @Test
+    void reEnrollingForgetsDevices() throws Exception {
+        String email = "devicere@totp.it";
+        Cookie device = rememberedDevice(email, enrolled(email, Role.SALES));
+        jdbc.update("update app_user set totp_enabled_at = totp_enabled_at + interval '1 minute' where email = ?", email);
+        assertThat(next(loginOn(email, device))).isEqualTo("TOTP");
+    }
+
+    @Test
+    void recoveryCodeDoesNotRememberTheDevice() throws Exception {
+        enrolled("devrec@totp.it", Role.SALES);
+        long id = users.findByEmailAndArchivedAtIsNull("devrec@totp.it").orElseThrow().id;
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest("abcde-fghij".getBytes(StandardCharsets.UTF_8)));
+        jdbc.update("insert into recovery_code (user_id, code_hash) values (?, ?)", id, hash);
+        MvcResult ok = send("POST", "/api/auth/totp", session(login("devrec@totp.it")), "{\"recoveryCode\":\"abcde-fghij\"}")
+                .andExpect(status().isOk()).andReturn();
+        assertThat(ok.getResponse().getCookie(TrustedDevices.COOKIE_PREFIX + id)).isNull();
+    }
+
+    @Test
+    void androidKeepsItsDeviceToken() throws Exception {
+        String email = "devandroid@totp.it";
+        byte[] secret = enrolled(email, Role.SALES);
+        String body = "{\"email\":\"" + email + "\",\"password\":\"" + PW + "\"}";
+        String session = JsonPath.read(mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .header("X-Client-Type", "ANDROID").content(body)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.next").value("TOTP")).andReturn().getResponse().getContentAsString(), "$.sessionToken");
+        String device = JsonPath.read(mvc.perform(post("/api/auth/totp").contentType(MediaType.APPLICATION_JSON)
+                .header("X-Client-Type", "ANDROID").header("X-Auth-Token", session)
+                .content("{\"code\":\"" + code(email, secret) + "\"}")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.deviceToken");
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).header("X-Client-Type", "ANDROID")
+                .header(TrustedDevices.DEVICE_HEADER, device).content(body)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.next").value("DONE"));
     }
 
     @Test
