@@ -40,7 +40,8 @@ services:
       BOOTSTRAP_ADMIN_FIRST_NAME: ${BOOTSTRAP_ADMIN_FIRST_NAME:-Admin}
       BOOTSTRAP_ADMIN_LAST_NAME: ${BOOTSTRAP_ADMIN_LAST_NAME:-User}
       MINIO_ENDPOINT: http://new-crm-minio:9000
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:?MINIO_PUBLIC_URL is required}
+      # Presigned links go out path-style (/crm/<key>) on the app's own host; see new-crm-files below.
+      MINIO_PUBLIC_URL: https://new-crm.thecoffeejunkie.ph
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
       MINIO_BUCKET: crm
@@ -93,11 +94,12 @@ services:
     networks:
       - default
       - dokploy-network
-    # Only the S3 API is routed, so browsers can follow presigned links. Every object is
-    # private; a link works only while its signature is valid. The console stays unexposed.
+    # Only the bucket path of the S3 API is routed, so browsers can follow presigned links. Every
+    # object is private; a link works only while its signature is valid. The console stays unexposed.
+    # It shares the app host rather than files.thecoffeejunkie.ph, which the legacy app's MinIO owns.
     labels:
       - traefik.enable=true
-      - traefik.http.routers.new-crm-files.rule=Host(`${MINIO_PUBLIC_HOST:?MINIO_PUBLIC_HOST is required}`)
+      - traefik.http.routers.new-crm-files.rule=Host(`new-crm.thecoffeejunkie.ph`) && PathPrefix(`/crm/`)
       - traefik.http.routers.new-crm-files.entrypoints=websecure
       - traefik.http.routers.new-crm-files.tls.certresolver=letsencrypt
       - traefik.http.routers.new-crm-files.tls=true
