@@ -37,6 +37,8 @@ services:
       # Subdomains of this host can read the XSRF-TOKEN cookie, so every subdomain must be trusted.
       CSRF_COOKIE_DOMAIN: ${CSRF_COOKIE_DOMAIN:-thecoffeejunkie.ph}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_FIRST_NAME: ${BOOTSTRAP_ADMIN_FIRST_NAME:-Admin}
+      BOOTSTRAP_ADMIN_LAST_NAME: ${BOOTSTRAP_ADMIN_LAST_NAME:-User}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:?MINIO_PUBLIC_URL is required}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
