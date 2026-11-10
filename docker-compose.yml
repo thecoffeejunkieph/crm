@@ -1,5 +1,5 @@
 services:
-  postgres:
+  new-crm-postgres:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: crm
@@ -18,7 +18,7 @@ services:
     # Not published to the host - only the api container talks to this, over the
     # compose network. Keep the DB off the public internet.
 
-  api:
+  new-crm-api:
     build: .
     restart: unless-stopped
     # Rolling ECS JSON log files (14 days, 1 GB cap) that survive redeploys.
@@ -26,7 +26,7 @@ services:
       - ./logs:/app/logs
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_HOST: postgres
+      DB_HOST: new-crm-postgres
       DB_OWNER_USERNAME: crm_owner
       DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?}
       DB_APP_USERNAME: crm_app
@@ -39,12 +39,12 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_FIRST_NAME: ${BOOTSTRAP_ADMIN_FIRST_NAME:-Admin}
       BOOTSTRAP_ADMIN_LAST_NAME: ${BOOTSTRAP_ADMIN_LAST_NAME:-User}
-      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENDPOINT: http://new-crm-minio:9000
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:?MINIO_PUBLIC_URL is required}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
       MINIO_BUCKET: crm
-      REDIS_HOST: redis
+      REDIS_HOST: new-crm-redis
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       LOG_PATH: /app/logs
       APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
@@ -53,28 +53,28 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:?MAIL_USERNAME is required}
       MAIL_PASSWORD: ${MAIL_PASSWORD:?MAIL_PASSWORD is required}
     depends_on:
-      postgres:
+      new-crm-postgres:
         condition: service_healthy
-      minio:
+      new-crm-minio:
         condition: service_healthy
-      redis:
+      new-crm-redis:
         condition: service_healthy
     networks:
       - default
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.api.rule=Host(`new-crm.thecoffeejunkie.ph`) && PathPrefix(`/api`)
-      - traefik.http.routers.api.entrypoints=websecure
-      - traefik.http.routers.api.tls.certresolver=letsencrypt
-      - traefik.http.services.api.loadbalancer.server.port=8080
-      - traefik.http.routers.api.tls=true
+      - traefik.http.routers.new-crm-api.rule=Host(`new-crm.thecoffeejunkie.ph`) && PathPrefix(`/api`)
+      - traefik.http.routers.new-crm-api.entrypoints=websecure
+      - traefik.http.routers.new-crm-api.tls.certresolver=letsencrypt
+      - traefik.http.services.new-crm-api.loadbalancer.server.port=8080
+      - traefik.http.routers.new-crm-api.tls=true
     # Port 8081 (actuator health) is neither published nor routed; probe it from inside the network.
     # Not published to the host - Traefik (running as its own stack on the VPS,
     # watching the external "dokploy-network" network) is the only thing that
     # talks to :8080, routed in via the labels above.
 
-  minio:
+  new-crm-minio:
     # MinIO stopped publishing new community images; pinned to the last release we have.
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     restart: unless-stopped
@@ -97,13 +97,13 @@ services:
     # private; a link works only while its signature is valid. The console stays unexposed.
     labels:
       - traefik.enable=true
-      - traefik.http.routers.files.rule=Host(`${MINIO_PUBLIC_HOST:?MINIO_PUBLIC_HOST is required}`)
-      - traefik.http.routers.files.entrypoints=websecure
-      - traefik.http.routers.files.tls.certresolver=letsencrypt
-      - traefik.http.routers.files.tls=true
-      - traefik.http.services.files.loadbalancer.server.port=9000
+      - traefik.http.routers.new-crm-files.rule=Host(`${MINIO_PUBLIC_HOST:?MINIO_PUBLIC_HOST is required}`)
+      - traefik.http.routers.new-crm-files.entrypoints=websecure
+      - traefik.http.routers.new-crm-files.tls.certresolver=letsencrypt
+      - traefik.http.routers.new-crm-files.tls=true
+      - traefik.http.services.new-crm-files.loadbalancer.server.port=9000
 
-  redis:
+  new-crm-redis:
     image: redis:7.4.2-alpine
     restart: unless-stopped
     # appendonly so a restart doesn't bring logged-out tokens back to life
@@ -119,22 +119,22 @@ services:
 
   # One-off copy of the old on-disk uploads into the bucket, keeping their relative paths
   # (which is what the V4 Flyway migration turns the stored DB paths into):
-  #   docker compose --profile migrate run --rm storage-migrate
+  #   docker compose --profile migrate run --rm new-crm-storage-migrate
   # Once the files are verified in the bucket, delete this service and the api_storage volume.
-  storage-migrate:
+  new-crm-storage-migrate:
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z # ships the mc client
     profiles: ["migrate"]
     environment:
-      MC_HOST_crm: http://${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}:${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}@minio:9000
+      MC_HOST_crm: http://${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}:${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}@new-crm-minio:9000
     entrypoint: ["sh", "-c", "mc mb --ignore-existing crm/${MINIO_BUCKET} && mc mirror /old-storage crm/${MINIO_BUCKET}"]
     volumes:
       - api_storage:/old-storage:ro
     depends_on:
-      minio:
+      new-crm-minio:
         condition: service_healthy
 
   # One-off MySQL -> Postgres migration; see deploy/migrate/CUTOVER.md. Rolls back unless ETL_COMMIT=1 and every check passes.
-  data-migrate:
+  new-crm-data-migrate:
     image: python:3.13-slim
     profiles: ["migrate"]
     environment:
@@ -145,7 +145,7 @@ services:
       LEGACY_DB_PASSWORD: ${LEGACY_DB_PASSWORD:-}
       LEGACY_DB_NAME: ${LEGACY_DB_NAME:-crm_db}
       LEGACY_TZ: ${LEGACY_TZ:-UTC}
-      PG_HOST: postgres
+      PG_HOST: new-crm-postgres
       PG_DB: crm
       PG_USER: crm_owner
       PG_PASSWORD: ${DB_OWNER_PASSWORD:?DB_OWNER_PASSWORD is required}
@@ -155,7 +155,7 @@ services:
       - ./deploy/migrate:/etl:ro
       - api_storage:/old-storage:ro
     depends_on:
-      postgres:
+      new-crm-postgres:
         condition: service_healthy
 
 volumes:

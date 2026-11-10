@@ -30,15 +30,15 @@ Replace `<old-mysql>` with the old database container's name, and `<new-network>
    writes before the data is in.
 
    ```bash
-   docker compose up -d postgres redis minio api
+   docker compose up -d new-crm-postgres new-crm-redis new-crm-minio new-crm-api
    docker compose stop api
    ```
 
 4. **Copy uploads into the bucket**, then confirm nothing differs. `mc diff` should print nothing.
 
    ```bash
-   docker compose --profile migrate run --rm storage-migrate
-   docker compose --profile migrate run --rm --entrypoint sh storage-migrate -c 'mc diff /old-storage crm/$MINIO_BUCKET'
+   docker compose --profile migrate run --rm new-crm-storage-migrate
+   docker compose --profile migrate run --rm --entrypoint sh new-crm-storage-migrate -c 'mc diff /old-storage crm/$MINIO_BUCKET'
    ```
 
 5. **Let the migration reach the old database.**
@@ -50,13 +50,13 @@ Replace `<old-mysql>` with the old database container's name, and `<new-network>
 6. **Dry run.** Everything happens in a transaction and is rolled back. Stop here if any check says `MISMATCH`.
 
    ```bash
-   docker compose --profile migrate run --rm data-migrate | tee etl-dry-run.txt
+   docker compose --profile migrate run --rm new-crm-data-migrate | tee etl-dry-run.txt
    ```
 
 7. **Commit.** It commits only if every check passes again.
 
    ```bash
-   docker compose --profile migrate run --rm -e ETL_COMMIT=1 data-migrate | tee etl-commit.txt
+   docker compose --profile migrate run --rm -e ETL_COMMIT=1 new-crm-data-migrate | tee etl-commit.txt
    ```
 
    If uploads are genuinely lost, the `files:` check blocks the commit. To accept that, add
