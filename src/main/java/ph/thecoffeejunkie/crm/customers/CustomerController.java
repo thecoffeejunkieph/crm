@@ -46,13 +46,6 @@ class CustomerController {
         return customers.list(actor.scope(), q, includeArchived, page);
     }
 
-    // Deliberately unscoped (POS lookup); minimal fields only.
-    @GetMapping("/lookup")
-    @PreAuthorize("@customerPermissions.canRead()")
-    List<CustomerLookupItem> lookup(@RequestParam(required = false) String q) {
-        return customers.lookup(q);
-    }
-
     @GetMapping("/export")
     @PreAuthorize("@customerPermissions.canRead()")
     ResponseEntity<byte[]> export(@RequestParam(defaultValue = "csv") String format) {

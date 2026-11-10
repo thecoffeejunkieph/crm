@@ -50,7 +50,8 @@ class SettingsIT {
         jdbc.update("delete from app_user where id = ?", adminId);
         jdbc.update("update app_setting set value = '15' where key = 'approval.discountPercentMax'");
         jdbc.update("update app_setting set value = '5000' where key = 'approval.writeOffValueMax'");
-        jdbc.update("update app_setting set value = '\"SELF\"' where key = 'pos.quickAddAssignment'");
+        jdbc.update("update app_setting set value = '[]' where key = 'invoice.bankAccounts'");
+        jdbc.update("update app_setting set value = '\"\"' where key = 'invoice.terms'");
         jdbc.update("update app_setting set value = '15' where key = 'sales.quoteValidityDays'");
         jdbc.update("update app_setting set value = '\"\"' where key = 'company.name'");
         caches.getCache("settings").clear();
@@ -70,22 +71,11 @@ class SettingsIT {
     void seededDefaultsReadable() throws Exception {
         assertThat(settings.decimal(SettingKey.APPROVAL_DISCOUNT_PERCENT_MAX)).isEqualByComparingTo("15");
         assertThat(settings.decimal(SettingKey.APPROVAL_WRITE_OFF_VALUE_MAX)).isEqualByComparingTo("5000");
-        assertThat(settings.text(SettingKey.POS_QUICK_ADD_ASSIGNMENT)).isEqualTo("SELF");
+        assertThat(settings.bankAccounts()).isEmpty();
         mvc.perform(get("/api/admin/settings").with(authentication(auth(Role.ADMIN))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$['approval.discountPercentMax']").value(15))
-                .andExpect(jsonPath("$['pos.quickAddAssignment']").value("SELF"));
-    }
-
-    @Test
-    void posWarehouseIdDefaultsToZero() throws Exception {
-        mvc.perform(get("/api/admin/settings").with(authentication(auth(Role.ADMIN))))
-                .andExpect(jsonPath("$['pos.warehouseId']").value(0));
-    }
-
-    @Test
-    void posWarehouseIdRejectsNegative() throws Exception {
-        mvc.perform(putJson("{\"pos.warehouseId\": -1}")).andExpect(status().isBadRequest());
+                .andExpect(jsonPath("$['invoice.terms']").value(""));
     }
 
     @Test
@@ -104,10 +94,10 @@ class SettingsIT {
         assertThat(settings.decimal(SettingKey.APPROVAL_DISCOUNT_PERCENT_MAX)).isEqualByComparingTo("15"); // warm cache
         int before = jdbc.queryForObject(
                 "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class);
-        mvc.perform(putJson("{\"approval.discountPercentMax\": 20, \"pos.quickAddAssignment\": \"UNASSIGNED\"}"))
+        mvc.perform(putJson("{\"approval.discountPercentMax\": 20, \"invoice.terms\": \"Net 30\"}"))
                 .andExpect(status().isOk());
         assertThat(settings.decimal(SettingKey.APPROVAL_DISCOUNT_PERCENT_MAX)).isEqualByComparingTo(new BigDecimal("20"));
-        assertThat(settings.text(SettingKey.POS_QUICK_ADD_ASSIGNMENT)).isEqualTo("UNASSIGNED");
+        assertThat(settings.text(SettingKey.INVOICE_TERMS)).isEqualTo("Net 30");
         assertThat(jdbc.queryForObject("select updated_by from app_setting where key = 'approval.discountPercentMax'",
                 Long.class)).isEqualTo(adminId);
         assertThat(jdbc.queryForObject(
@@ -122,7 +112,7 @@ class SettingsIT {
         int before = jdbc.queryForObject(
                 "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class);
         mvc.perform(putJson("{\"approval.discountPercentMax\": 15, \"approval.writeOffValueMax\": 5000.0,"
-                + " \"pos.quickAddAssignment\": \"SELF\"}")).andExpect(status().isOk());
+                + " \"invoice.terms\": \"\"}")).andExpect(status().isOk());
         assertThat(jdbc.queryForObject(
                 "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class))
                 .isEqualTo(before);
@@ -147,7 +137,23 @@ class SettingsIT {
     void nonNumericRejected() throws Exception {
         mvc.perform(putJson("{\"approval.discountPercentMax\": \"abc\"}")).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
-        mvc.perform(putJson("{\"pos.quickAddAssignment\": \"OTHER\"}")).andExpect(status().isBadRequest());
+        mvc.perform(putJson("{\"invoice.terms\": 5}")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void bankAccountsSavedWithQrButTheLogKeepsNoImage() throws Exception {
+        mvc.perform(putJson("{\"invoice.bankAccounts\": [{\"bankName\": \"BDO\", \"accountName\": \"TCJ\", \"accountNumber\": \"123\", \"qr\": \"data:image/png;base64,iVBORw0KGgo=\"}]}")).andExpect(status().isOk());
+        assertThat(settings.bankAccounts()).hasSize(1);
+        assertThat(settings.bankAccounts().getFirst()).containsEntry("bankName", "BDO");
+        assertThat(jdbc.queryForObject("select changes::text from audit_event where summary like '%invoice.bankAccounts%' order by id desc limit 1", String.class))
+                .contains("(image)").doesNotContain("base64");
+    }
+
+    @Test
+    void bankAccountNeedsANumberAndARealImage() throws Exception {
+        mvc.perform(putJson("{\"invoice.bankAccounts\": [{\"bankName\": \"BDO\"}]}")).andExpect(status().isBadRequest());
+        mvc.perform(putJson("{\"invoice.bankAccounts\": [{\"bankName\": \"BDO\", \"accountNumber\": \"1\", \"qr\": \"data:image/svg+xml;base64,AAAA\"}]}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

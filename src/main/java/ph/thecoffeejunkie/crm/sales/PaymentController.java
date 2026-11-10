@@ -42,13 +42,13 @@ class PaymentController {
     }
 
     @PostMapping("/api/payments/{id}/verify")
-    @PreAuthorize("@salesPermissions.canWrite()")
+    @PreAuthorize("@salesPermissions.canVerifyPayments()")
     PaymentResponse verify(@PathVariable long id, @Valid @RequestBody TransitionRequest req) {
         return payments.verify(actor.scope(), id, req.version());
     }
 
     @PostMapping("/api/payments/{id}/reject")
-    @PreAuthorize("@salesPermissions.canWrite()")
+    @PreAuthorize("@salesPermissions.canVerifyPayments()")
     PaymentResponse reject(@PathVariable long id, @Valid @RequestBody RejectRequest req) {
         return payments.reject(actor.scope(), id, req);
     }

@@ -6,6 +6,7 @@ import ph.thecoffeejunkie.crm.settings.SettingKey;
 import ph.thecoffeejunkie.crm.settings.Settings;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 import static ph.thecoffeejunkie.crm.shared.PdfRenderer.vars;
@@ -39,13 +40,29 @@ class InvoiceDocument {
                         "qty", decimal(l.get("qty")).stripTrailingZeros().toPlainString(), "unit", l.get("unit"),
                         "unitPrice", decimal(l.get("unitPrice")), "lineTotal", decimal(l.get("lineTotal")))).toList(),
                 "totals", vars("vatableSales", i.vatableSales, "vat", i.vat, "vatExemptSales", i.vatExemptSales,
-                        "zeroRatedSales", i.zeroRatedSales, "shippingFee", i.shippingFee, "total", i.total)));
+                        "zeroRatedSales", i.zeroRatedSales, "shippingFee", i.shippingFee, "total", i.total,
+                        "discount", i.discountAmount, "withholdingPct", i.withholdingPct,
+                        "withholding", i.withholdingAmount, "netPayable", i.total.subtract(i.withholdingAmount)),
+                "bankAccounts", accounts(seller),
+                "invoiceTerms", seller.get("terms")));
     }
 
-    /** The seller block and footer, frozen onto the invoice at issue. */
+    /** Invoices issued before the account list froze one free-text "bank" value, or none at all. */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> accounts(Map<String, Object> seller) {
+        if (seller.get("bankAccounts") != null) {
+            return (List<Map<String, Object>>) seller.get("bankAccounts");
+        }
+        return seller.get("bank") == null || "".equals(seller.get("bank")) ? List.of()
+                : List.of(Map.of("bankName", seller.get("bank"), "accountName", "", "accountNumber", "", "qr", ""));
+    }
+
+    /** The seller block, footer, bank accounts and terms, frozen onto the invoice at issue. */
     static Map<String, Object> seller(Settings settings) {
         Map<String, Object> m = new java.util.LinkedHashMap<>(QuoteDocument.company(settings));
         m.put("footer", settings.text(SettingKey.INVOICE_FOOTER_TEXT));
+        m.put("bankAccounts", settings.bankAccounts());
+        m.put("terms", settings.text(SettingKey.INVOICE_TERMS));
         return m;
     }
 

@@ -22,6 +22,9 @@ final class OrderFingerprint {
             s.append(l.productId).append('|').append(plain(l.qty)).append('|').append(plain(l.unitPrice)).append('|')
                     .append(plain(l.discountPct)).append('|');
         }
+        if (o.discountValue.signum() > 0) { // only when set, so approvals on orders without one stay valid
+            s.append(o.discountType).append('|').append(plain(o.discountValue)).append('|');
+        }
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(s.toString().getBytes(StandardCharsets.UTF_8));
             return ByteBuffer.wrap(hash, 0, 8).getLong() & 0x000F_FFFF_FFFF_FFFFL;

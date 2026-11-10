@@ -27,6 +27,11 @@ final class OrderTotals {
     }
 
     static Result compute(List<Line> lines, BigDecimal shippingFee, TaxTreatment treatment) {
+        return compute(lines, shippingFee, treatment, BigDecimal.ZERO);
+    }
+
+    /** {@code discount} is the whole-order peso discount: taken off the goods (never shipping) before VAT is split out. */
+    static Result compute(List<Line> lines, BigDecimal shippingFee, TaxTreatment treatment, BigDecimal discount) {
         Map<TaxClass, BigDecimal> gross = new EnumMap<>(TaxClass.class);
         for (TaxClass c : TaxClass.values()) {
             gross.put(c, BigDecimal.ZERO);
@@ -38,6 +43,7 @@ final class OrderTotals {
             lineTotals.add(net);
             gross.merge(effective(l.taxClass(), treatment), net, BigDecimal::add);
         }
+        spread(gross, discount);
         gross.merge(effective(TaxClass.VATABLE, treatment), shippingFee, BigDecimal::add);
 
         BigDecimal vatableGross = money(gross.get(TaxClass.VATABLE));
@@ -46,6 +52,29 @@ final class OrderTotals {
         BigDecimal zero = money(gross.get(TaxClass.ZERO_RATED));
         return new Result(List.copyOf(lineTotals), vatableSales, vatableGross.subtract(vatableSales), exempt, zero,
                 vatableGross.add(exempt).add(zero));
+    }
+
+    /** The peso value of a whole-order discount on goods worth {@code goods}. */
+    static BigDecimal discountAmount(DiscountType type, BigDecimal value, BigDecimal goods) {
+        return money(type == DiscountType.PERCENT ? goods.multiply(value).divide(HUNDRED) : value);
+    }
+
+    /** Pro rata across the tax classes; the largest takes the rounding, so it can't go negative and the parts sum. */
+    private static void spread(Map<TaxClass, BigDecimal> gross, BigDecimal discount) {
+        if (discount.signum() == 0) {
+            return;
+        }
+        BigDecimal goods = gross.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        TaxClass largest = gross.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey();
+        BigDecimal left = discount;
+        for (TaxClass c : TaxClass.values()) {
+            if (c != largest) {
+                BigDecimal share = gross.get(c).multiply(discount).divide(goods, 2, RoundingMode.HALF_UP);
+                gross.merge(c, share.negate(), BigDecimal::add);
+                left = left.subtract(share);
+            }
+        }
+        gross.merge(largest, left.negate(), BigDecimal::add);
     }
 
     /** Default price for a VATABLE product on a customer who pays no VAT. */

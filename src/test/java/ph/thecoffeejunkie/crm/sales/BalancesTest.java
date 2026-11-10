@@ -1,8 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
 import org.junit.jupiter.api.Test;
-import ph.thecoffeejunkie.crm.customers.CustomerType;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -39,28 +37,28 @@ class BalancesTest {
     }
 
     @Test
-    void withholdingOnePercentBusiness() {
-        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("0"), d("1000")))
+    void withholdingIsOnTheNetOfVatBase() {
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), d("0"), d("1000")))
                 .isEqualTo("3.50");
     }
 
     @Test
-    void withholdingZeroForIndividual() {
-        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.INDIVIDUAL, d("0"), d("1000")))
+    void withholdingZeroAtZeroRate() {
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("0"), d("0"), d("1000")))
                 .isEqualTo("0.00");
     }
 
     @Test
     void withholdingNetsEarlierWithholdingAndNeverGoesNegative() {
-        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("2.00"), d("1000")))
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), d("2.00"), d("1000")))
                 .isEqualTo("1.50");
-        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("5.00"), d("1000")))
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), d("5.00"), d("1000")))
                 .isEqualTo("0.00");
     }
 
     @Test
     void withholdingCappedAtBalance() {
-        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), CustomerType.BUSINESS, d("0"), d("0.40")))
+        assertThat(Balances.suggestedWithholding(totals("300.00", "50.00"), d("1"), d("0"), d("0.40")))
                 .isEqualTo("0.40");
     }
 }

@@ -88,11 +88,12 @@ class ReportQueries {
 
     /** Each payment split over its order's lines by {@code line_total / total}. */
     List<ProductSum> byProduct(ReportRange r, RepFilter f) {
-        String costed = "l.unit_cost is not null and l.line_total > 0";
+        String net = InsightsQueries.NET;
+        String costed = "l.unit_cost is not null and " + net + " > 0";
         return jdbc.query(PAID_ORDERS.formatted(f.sql())
-                + "select pr.id, pr.name, sum(paid.amt * l.line_total / paid.total) collected, "
-                + "sum(paid.amt * (l.line_total - l.unit_cost * l.qty) / paid.total) filter (where " + costed + ") margin, "
-                + "sum(paid.amt * l.line_total / paid.total) filter (where " + costed + ") costed, "
+                + "select pr.id, pr.name, sum(paid.amt * " + net + " / paid.total) collected, "
+                + "sum(paid.amt * (" + net + " - l.unit_cost * l.qty) / paid.total) filter (where " + costed + ") margin, "
+                + "sum(paid.amt * " + net + " / paid.total) filter (where " + costed + ") costed, "
                 + "count(distinct l.id) filter (where l.unit_cost is null) missing "
                 + "from paid join order_line l on l.order_id = paid.oid join product pr on pr.id = l.product_id "
                 + "group by pr.id, pr.name", params(r, f),

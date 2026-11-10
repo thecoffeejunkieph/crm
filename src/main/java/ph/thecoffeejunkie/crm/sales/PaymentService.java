@@ -50,23 +50,27 @@ class PaymentService {
         this.clock = clock;
     }
 
-    /** Recorded by staff: VERIFIED at once. */
+    /** Recorded by an admin: VERIFIED at once. By anyone else: PENDING and settling nothing until an admin confirms it. */
     @Transactional
     PaymentResponse record(Scope s, long orderId, PaymentRequest req, MultipartFile proof) {
         SalesOrder o = access.findVisibleForUpdate(orderId, s);
         OrderStateMachine.require(o.status, OrderAction.RECORD_PAYMENT);
         Payment p = newPayment(o, req);
-        settle(o, p.amount());
+        if (s.isAdmin()) {
+            settle(o, p.amount());
+            p.status = PaymentVerification.VERIFIED;
+            p.verifiedBy = s.userId();
+            p.verifiedAt = Instant.now();
+        } else {
+            p.status = PaymentVerification.PENDING;
+        }
         p.proofKey = proof == null || proof.isEmpty() ? null
                 : storage.store("payments/proof", proof, StorageService.PROOF_TYPES);
-        p.status = PaymentVerification.VERIFIED;
         p.submittedByType = USER;
         p.submittedById = s.userId();
-        p.verifiedBy = s.userId();
-        p.verifiedAt = Instant.now();
         repo.saveAndFlush(p);
-        audit.record(AuditAction.PAYMENT_RECORDED, OrderService.ENTITY, o.id,
-                "Recorded payment of " + p.amount().toPlainString() + " (" + p.method + ")", null);
+        audit.record(AuditAction.PAYMENT_RECORDED, OrderService.ENTITY, o.id, "Recorded payment of "
+                + p.amount().toPlainString() + " (" + p.method + ")" + (s.isAdmin() ? "" : ", awaiting admin confirmation"), null);
         return toResponse(p);
     }
 
@@ -199,6 +203,10 @@ class PaymentService {
                 .filter(p -> p.status != PaymentVerification.REJECTED)
                 .map(p -> p.withholdingAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    boolean hasPending(SalesOrder o) {
+        return repo.existsByOrderIdAndStatus(o.id, PaymentVerification.PENDING);
     }
 
     boolean hasVerified(SalesOrder o) {

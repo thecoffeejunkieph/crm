@@ -7,7 +7,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ph.thecoffeejunkie.crm.approvals.ApprovalType;
 import ph.thecoffeejunkie.crm.approvals.Approvals;
 import ph.thecoffeejunkie.crm.approvals.RequiredApproval;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
@@ -18,6 +17,7 @@ import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.catalog.TaxClass;
 import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
+import ph.thecoffeejunkie.crm.customers.CustomerType;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.customers.TaxTreatment;
 import ph.thecoffeejunkie.crm.fulfilment.DeliveryRequest;
@@ -39,6 +39,7 @@ import ph.thecoffeejunkie.crm.shared.Scope;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -129,7 +130,6 @@ class OrderService {
                         : cb.like(cb.lower(r.get("number")), Like.contains(f.q()), '\\'),
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),
-                (r, q, cb) -> f.channel() == null ? null : cb.equal(r.get("channel"), f.channel()),
                 paymentStatus(f.paymentStatus(), today));
         var found = repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT));
         Map<Long, String> customerNames = customers.displayNames(
@@ -138,7 +138,7 @@ class OrderService {
                 found.getContent().stream().map(o -> o.repId).filter(Objects::nonNull).toList());
         return PageResponse.of(found.map(o -> new OrderSummary(o.id, o.number, o.customerId,
                 customerNames.get(o.customerId), o.status, paymentStatus(o, today), o.total, o.balance(),
-                o.repId == null ? null : repNames.get(o.repId), o.updatedAt, o.channel)));
+                o.repId == null ? null : repNames.get(o.repId), o.updatedAt)));
     }
 
     @Transactional(readOnly = true)
@@ -148,11 +148,6 @@ class OrderService {
 
     @Transactional
     OrderResponse create(Scope s, OrderRequest req) {
-        return create(s, req, SalesChannel.B2B);
-    }
-
-    @Transactional
-    OrderResponse create(Scope s, OrderRequest req, SalesChannel channel) {
         if (req.customerId() == null) {
             throw invalid("customerId", "must not be null");
         }
@@ -162,12 +157,13 @@ class OrderService {
             throw invalid("customerId", "This customer is archived.");
         }
         SalesOrder o = new SalesOrder();
-        o.channel = channel;
         o.customerId = c.id();
         o.repId = c.assignedRepId();
         o.createdBy = s.userId();
         o.number = "SO-%02d-%05d".formatted(SalesTime.today(clock).getYear() % 100, repo.nextNumber());
         o.shipFromWarehouseId = warehouses.defaultId();
+        o.withholdingPct = c.type() == CustomerType.BUSINESS
+                ? OrderTotals.money(settings.decimal(SettingKey.SALES_WITHHOLDING_SUGGEST_PERCENT)) : o.withholdingPct;
         applyHeader(o, req, c);
         applyShipping(o, req, AuditChanges.diff());
         applyLines(o, req.lines(), c, Set.of());
@@ -306,6 +302,9 @@ class OrderService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("paymentTerms", o.paymentTerms.name());
         out.put("shippingFee", o.shippingFee);
+        out.put("discountType", o.discountType.name());
+        out.put("discountValue", o.discountValue);
+        out.put("withholdingPct", o.withholdingPct);
         out.put("notes", o.notes);
         out.put("terms", o.terms);
         out.put("lines", lines);
@@ -389,13 +388,17 @@ class OrderService {
     }
 
     /**
-     * CONFIRMED → RELEASED: the payment/credit gate, reservations reconciled, then no short line (ORDER_SHORT lists them), then a PICKING
+     * CONFIRMED → RELEASED: no payment awaiting admin confirmation, the payment/credit gate, reservations reconciled, then no short line (ORDER_SHORT lists them), then a PICKING
      * delivery order. FULFILLED follows from its delivery ({@link DeliveredListener}). Creating the delivery order
      * takes the DELIVERY_ORDER counter, and nothing after it locks a stock level.
      */
     @Transactional
     OrderResponse release(Scope s, long id, TransitionRequest req) {
         SalesOrder o = transition(s, id, req, OrderAction.RELEASE);
+        if (payments.hasPending(o)) {
+            throw new DomainException(ErrorCode.INVALID_STATE,
+                    "An admin must confirm this order's pending payments before it can be released.");
+        }
         CustomerSalesProfile c = customers.salesProfile(o.customerId);
         approvals.ensureAllApproved(checks.forRelease(o, c));
         // Reconciles: an order confirmed before reservations existed is reserved now (a no-op diff otherwise).
@@ -409,32 +412,6 @@ class OrderService {
                         new DeliveryRequest.DeliveryLine(l.id, l.productId, l.description, l.unit, l.qty)).toList()));
         audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number, null);
         return toResponse(o, s);
-    }
-
-    /**
-     * POS: a fully paid CONFIRMED order is handed over at the counter. CONFIRMED → RELEASED → FULFILLED in one go,
-     * stock dispatched against the invoice. Unlike {@link #release} there is no delivery order.
-     */
-    @Transactional
-    void fulfilAtCounter(Scope s, long id, String invoiceNumber, long invoiceId) {
-        SalesOrder o = access.findVisibleForUpdate(id, s);
-        OrderStateMachine.require(o.status, OrderAction.RELEASE);
-        if (o.channel != SalesChannel.POS || o.balance().signum() != 0) {
-            throw new DomainException(ErrorCode.INVALID_STATE, "Only a fully paid POS order is handed over at the counter.");
-        }
-        approvals.ensureAllApproved(checks.forRelease(o, customers.salesProfile(o.customerId)));
-        requireNotShort(o);
-        Instant now = Instant.now();
-        o.status = OrderStatus.RELEASED;
-        o.releasedAt = now;
-        save(o, now);
-        audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number + " at the counter", null);
-        inventory.consume(id, "INVOICE", invoiceNumber, invoiceId);
-        o.status = OrderStatus.FULFILLED;
-        o.fulfilledAt = now;
-        save(o, now);
-        audit.record(AuditAction.FULFILLED, ENTITY, id, "Order " + o.number + " handed over at the counter",
-                AuditChanges.diff().field("status", OrderStatus.RELEASED, OrderStatus.FULFILLED));
     }
 
     private void requireNotShort(SalesOrder o) {
@@ -520,12 +497,9 @@ class OrderService {
         repo.saveAndFlush(o);
     }
 
-    /** A POS sale is paid in full before it leaves the counter, so credit (overdue, over limit) never blocks it. */
     List<RequiredApproval> requiredForConfirm(SalesOrder o) {
-        List<RequiredApproval> required = checks.forConfirm(o, customers.salesProfile(o.customerId),
+        return checks.forConfirm(o, customers.salesProfile(o.customerId),
                 catalog.info(o.lines.stream().map(l -> l.productId).toList()), SalesTime.today(clock));
-        return o.channel != SalesChannel.POS ? required
-                : required.stream().filter(r -> r.type() != ApprovalType.CREDIT_LIMIT).toList();
     }
 
     private void requireConfirmable(SalesOrder o) {
@@ -595,8 +569,7 @@ class OrderService {
         String repName = o.repId == null ? null : users.displayNames(List.of(o.repId)).get(o.repId);
         InvoiceSummary invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
                 .map(Invoice::toSummary).orElse(null);
-        BigDecimal withholding = Balances.suggestedWithholding(o.totals(),
-                settings.decimal(SettingKey.SALES_WITHHOLDING_SUGGEST_PERCENT), c.type(), payments.withheld(o), o.balance());
+        BigDecimal withholding = Balances.suggestedWithholding(o.totals(), o.withholdingPct, payments.withheld(o), o.balance());
         return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), o.repId, repName, o.status,
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),
@@ -604,7 +577,8 @@ class OrderService {
                 o.cancelledAt, o.cancelReason, allowedActions(o, invoice != null, totalShort.signum() > 0, today),
                 OrderFingerprint.of(o), o.updatedAt, o.version, o.shipFromWarehouseId,
                 warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
-                fulfilment.forOrder(o.id).orElse(null), o.channel);
+                fulfilment.forOrder(o.id).orElse(null), o.discountType, o.discountValue, o.discountAmount, o.withholdingPct,
+                o.withholdingAmount(), o.total.subtract(o.withholdingAmount()));
     }
 
     static Set<OrderAction> allowedActions(SalesOrder o, boolean hasInvoice, boolean isShort, LocalDate today) {
@@ -656,6 +630,9 @@ class OrderService {
     private static void headerChanges(AuditChanges changes, SalesOrder o, OrderRequest req, CustomerSalesProfile c) {
         changes.field("paymentTerms", o.paymentTerms, req.paymentTerms() == null ? c.paymentTerms() : req.paymentTerms())
                 .field("shippingFee", o.shippingFee, shipping(req))
+                .field("discountType", o.discountType, req.discountType() == null ? o.discountType : req.discountType())
+                .field("discountValue", o.discountValue, req.discountValue() == null ? o.discountValue : req.discountValue())
+                .field("withholdingPct", o.withholdingPct, req.withholdingPct() == null ? o.withholdingPct : req.withholdingPct())
                 .field("notes", o.notes, req.notes())
                 .field("terms", o.terms, req.terms());
     }
@@ -665,6 +642,9 @@ class OrderService {
         o.shippingFee = shipping(req);
         o.notes = req.notes();
         o.terms = req.terms();
+        o.discountType = req.discountType() == null ? o.discountType : req.discountType();
+        o.discountValue = req.discountValue() == null ? o.discountValue : OrderTotals.money(req.discountValue());
+        o.withholdingPct = req.withholdingPct() == null ? o.withholdingPct : OrderTotals.money(req.withholdingPct());
     }
 
     private static boolean shippingChanges(SalesOrder o, OrderRequest req) {
@@ -695,7 +675,7 @@ class OrderService {
     /**
      * Sets the order's lines to reqs, in order. A request naming one of this order's line ids updates that line in
      * place; a line not named is deleted; no id (or an id no order has) adds a line. Another order's line id is 400.
-     * Snapshots description, unit and tax class, and recomputes the cached totals.
+     * Snapshots description, unit and tax class, and recomputes the cached totals (with the whole-order discount).
      */
     void applyLines(SalesOrder o, List<LineRequest> reqs, CustomerSalesProfile c, Set<Long> alreadyOn) {
         Map<Long, ProductInfo> products = catalog.info(reqs.stream().map(LineRequest::productId).toList());
@@ -730,10 +710,25 @@ class OrderService {
             l.discountPct = r.discountPct() == null ? BigDecimal.ZERO : r.discountPct();
             lines.add(l);
         }
-        OrderTotals.Result t = OrderTotals.compute(lines.stream().map(OrderLine::toTotalsLine).toList(),
-                o.shippingFee, c.taxTreatment());
+        List<OrderTotals.Line> totalsLines = lines.stream().map(OrderLine::toTotalsLine).toList();
+        BigDecimal goods = OrderTotals.compute(totalsLines, BigDecimal.ZERO, c.taxTreatment()).total();
+        BigDecimal discount = OrderTotals.discountAmount(o.discountType, o.discountValue, goods);
+        if (o.discountType == DiscountType.PERCENT && o.discountValue.compareTo(new BigDecimal(100)) > 0) {
+            throw invalid("discountValue", "A percentage discount can't be over 100.");
+        }
+        if (discount.compareTo(goods) > 0) {
+            throw invalid("discountValue", "The discount can't be more than the order's goods total.");
+        }
+        OrderTotals.Result t = OrderTotals.compute(totalsLines, o.shippingFee, c.taxTreatment(), discount);
+        BigDecimal left = discount;
         for (int i = 0; i < lines.size(); i++) {
-            lines.get(i).lineTotal = t.lineTotals().get(i);
+            OrderLine l = lines.get(i);
+            l.lineTotal = t.lineTotals().get(i);
+            // Margin reports read net_total: each line's share of the discount, the last taking the rounding.
+            BigDecimal share = i == lines.size() - 1 ? left
+                    : l.lineTotal.multiply(discount).divide(goods.signum() == 0 ? BigDecimal.ONE : goods, 2, RoundingMode.HALF_UP);
+            left = left.subtract(share);
+            l.netTotal = discount.signum() == 0 ? null : l.lineTotal.subtract(share);
         }
         o.lines.clear();
         o.lines.addAll(lines);
@@ -742,6 +737,7 @@ class OrderService {
         o.vatExemptSales = t.vatExemptSales();
         o.zeroRatedSales = t.zeroRatedSales();
         o.total = t.total();
+        o.discountAmount = discount;
     }
 
     private static BigDecimal defaultPrice(ProductInfo p, TaxTreatment t) {

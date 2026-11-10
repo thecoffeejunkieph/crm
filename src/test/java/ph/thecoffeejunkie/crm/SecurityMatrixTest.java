@@ -142,7 +142,6 @@ class SecurityMatrixTest {
             Map.entry("GET /api/labels", AW),
 
             Map.entry("GET /api/customers", AS),
-            Map.entry("GET /api/customers/lookup", AS),
             Map.entry("GET /api/customers/export", AS),
             Map.entry("POST /api/customers/import", AS),
             Map.entry("GET /api/customers/{id}", AS),
@@ -204,8 +203,6 @@ class SecurityMatrixTest {
             Map.entry("GET /api/reports/missing-2307.csv", AS),
 
             Map.entry("GET /api/orders", AS),
-            Map.entry("GET /api/pos/products", AS),
-            Map.entry("POST /api/pos/sales", AS),
             Map.entry("POST /api/orders", AS),
             Map.entry("GET /api/orders/{id}", AS),
             Map.entry("PUT /api/orders/{id}", AS),
@@ -224,8 +221,8 @@ class SecurityMatrixTest {
             Map.entry("GET /api/invoices/{id}.pdf", AS),
             Map.entry("GET /api/orders/{id}/payments", AS),
             Map.entry("POST /api/orders/{id}/payments", AS),
-            Map.entry("POST /api/payments/{id}/verify", AS),
-            Map.entry("POST /api/payments/{id}/reject", AS),
+            Map.entry("POST /api/payments/{id}/verify", A),
+            Map.entry("POST /api/payments/{id}/reject", A),
             Map.entry("PUT /api/payments/{id}/form-2307", AS),
             Map.entry("PUT /api/payments/{id}/proof", AS),
             Map.entry("GET /api/orders/{id}/quote.pdf", AS),

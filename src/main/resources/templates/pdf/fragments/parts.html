@@ -1,24 +1,45 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 
+<header th:fragment="letterhead(title, number)" class="mb-12 flex items-start justify-between gap-8">
+  <img th:src="${logo}" alt="" class="h-[18mm] w-auto"/>
+  <div class="text-right">
+    <div class="text-[20pt] leading-tight font-bold tracking-tight text-ink" th:text="${title}">TITLE</div>
+    <div class="mt-1.5 text-[11pt] text-muted" th:text="|No. ${number}|">No.</div>
+  </div>
+</header>
+
 <div th:fragment="company">
-  <div class="text-[15pt] font-bold tracking-tight text-gray-900" th:text="${company.name}">Company</div>
-  <div class="mt-0.5 text-gray-600" th:text="${company.address}">Address</div>
-  <div class="text-gray-600">VAT Reg. TIN: <span th:text="${company.tin}">TIN</span></div>
+  <div class="mb-2 text-[8.5pt] text-muted">Issued by</div>
+  <div class="font-semibold text-ink" th:text="${company.name}">Company</div>
+  <div class="mt-1" th:text="${company.address}">Address</div>
+  <div class="mt-1">VAT Reg. TIN <span th:text="${company.tin}">TIN</span></div>
 </div>
 
-<table th:fragment="totals(grandLabel)" class="mt-3 ml-auto w-[55%] break-inside-avoid">
-  <tr><td class="px-2 py-0.5">VATable Sales</td><td class="px-2 py-0.5 text-right whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.vatableSales, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
-  <tr><td class="px-2 py-0.5">VAT (12%)</td><td class="px-2 py-0.5 text-right whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.vat, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
-  <tr><td class="px-2 py-0.5">VAT-Exempt Sales</td><td class="px-2 py-0.5 text-right whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.vatExemptSales, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
-  <tr><td class="px-2 py-0.5">Zero-Rated Sales</td><td class="px-2 py-0.5 text-right whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.zeroRatedSales, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
-  <tr><td class="px-2 py-0.5">Shipping (incl. in VATable)</td><td class="px-2 py-0.5 text-right whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.shippingFee, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
-  <tr class="border-t-2 border-gray-900 font-bold text-gray-900"><td class="px-2 py-1.5" th:text="${grandLabel}">Total</td><td class="px-2 py-1.5 text-right whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.total, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
-</table>
+<div th:fragment="totals(grandLabel)" class="mt-10 ml-auto w-[64%] break-inside-avoid"
+     th:with="withheld=${totals.withholding.signum() > 0}">
+  <table class="w-full">
+    <tr th:if="${totals.discount.signum() > 0}"><td class="py-1.5">Less: Discount</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|(PHP ${#numbers.formatDecimal(totals.discount, 1, 'COMMA', 2, 'POINT')})|">0</td></tr>
+    <tr><td class="py-1.5">VATable Sales</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.vatableSales, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr><td class="py-1.5">VAT (12%)</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.vat, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr><td class="py-1.5">VAT-Exempt Sales</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.vatExemptSales, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr><td class="py-1.5">Zero-Rated Sales</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.zeroRatedSales, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr th:if="${totals.shippingFee.signum() > 0}"><td class="py-1.5">Shipping (incl. in VATable)</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.shippingFee, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <th:block th:if="${withheld}">
+      <tr class="border-t border-line font-semibold text-ink"><td class="pt-3 pb-1.5" th:text="${grandLabel}">Total</td><td class="pt-3 pb-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(totals.total, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+      <tr><td class="py-1.5" th:text="|Less: Withholding Tax (${totals.withholdingPct.stripTrailingZeros().toPlainString()}%)|">Less: Withholding Tax</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|(PHP ${#numbers.formatDecimal(totals.withholding, 1, 'COMMA', 2, 'POINT')})|">0</td></tr>
+    </th:block>
+  </table>
+  <div class="mt-4 flex items-baseline justify-between gap-6 rounded-[1.5mm] bg-ink px-5 py-4">
+    <span class="font-semibold text-white" th:text="${withheld} ? 'Net Amount Payable' : ${grandLabel}">Total</span>
+    <span class="text-[16pt] font-bold tabular-nums whitespace-nowrap text-brand-yellow"
+          th:text="|PHP ${#numbers.formatDecimal(withheld ? totals.netPayable : totals.total, 1, 'COMMA', 2, 'POINT')}|">0</span>
+  </div>
+</div>
 
 <div th:fragment="signature(label, name)" class="flex-1">
-  <div class="h-10 border-b border-gray-500 text-center leading-[3.25rem]" th:text="${name}"></div>
-  <div class="mt-1 text-[8.5pt] text-gray-600" th:text="${label}">Label</div>
+  <div class="h-14 border-b border-muted text-center leading-[5rem] text-ink" th:text="${name}"></div>
+  <div class="mt-2 text-[8.5pt] text-muted" th:text="${label}">Label</div>
 </div>
 
 </body>

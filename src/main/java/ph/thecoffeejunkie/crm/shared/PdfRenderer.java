@@ -16,6 +16,7 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ public class PdfRenderer {
 
     private final TemplateEngine templates = new TemplateEngine();
     private final String tailwind;
+    private final String logo;
     private Playwright playwright;
     private Browser browser;
 
@@ -41,6 +43,9 @@ public class PdfRenderer {
         templates.setTemplateResolver(resolver);
         try {
             tailwind = new ClassPathResource("templates/pdf/tailwind.css").getContentAsString(StandardCharsets.UTF_8);
+            // A data URI: print() blocks all network, so the header logo has to travel inside the HTML.
+            logo = "data:image/svg+xml;base64," + Base64.getEncoder().encodeToString(
+                    new ClassPathResource("templates/pdf/tcj-logo-light.svg").getContentAsByteArray());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -49,6 +54,7 @@ public class PdfRenderer {
     public byte[] render(String template, Map<String, Object> vars) {
         var ctx = new Context();
         ctx.setVariables(vars);
+        ctx.setVariable("logo", logo);
         // th:text escapes values, so the only </head> is the template's own.
         return print(templates.process(template, ctx).replace("</head>", "<style>" + tailwind + "</style></head>"));
     }

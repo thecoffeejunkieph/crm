@@ -36,10 +36,11 @@ class BootstrapAdminIT {
         emptyUsers();
         bootstrap.bootstrap("first@boot.it");
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "select email, role, password_hash, invite_email_status from app_user");
+                "select email, role, password_hash, invite_email_status, first_name, last_name from app_user");
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0)).containsEntry("email", "first@boot.it").containsEntry("role", "ADMIN")
-                .containsEntry("password_hash", null).containsEntry("invite_email_status", "PENDING");
+                .containsEntry("password_hash", null).containsEntry("invite_email_status", "PENDING")
+                .containsEntry("first_name", "Admin").containsEntry("last_name", "User");
         assertThat(jdbc.queryForObject("select count(*) from one_time_token where purpose = 'INVITE'", Integer.class))
                 .isEqualTo(1);
     }

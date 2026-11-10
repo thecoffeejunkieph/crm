@@ -214,7 +214,8 @@ class PortalOrderService {
                 o.lines.stream().map(l -> new PortalLine(l.description, l.unit, l.qty, l.unitPrice, l.discountPct,
                         l.lineTotal)).toList(),
                 TotalsResponse.of(o.totals()), o.settledAmount, o.balance(), invoice, o.customerAcceptedAt, o.version,
-                deliveryStatus(d), d == null ? null : d.deliveredAt());
+                deliveryStatus(d), d == null ? null : d.deliveredAt(), o.discountAmount, o.withholdingPct, o.withholdingAmount(),
+                o.total.subtract(o.withholdingAmount()));
     }
 
     /** Where the delivery is; never the proof photo. */

@@ -53,7 +53,7 @@ class InsightsService {
         InsightsQueries.Balance owed = q.outstanding(null, InsightsMonth.today(clock));
         return new AdminInsights(m, collected, q.collected(null, m.minusMonths(1)), q.invoiced(null, m), q.margin(m),
                 owed.outstanding(), owed.overdue(), q.toVerify(null), q.collectedByMonth(m, 12), reps(m),
-                q.collectedByChannel(m), q.topProducts(m, 10), q.topCustomers(null, m, 10), q.operations());
+                q.topProducts(m, 10), q.topCustomers(null, m, 10), q.operations());
     }
 
     /** {@code warehouseIds} null for ADMIN (every warehouse). The key sorts the ids so set order never splits it. */

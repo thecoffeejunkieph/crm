@@ -103,12 +103,6 @@
       },
       "AdminInsights" : {
         "properties" : {
-          "byChannel" : {
-            "items" : {
-              "$ref" : "#/components/schemas/ChannelAmount"
-            },
-            "type" : "array"
-          },
           "collected" : {
             "type" : "number"
           },
@@ -354,17 +348,6 @@
         "required" : [ "currentPassword", "newPassword" ],
         "type" : "object"
       },
-      "ChannelAmount" : {
-        "properties" : {
-          "channel" : {
-            "type" : "string"
-          },
-          "collected" : {
-            "type" : "number"
-          }
-        },
-        "type" : "object"
-      },
       "ContactRequest" : {
         "properties" : {
           "email" : {
@@ -522,24 +505,6 @@
           },
           "total" : {
             "type" : "number"
-          }
-        },
-        "type" : "object"
-      },
-      "CustomerLookupItem" : {
-        "properties" : {
-          "displayName" : {
-            "type" : "string"
-          },
-          "email" : {
-            "type" : "string"
-          },
-          "id" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "phone" : {
-            "type" : "string"
           }
         },
         "type" : "object"
@@ -1634,27 +1599,6 @@
         "required" : [ "status", "version" ],
         "type" : "object"
       },
-      "Line" : {
-        "properties" : {
-          "discountPct" : {
-            "maximum" : 100,
-            "minimum" : 0,
-            "type" : "number"
-          },
-          "productId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "qty" : {
-            "type" : "number"
-          },
-          "unitPrice" : {
-            "type" : "number"
-          }
-        },
-        "required" : [ "productId", "qty", "unitPrice" ],
-        "type" : "object"
-      },
       "LineRequest" : {
         "properties" : {
           "description" : {
@@ -2064,6 +2008,13 @@
             "enum" : [ "DELIVERY", "PICKUP" ],
             "type" : "string"
           },
+          "discountType" : {
+            "enum" : [ "PERCENT", "AMOUNT" ],
+            "type" : "string"
+          },
+          "discountValue" : {
+            "type" : "number"
+          },
           "lines" : {
             "items" : {
               "$ref" : "#/components/schemas/LineRequest"
@@ -2095,6 +2046,11 @@
           "version" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "withholdingPct" : {
+            "maximum" : 100,
+            "minimum" : 0,
+            "type" : "number"
           }
         },
         "required" : [ "lines" ],
@@ -2127,10 +2083,6 @@
             "format" : "date-time",
             "type" : "string"
           },
-          "channel" : {
-            "enum" : [ "B2B", "POS" ],
-            "type" : "string"
-          },
           "confirmedAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -2157,6 +2109,16 @@
           "deliveryOrder" : {
             "$ref" : "#/components/schemas/DeliverySummary"
           },
+          "discountAmount" : {
+            "type" : "number"
+          },
+          "discountType" : {
+            "enum" : [ "PERCENT", "AMOUNT" ],
+            "type" : "string"
+          },
+          "discountValue" : {
+            "type" : "number"
+          },
           "fulfilledAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -2170,6 +2132,9 @@
               "$ref" : "#/components/schemas/LineResponse"
             },
             "type" : "array"
+          },
+          "netPayable" : {
+            "type" : "number"
           },
           "notes" : {
             "type" : "string"
@@ -2247,6 +2212,12 @@
           "version" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "withholdingAmount" : {
+            "type" : "number"
+          },
+          "withholdingPct" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -2255,10 +2226,6 @@
         "properties" : {
           "balance" : {
             "type" : "number"
-          },
-          "channel" : {
-            "enum" : [ "B2B", "POS" ],
-            "type" : "string"
           },
           "customerId" : {
             "format" : "int64",
@@ -2692,33 +2659,6 @@
         },
         "type" : "object"
       },
-      "PageResponsePosProductResponse" : {
-        "properties" : {
-          "content" : {
-            "items" : {
-              "$ref" : "#/components/schemas/PosProductResponse"
-            },
-            "type" : "array"
-          },
-          "pageNumber" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "pageSize" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "totalElements" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "totalPages" : {
-            "format" : "int32",
-            "type" : "integer"
-          }
-        },
-        "type" : "object"
-      },
       "PageResponseProductResponse" : {
         "properties" : {
           "content" : {
@@ -3041,6 +2981,9 @@
             "enum" : [ "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED" ],
             "type" : "string"
           },
+          "discountAmount" : {
+            "type" : "number"
+          },
           "id" : {
             "format" : "int64",
             "type" : "integer"
@@ -3050,6 +2993,9 @@
               "$ref" : "#/components/schemas/PortalLine"
             },
             "type" : "array"
+          },
+          "netPayable" : {
+            "type" : "number"
           },
           "number" : {
             "type" : "string"
@@ -3088,6 +3034,12 @@
           "version" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "withholdingAmount" : {
+            "type" : "number"
+          },
+          "withholdingPct" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -3173,99 +3125,6 @@
           }
         },
         "required" : [ "token" ],
-        "type" : "object"
-      },
-      "PosProductPage" : {
-        "properties" : {
-          "discountCapPct" : {
-            "type" : "number"
-          },
-          "products" : {
-            "$ref" : "#/components/schemas/PageResponsePosProductResponse"
-          }
-        },
-        "type" : "object"
-      },
-      "PosProductResponse" : {
-        "properties" : {
-          "available" : {
-            "type" : "number"
-          },
-          "id" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "minUnitPrice" : {
-            "type" : "number"
-          },
-          "name" : {
-            "type" : "string"
-          },
-          "price" : {
-            "type" : "number"
-          },
-          "sku" : {
-            "type" : "string"
-          },
-          "unit" : {
-            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
-            "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
-      "PosSaleRequest" : {
-        "properties" : {
-          "customerId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "emailInvoice" : {
-            "type" : "boolean"
-          },
-          "lines" : {
-            "items" : {
-              "$ref" : "#/components/schemas/Line"
-            },
-            "maxItems" : 200,
-            "minItems" : 0,
-            "type" : "array"
-          },
-          "payments" : {
-            "items" : {
-              "$ref" : "#/components/schemas/Tender"
-            },
-            "maxItems" : 10,
-            "minItems" : 0,
-            "type" : "array"
-          }
-        },
-        "required" : [ "customerId", "lines", "payments" ],
-        "type" : "object"
-      },
-      "PosSaleResponse" : {
-        "properties" : {
-          "changeDue" : {
-            "type" : "number"
-          },
-          "invoiceId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "invoiceNumber" : {
-            "type" : "string"
-          },
-          "orderId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "orderNumber" : {
-            "type" : "string"
-          },
-          "total" : {
-            "type" : "number"
-          }
-        },
         "type" : "object"
       },
       "ProductRequest" : {
@@ -3911,27 +3770,6 @@
             "type" : "integer"
           }
         },
-        "type" : "object"
-      },
-      "Tender" : {
-        "properties" : {
-          "amount" : {
-            "type" : "number"
-          },
-          "method" : {
-            "enum" : [ "CASH", "BANK_TRANSFER", "CHECK", "GCASH", "CARD", "OTHER" ],
-            "type" : "string"
-          },
-          "reference" : {
-            "maxLength" : 100,
-            "minLength" : 0,
-            "type" : "string"
-          },
-          "tendered" : {
-            "type" : "number"
-          }
-        },
-        "required" : [ "amount", "method" ],
         "type" : "object"
       },
       "ToVerify" : {
@@ -5335,35 +5173,6 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ImportResult"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "customer-controller" ]
-      }
-    },
-    "/api/customers/lookup" : {
-      "get" : {
-        "operationId" : "lookup",
-        "parameters" : [ {
-          "in" : "query",
-          "name" : "q",
-          "required" : false,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/CustomerLookupItem"
-                  },
-                  "type" : "array"
                 }
               }
             },
@@ -7617,14 +7426,6 @@
           }
         }, {
           "in" : "query",
-          "name" : "channel",
-          "required" : false,
-          "schema" : {
-            "enum" : [ "B2B", "POS" ],
-            "type" : "string"
-          }
-        }, {
-          "in" : "query",
           "name" : "page",
           "required" : true,
           "schema" : {
@@ -8766,75 +8567,6 @@
           }
         },
         "tags" : [ "portal-order-controller" ]
-      }
-    },
-    "/api/pos/products" : {
-      "get" : {
-        "operationId" : "products",
-        "parameters" : [ {
-          "in" : "query",
-          "name" : "q",
-          "required" : false,
-          "schema" : {
-            "type" : "string"
-          }
-        }, {
-          "in" : "query",
-          "name" : "page",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/components/schemas/PageQuery"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PosProductPage"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "pos-controller" ]
-      }
-    },
-    "/api/pos/sales" : {
-      "post" : {
-        "operationId" : "checkout",
-        "parameters" : [ {
-          "in" : "header",
-          "name" : "Idempotency-Key",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/PosSaleRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "201" : {
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PosSaleResponse"
-                }
-              }
-            },
-            "description" : "Created"
-          }
-        },
-        "tags" : [ "pos-controller" ]
       }
     },
     "/api/products" : {

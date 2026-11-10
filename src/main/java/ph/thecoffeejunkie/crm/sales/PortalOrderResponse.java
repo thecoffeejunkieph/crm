@@ -13,5 +13,6 @@ record PortalOrderResponse(long id, String number, OrderStatus status, PaymentSt
                            BigDecimal shippingFee, String terms, List<PortalLine> lines, TotalsResponse totals,
                            BigDecimal settled, BigDecimal balance, InvoiceSummary activeInvoice,
                            Instant customerAcceptedAt, long version, PortalDeliveryStatus deliveryStatus,
-                           Instant deliveredAt) {
+                           Instant deliveredAt, BigDecimal discountAmount, BigDecimal withholdingPct,
+                           BigDecimal withholdingAmount, BigDecimal netPayable) {
 }

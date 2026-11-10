@@ -42,6 +42,9 @@ class Invoice {
     BigDecimal vatExemptSales;
     BigDecimal zeroRatedSales;
     BigDecimal shippingFee;
+    BigDecimal discountAmount;
+    BigDecimal withholdingPct;
+    BigDecimal withholdingAmount;
     BigDecimal total;
     String voidReason;
     Long voidedBy;

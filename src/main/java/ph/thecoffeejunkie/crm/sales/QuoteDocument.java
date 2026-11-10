@@ -46,7 +46,9 @@ class QuoteDocument {
                         "qty", l.qty.stripTrailingZeros().toPlainString(), "unit", l.unit, "unitPrice", l.unitPrice,
                         "discountPct", l.discountPct, "lineTotal", l.lineTotal)).toList(),
                 "totals", vars("vatableSales", o.vatableSales, "vat", o.vat, "vatExemptSales", o.vatExemptSales,
-                        "zeroRatedSales", o.zeroRatedSales, "shippingFee", o.shippingFee, "total", o.total));
+                        "zeroRatedSales", o.zeroRatedSales, "shippingFee", o.shippingFee, "total", o.total,
+                        "discount", o.discountAmount, "withholdingPct", o.withholdingPct,
+                        "withholding", o.withholdingAmount(), "netPayable", o.total.subtract(o.withholdingAmount())));
         return pdf.render("quote", vars);
     }
 

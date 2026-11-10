@@ -28,7 +28,23 @@ class PdfRendererTest {
                         "lineTotal", new BigDecimal("336.00")))),
                 Map.entry("totals", Map.of("vatableSales", new BigDecimal("300.00"), "vat", new BigDecimal("36.00"),
                         "vatExemptSales", new BigDecimal("0.00"), "zeroRatedSales", new BigDecimal("0.00"),
-                        "shippingFee", new BigDecimal("0.00"), "total", new BigDecimal("336.00"))));
+                        "shippingFee", new BigDecimal("0.00"), "total", new BigDecimal("336.00"),
+                        "discount", new BigDecimal("0.00"), "withholdingPct", new BigDecimal("1.00"),
+                        "withholding", new BigDecimal("3.00"), "netPayable", new BigDecimal("333.00"))));
+    }
+
+    @Test
+    void invoiceEndsWithAPageOfBankAccountsAndTerms() throws Exception {
+        var vars = new java.util.HashMap<>(quoteVars());
+        vars.putAll(Map.of("dueDate", "2026-12-10", "voided", "", "voidReason", "", "footer", "BIR permit", "invoiceTerms", "Pay within 30 days.",
+                "bankAccounts", List.of(Map.of("bankName", "BDO", "accountName", "TCJ Inc.", "accountNumber", "0000-1111", "qr", ""))));
+        byte[] pdf = new PdfRenderer().render("invoice", vars);
+        try (var doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+            assertThat(doc.getNumberOfPages()).isEqualTo(2);
+            var strip = new org.apache.pdfbox.text.PDFTextStripper();
+            strip.setStartPage(2);
+            assertThat(strip.getText(doc)).contains("Payment details", "BDO", "0000-1111", "Terms and conditions", "Pay within 30 days.");
+        }
     }
 
     @Test

@@ -86,19 +86,6 @@ class CustomerScopingIT {
         long w = user("w", "WAREHOUSE");
         var me = authentication(as(w, Role.WAREHOUSE));
         mvc.perform(get("/api/customers").with(me)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/customers/lookup").param("q", "ab").with(me)).andExpect(status().isForbidden());
-    }
-
-    @Test
-    void lookupSpansAllCustomersButMinimalFields() throws Exception {
-        long a = user("a", "SALES"), b = user("b", "SALES");
-        customer("theirs", b);
-        mvc.perform(get("/api/customers/lookup").param("q", tag).with(authentication(as(a, Role.SALES))))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].displayName").value(tag + "theirs"))
-                .andExpect(jsonPath("$[0].creditLimit").doesNotExist())
-                .andExpect(jsonPath("$[0].notes").doesNotExist())
-                .andExpect(jsonPath("$[0].contacts").doesNotExist());
     }
 
     @Test

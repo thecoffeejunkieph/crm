@@ -145,13 +145,6 @@ class CustomersIT {
         mvc.perform(edit).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STALE_VERSION"));
     }
 
-    @Test
-    void lookupNeedsTwoChars() throws Exception {
-        long admin = user("adm", "ADMIN");
-        mvc.perform(get("/api/customers/lookup").param("q", "a").with(authentication(as(admin, Role.ADMIN))))
-                .andExpect(status().isBadRequest());
-    }
-
     private long contactId(ResultActions r) throws Exception {
         return ((Number) JsonPath.read(r.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(),
                 "$.id")).longValue();
@@ -257,8 +250,6 @@ class CustomersIT {
         long admin = user("adm", "ADMIN");
         long id = createdId(admin, Role.ADMIN, "vs");
         var me = authentication(as(admin, Role.ADMIN));
-        mvc.perform(get("/api/customers/lookup").param("q", "a").with(me)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("q"));
         mvc.perform(put("/api/customers/" + id + "/assignment").with(me).with(csrf(mvc))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"repId\":" + admin + "}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("repId"));

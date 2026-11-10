@@ -40,7 +40,7 @@ class IdempotencyFilterIT {
         }
     }
 
-    private static final List<String> PATHS = List.of("/api/v1/quotations", "/api/v1/pos/sales");
+    private static final List<String> PATHS = List.of("/api/v1/quotations", "/api/v1/orders");
 
     private final CountingController controller = new CountingController();
     private final MockMvc mvc = mvc(new IdempotencyFilter(RedisTestSupport.template(), PATHS));

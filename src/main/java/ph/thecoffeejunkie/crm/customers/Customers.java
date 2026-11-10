@@ -213,17 +213,6 @@ public class Customers {
         return audit.history(ENTITY, id, page);
     }
 
-    /** Deliberate scope exception (POS lookup, spec section 4): every active customer, minimal fields. */
-    @Transactional(readOnly = true)
-    List<CustomerLookupItem> lookup(String q) {
-        if (q == null || q.trim().length() < 2) {
-            throw invalid("q", "Type at least 2 characters.");
-        }
-        Specification<Customer> spec = Specification.allOf(CustomerScopes.active(), CustomerScopes.matches(q));
-        return repo.findAll(spec, PageRequest.of(0, 20, DEFAULT_SORT)).stream()
-                .map(c -> new CustomerLookupItem(c.id, c.displayName, c.phone, c.email)).toList();
-    }
-
     /** For portal login (Task 14): an active, portal-enabled contact of a non-archived customer. */
     @Transactional(readOnly = true)
     public Optional<ContactPrincipal> portalContactByEmail(String email) {

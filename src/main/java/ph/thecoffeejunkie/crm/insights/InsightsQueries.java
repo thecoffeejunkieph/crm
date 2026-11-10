@@ -27,6 +27,9 @@ import java.util.Set;
 @Component
 class InsightsQueries {
 
+    /** A line's revenue after its share of the whole-order discount (net_total is only set when there is one). */
+    static final String NET = "coalesce(l.net_total, l.line_total)";
+
     static final String MANILA_DATE = "(%s at time zone 'Asia/Manila')::date";
     private static final String PAID = "p.cash_amount + p.withholding_amount";
     private static final String HAS_INVOICE = "exists (select 1 from invoice i where i.order_id = o.id and i.status = 'ISSUED')";
@@ -114,10 +117,10 @@ class InsightsQueries {
         return new NeedsAction(quotes, unpaid, overdue);
     }
 
-    /** Lines of orders whose ISSUED invoice was issued in the month; revenue = line_total, cost = unit_cost × qty. */
+    /** Lines of orders whose ISSUED invoice was issued in the month; revenue = net of the order discount, cost = unit_cost × qty. */
     AdminInsights.Margin margin(YearMonth m) {
-        return jdbc.queryForObject("select sum(l.line_total - l.unit_cost * l.qty) filter (where l.unit_cost is not null) amt, "
-                + "sum(l.line_total) filter (where l.unit_cost is not null) rev, "
+        return jdbc.queryForObject("select sum(" + NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) amt, "
+                + "sum(" + NET + ") filter (where l.unit_cost is not null) rev, "
                 + "count(*) filter (where l.unit_cost is null) missing from order_line l " + INVOICED_IN_MONTH,
                 month(m), (rs, i) -> {
                     BigDecimal amount = money(rs.getBigDecimal("amt"));
@@ -161,22 +164,10 @@ class InsightsQueries {
         return out;
     }
 
-    /** Both channels, B2B then POS, zeros included. */
-    List<AdminInsights.ChannelAmount> collectedByChannel(YearMonth m) {
-        Map<String, BigDecimal> by = new HashMap<>();
-        jdbc.query("select o.channel, sum(" + PAID + ") amount from payment p join sales_order o on o.id = p.order_id "
-                + "where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end group by o.channel",
-                month(m), rs -> {
-                    by.put(rs.getString("channel"), rs.getBigDecimal("amount"));
-                });
-        return List.of(new AdminInsights.ChannelAmount("B2B", money(by.get("B2B"))),
-                new AdminInsights.ChannelAmount("POS", money(by.get("POS"))));
-    }
-
     /** By revenue; margin counts only lines with a cost. */
     List<AdminInsights.ProductRow> topProducts(YearMonth m, int limit) {
-        return jdbc.query("select pr.id, pr.name, sum(l.line_total) rev, "
-                + "sum(l.line_total - l.unit_cost * l.qty) filter (where l.unit_cost is not null) margin "
+        return jdbc.query("select pr.id, pr.name, sum(" + NET + ") rev, "
+                + "sum(" + NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) margin "
                 + "from order_line l " + INVOICED_IN_MONTH + " join product pr on pr.id = l.product_id "
                 + "group by pr.id, pr.name order by rev desc, pr.name limit :limit", month(m).addValue("limit", limit),
                 (rs, i) -> new AdminInsights.ProductRow(rs.getLong("id"), rs.getString("name"),

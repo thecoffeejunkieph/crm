@@ -1,7 +1,5 @@
 package ph.thecoffeejunkie.crm.sales;
 
-import ph.thecoffeejunkie.crm.customers.CustomerType;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -23,15 +21,14 @@ final class Balances {
         return settled.signum() == 0 ? PaymentStatus.UNPAID : PaymentStatus.PARTIAL;
     }
 
-    /** What is left to withhold: the order's share less what earlier payments withheld, never more than the balance. */
-    static BigDecimal suggestedWithholding(OrderTotals.Result t, BigDecimal percent, CustomerType type,
-                                           BigDecimal withheld, BigDecimal balance) {
-        BigDecimal zero = new BigDecimal("0.00");
-        if (type != CustomerType.BUSINESS) {
-            return zero;
-        }
+    /** Withholding is on the amount net of VAT (after any whole-order discount, which the totals already reflect). */
+    static BigDecimal withholding(OrderTotals.Result t, BigDecimal percent) {
         BigDecimal base = t.vatableSales().add(t.vatExemptSales()).add(t.zeroRatedSales());
-        BigDecimal left = base.multiply(percent).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP).subtract(withheld);
-        return left.min(balance).max(zero).setScale(2, RoundingMode.HALF_UP);
+        return base.multiply(percent).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
+    }
+
+    /** What is left to withhold: the order's share less what earlier payments withheld, never more than the balance. */
+    static BigDecimal suggestedWithholding(OrderTotals.Result t, BigDecimal percent, BigDecimal withheld, BigDecimal balance) {
+        return withholding(t, percent).subtract(withheld).min(balance).max(new BigDecimal("0.00")).setScale(2, RoundingMode.HALF_UP);
     }
 }

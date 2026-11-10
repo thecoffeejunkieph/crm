@@ -24,6 +24,11 @@ public class SalesPermissions {
         return is(Role.ADMIN, Role.SALES);
     }
 
+    /** Only an admin can confirm or reject a payment; it is what releases an order to the warehouse. */
+    public boolean canVerifyPayments() {
+        return is(Role.ADMIN);
+    }
+
     private boolean is(Role... roles) {
         return actor.staff().map(StaffPrincipal::role).map(r -> Set.of(roles).contains(r)).orElse(false);
     }

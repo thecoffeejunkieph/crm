@@ -51,7 +51,7 @@ class ApprovalChecks {
         List<RequiredApproval> out = new ArrayList<>();
 
         BigDecimal limit = settings.decimal(SettingKey.APPROVAL_DISCOUNT_PERCENT_MAX);
-        o.lines.stream().map(l -> l.discountPct).filter(d -> d.compareTo(limit) > 0).max(BigDecimal::compareTo)
+        o.lines.stream().map(OrderLine::effectiveDiscountPct).filter(d -> d.compareTo(limit) > 0).max(BigDecimal::compareTo)
                 .ifPresent(max -> out.add(new RequiredApproval(ApprovalType.DISCOUNT, ORDER, o.id, version,
                         Map.of("maxDiscountPct", max, "limit", limit))));
 

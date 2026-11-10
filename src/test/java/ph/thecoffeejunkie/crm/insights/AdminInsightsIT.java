@@ -142,19 +142,6 @@ class AdminInsightsIT {
     }
 
     @Test
-    void byChannelAlwaysBoth() throws Exception {
-        payments();
-        long pos = f.order(custNone, null, "FULFILLED", "200.00", "200.00", null);
-        f.set(pos, "channel", "POS");
-        f.payment(pos, "VERIFIED", "200.00", "0.00", at(q, 30));
-        adminView(q).andExpect(jsonPath("$.byChannel.length()").value(2))
-                .andExpect(jsonPath("$.byChannel[0].channel").value("B2B"))
-                .andExpect(jsonPath("$.byChannel[0].collected").value(1500.00))
-                .andExpect(jsonPath("$.byChannel[1].channel").value("POS"))
-                .andExpect(jsonPath("$.byChannel[1].collected").value(200.00));
-    }
-
-    @Test
     void topProductsByRevenue() throws Exception {
         long o = f.order(custA, repA, "FULFILLED", "3000.00", "0.00", null);
         long small = f.product("small", "50.00");

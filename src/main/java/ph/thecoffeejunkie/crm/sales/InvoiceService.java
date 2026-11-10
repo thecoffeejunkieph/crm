@@ -66,7 +66,7 @@ class InvoiceService {
         this.clock = clock;
     }
 
-    /** Issuing from an order mails the customer. POS calls issue() directly: there the cashier decides. */
+    /** Issuing from an order mails the customer. */
     @Transactional
     InvoiceResponse issueAndSend(Scope s, long orderId, TransitionRequest req) {
         InvoiceResponse r = issue(s, orderId, req);
@@ -227,6 +227,9 @@ class InvoiceService {
         i.vatExemptSales = o.vatExemptSales;
         i.zeroRatedSales = o.zeroRatedSales;
         i.shippingFee = o.shippingFee;
+        i.discountAmount = o.discountAmount;
+        i.withholdingPct = o.withholdingPct;
+        i.withholdingAmount = o.withholdingAmount();
         i.total = o.total;
         i.issuedBy = actor.scope().userId();
         repo.saveAndFlush(i);

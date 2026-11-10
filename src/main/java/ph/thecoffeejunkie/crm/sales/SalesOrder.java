@@ -15,10 +15,12 @@ import ph.thecoffeejunkie.crm.customers.PaymentTerms;
 import ph.thecoffeejunkie.crm.fulfilment.DeliveryMethod;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /** The one sales aggregate, from draft to fulfilled (spec §2). Lines keep their ids across edits. */
 @Entity
@@ -33,13 +35,17 @@ class SalesOrder {
     Long repId;
     @Enumerated(EnumType.STRING)
     OrderStatus status = OrderStatus.DRAFT;
-    @Enumerated(EnumType.STRING)
-    SalesChannel channel = SalesChannel.B2B;
     int revision;
     @Enumerated(EnumType.STRING)
     PaymentTerms paymentTerms;
     LocalDate quoteValidUntil;
     BigDecimal shippingFee = new BigDecimal("0.00");
+    @Enumerated(EnumType.STRING)
+    DiscountType discountType = DiscountType.PERCENT;
+    BigDecimal discountValue = new BigDecimal("0.00");
+    /** The peso value of the discount, cached with the totals it reduced. */
+    BigDecimal discountAmount = new BigDecimal("0.00");
+    BigDecimal withholdingPct = new BigDecimal("0.00");
     String notes;
     String terms;
     BigDecimal vatableSales = new BigDecimal("0.00");
@@ -72,6 +78,17 @@ class SalesOrder {
     OrderTotals.Result totals() {
         return new OrderTotals.Result(lines.stream().map(l -> l.lineTotal).toList(), vatableSales, vat,
                 vatExemptSales, zeroRatedSales, total);
+    }
+
+    BigDecimal withholdingAmount() {
+        return Balances.withholding(totals(), withholdingPct);
+    }
+
+    /** What is left of each line's price after the whole-order discount; 1 when there is none. */
+    BigDecimal discountFactor() {
+        BigDecimal goods = lines.stream().map(l -> l.lineTotal).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return discountAmount.signum() == 0 || goods.signum() == 0 ? BigDecimal.ONE
+                : goods.subtract(discountAmount).divide(goods, 10, RoundingMode.HALF_UP);
     }
 
     BigDecimal balance() {

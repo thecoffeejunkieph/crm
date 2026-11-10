@@ -63,6 +63,7 @@ class PaymentsIT {
     long product;
     long order;
     RequestPostProcessor asRep;
+    RequestPostProcessor asAdmin;
 
     @BeforeEach
     void seed() throws Exception {
@@ -71,6 +72,7 @@ class PaymentsIT {
         customer = f.customer("acme", rep);
         product = f.product("A", "112.00", null, "VATABLE");
         asRep = as(rep, Role.SALES);
+        asAdmin = as(f.user("boss", Role.ADMIN), Role.ADMIN);
         order = f.createdOrder(asRep, customer, line(product, "3")); // total 336.00
         f.setStatus(order, "CONFIRMED");
     }
@@ -86,12 +88,16 @@ class PaymentsIT {
     }
 
     private ResultActions record(long orderId, String json, MockMultipartFile proof) throws Exception {
+        return record(orderId, json, proof, asAdmin);
+    }
+
+    private ResultActions record(long orderId, String json, MockMultipartFile proof, RequestPostProcessor who) throws Exception {
         var req = multipart("/api/orders/" + orderId + "/payments")
                 .file(new MockMultipartFile("payment", "", "application/json", json.getBytes()));
         if (proof != null) {
             req.file(proof);
         }
-        return mvc.perform(req.header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(asRep));
+        return mvc.perform(req.header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(who));
     }
 
     private ResultActions orderJson() throws Exception {
@@ -107,7 +113,45 @@ class PaymentsIT {
     private ResultActions verify(long paymentId) throws Exception {
         long version = jdbc.queryForObject("select version from payment where id = ?", Long.class, paymentId);
         return mvc.perform(f.json(post("/api/payments/" + paymentId + "/verify"), "{\"version\":" + version + "}")
-                .with(asRep));
+                .with(asAdmin));
+    }
+
+    @Test
+    void orderDiscountReducesTotalAndWithholdingFollowsTheNetBase() throws Exception {
+        long draft = f.createdOrder(asRep, customer, line(product, "3")); // 336.00, VAT-inclusive
+        f.update(asRep, draft, "\"discountType\":\"AMOUNT\",\"discountValue\":112,\"withholdingPct\":2", line(product, "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.discountAmount").value(112.00))
+                .andExpect(jsonPath("$.totals.total").value(224.00))
+                .andExpect(jsonPath("$.totals.vatableSales").value(200.00))
+                .andExpect(jsonPath("$.withholdingAmount").value(4.00))
+                .andExpect(jsonPath("$.netPayable").value(220.00));
+    }
+
+    @Test
+    void discountOverTheGoodsTotalRefused() throws Exception {
+        long draft = f.createdOrder(asRep, customer, line(product, "3"));
+        f.update(asRep, draft, "\"discountType\":\"AMOUNT\",\"discountValue\":337", line(product, "3"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void repRecordedPaymentWaitsForAnAdminAndSettlesNothing() throws Exception {
+        long p = SalesFixture.id(record(order, payment("100", "0"), null, asRep).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING")));
+        orderJson().andExpect(jsonPath("$.balance").value(336.00));
+        mvc.perform(f.json(post("/api/payments/" + p + "/verify"), "{\"version\":0}").with(asRep))
+                .andExpect(status().isForbidden());
+        verify(p).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("VERIFIED"));
+        orderJson().andExpect(jsonPath("$.balance").value(236.00));
+    }
+
+    @Test
+    void releaseRefusedWhileAPaymentIsPending() throws Exception {
+        f.stock(product, "10");
+        record(order, payment("336", "0"), null, asRep).andExpect(status().isOk());
+        f.transition(asAdmin, order, "release", null).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value("An admin must confirm this order's pending payments before it can be released."));
     }
 
     @Test
@@ -170,10 +214,10 @@ class PaymentsIT {
     @Test
     void rejectNeedsReason() throws Exception {
         long p = pendingPayment("100");
-        mvc.perform(f.json(post("/api/payments/" + p + "/reject"), "{\"version\":0,\"reason\":\" \"}").with(asRep))
+        mvc.perform(f.json(post("/api/payments/" + p + "/reject"), "{\"version\":0,\"reason\":\" \"}").with(asAdmin))
                 .andExpect(status().isBadRequest());
         mvc.perform(f.json(post("/api/payments/" + p + "/reject"), "{\"version\":0,\"reason\":\"No such transfer\"}")
-                .with(asRep)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REJECTED"))
+                .with(asAdmin)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REJECTED"))
                 .andExpect(jsonPath("$.rejectReason").value("No such transfer"));
     }
 
@@ -212,7 +256,7 @@ class PaymentsIT {
     @Test
     void suggestedWithholdingOnOrder() throws Exception {
         orderJson().andExpect(jsonPath("$.suggestedWithholding").value(3.00));
-        jdbc.update("update customer set type = 'INDIVIDUAL' where id = ?", customer);
+        jdbc.update("update sales_order set withholding_pct = 0 where id = ?", order);
         orderJson().andExpect(jsonPath("$.suggestedWithholding").value(0.00));
     }
 

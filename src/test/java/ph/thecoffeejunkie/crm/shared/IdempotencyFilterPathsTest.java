@@ -14,10 +14,10 @@ import static org.mockito.Mockito.mock;
 class IdempotencyFilterPathsTest {
 
     @Test
-    void posCheckoutIsIdempotent() {
-        IdempotencyFilter filter = new IdempotencyFilter(mock(StringRedisTemplate.class), List.of("/api/v1/pos/sales"));
+    void configuredPathIsIdempotent() {
+        IdempotencyFilter filter = new IdempotencyFilter(mock(StringRedisTemplate.class), List.of("/api/v1/orders"));
 
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/pos/sales");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/orders");
         request.addHeader("Idempotency-Key", "k1");
 
         assertFalse(filter.shouldNotFilter(request));
@@ -26,7 +26,7 @@ class IdempotencyFilterPathsTest {
     @ParameterizedTest
     @ValueSource(strings = {"/api/customers", "/api/customers/5/contacts", "/api/approvals", "/api/admin/users",
             "/api/warehouses", "/api/orders/5/invoice", "/api/orders/5/invoice/reissue",
-            "/api/orders/5/payments", "/api/portal/orders/5/payments", "/api/stock/receipts", "/api/pos/sales"})
+            "/api/orders/5/payments", "/api/portal/orders/5/payments", "/api/stock/receipts", "/api/follow-ups"})
     void createEndpointsAreIdempotentByDefault(String path) {
         IdempotencyFilter filter = new IdempotencyFilter(mock(StringRedisTemplate.class));
 

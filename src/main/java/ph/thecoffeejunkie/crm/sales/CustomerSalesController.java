@@ -46,7 +46,7 @@ class CustomerSalesController {
     @PreAuthorize("@salesPermissions.canRead()")
     PageResponse<OrderSummary> orders(@PathVariable long id, PageQuery page) {
         Scope s = requireVisible(id);
-        return orders.list(s, new OrderFilter(null, null, id, null, null, false, null), page);
+        return orders.list(s, new OrderFilter(null, null, id, null, null, false), page);
     }
 
     @GetMapping("/api/customers/{id}/invoices")

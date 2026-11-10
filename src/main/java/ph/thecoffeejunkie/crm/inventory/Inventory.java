@@ -152,8 +152,8 @@ public class Inventory {
      * TRANSIT_LOSS records without moving stock. Returns the adjustment id.
      */
     public long postSystemAdjustment(long warehouseId, long productId, BigDecimal delta, AdjustmentSource source,
-                                     String reason, String refType, long refId) {
-        return adjustments.postSystem(warehouseId, productId, delta, source, reason, refType, refId);
+                                     String reason, String DELIVERY_ORDER, long refId) {
+        return adjustments.postSystem(warehouseId, productId, delta, source, reason, DELIVERY_ORDER, refId);
     }
 
     /** Movements and adjustments made for a delivery order carry this ref_type. */
@@ -164,11 +164,6 @@ public class Inventory {
      * short line refuses the whole order with ORDER_SHORT.
      */
     public void consume(long orderId, String refNumber, long refId) {
-        consume(orderId, DELIVERY_ORDER, refNumber, refId);
-    }
-
-    /** {@link #consume(long, String, long)} against another document, e.g. the INVOICE of a counter sale. */
-    public void consume(long orderId, String refType, String refNumber, long refId) {
         lockAll(keysOf(orderId));
         List<StockReservation> rs = reservations.findBySalesOrderId(orderId);
         List<Map<String, Object>> shortLines = rs.stream().filter(r -> r.shortQty.signum() > 0)
@@ -182,7 +177,7 @@ public class Inventory {
             if (r.reservedQty.signum() > 0) {
                 ledger.changeReserved(ledger.lock(r.productId, r.warehouseId), r.reservedQty.negate());
                 ledger.post(MovementType.DISPATCH, r.productId, r.warehouseId, r.reservedQty.negate(),
-                        refType, refId, refNumber, null);
+                        DELIVERY_ORDER, refId, refNumber, null);
             }
             reservations.delete(r);
         });

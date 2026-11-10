@@ -19,6 +19,28 @@ class OrderTotalsTest {
             line("1", "50.00", "0", TaxClass.VAT_EXEMPT), line("1", "30.00", "0", TaxClass.ZERO_RATED));
 
     @Test
+    void wholeOrderDiscountComesOffGoodsBeforeVatAndNotShipping() {
+        // Goods 1,120 VATable + 280 exempt = 1,400; 10% is 140, spread 112 / 28. Shipping 56 is untouched.
+        var lines = List.of(line("1", "1120.00", "0", TaxClass.VATABLE), line("1", "280.00", "0", TaxClass.VAT_EXEMPT));
+        var discount = OrderTotals.discountAmount(DiscountType.PERCENT, new BigDecimal("10"), new BigDecimal("1400.00"));
+        var r = OrderTotals.compute(lines, new BigDecimal("56"), TaxTreatment.REGULAR, discount);
+        assertThat(discount).isEqualByComparingTo("140.00");
+        assertThat(r.vatableSales()).isEqualByComparingTo("950.00"); // (1120 - 112 + 56) / 1.12
+        assertThat(r.vat()).isEqualByComparingTo("114.00");
+        assertThat(r.vatExemptSales()).isEqualByComparingTo("252.00");
+        assertThat(r.total()).isEqualByComparingTo("1316.00");
+        assertThat(r.lineTotals()).containsExactly(new BigDecimal("1120.00"), new BigDecimal("280.00"));
+    }
+
+    @Test
+    void fixedDiscountPartsAlwaysSumToTheDiscount() {
+        var lines = List.of(line("1", "33.33", "0", TaxClass.VATABLE), line("1", "33.33", "0", TaxClass.VAT_EXEMPT),
+                line("1", "33.34", "0", TaxClass.ZERO_RATED));
+        var r = OrderTotals.compute(lines, BigDecimal.ZERO, TaxTreatment.REGULAR, new BigDecimal("10.01"));
+        assertThat(r.total()).isEqualByComparingTo("89.99");
+    }
+
+    @Test
     void singleVatableLine() {
         var r = OrderTotals.compute(List.of(line("3", "112.00", "0", TaxClass.VATABLE)), BigDecimal.ZERO,
                 TaxTreatment.REGULAR);

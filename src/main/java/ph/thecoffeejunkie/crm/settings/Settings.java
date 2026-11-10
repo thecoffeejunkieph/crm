@@ -14,6 +14,7 @@ import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Public facade: other modules read thresholds here; admins change them through the controller. */
@@ -42,6 +43,13 @@ public class Settings {
         return raw(key).toString();
     }
 
+    /** The invoice's bank accounts: bankName, accountName, accountNumber and qr (a data URI, or ""). */
+    @SuppressWarnings("unchecked")
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> bankAccounts() {
+        return (List<Map<String, Object>>) raw(SettingKey.INVOICE_BANK_ACCOUNTS);
+    }
+
     @Transactional(readOnly = true)
     Map<String, Object> all() {
         Map<String, Object> out = new LinkedHashMap<>();
@@ -67,8 +75,21 @@ public class Settings {
             row.updatedAt = Instant.now();
             row.updatedBy = actor.staff().map(StaffPrincipal::userId).orElse(null);
             audit.record(AuditAction.SETTING_CHANGED, "SETTING", null, "Setting " + k.key() + " changed",
-                    AuditChanges.diff().field(k.key(), old, v));
+                    AuditChanges.diff().field(k.key(), withoutImages(old), withoutImages(v)));
         });
+    }
+
+    /** The activity log says a QR was set, not the whole image. */
+    @SuppressWarnings("unchecked")
+    private static Object withoutImages(Object value) {
+        if (!(value instanceof List<?> accounts)) {
+            return value;
+        }
+        return accounts.stream().map(a -> {
+            Map<String, Object> copy = new LinkedHashMap<>((Map<String, Object>) a);
+            copy.computeIfPresent("qr", (k, qr) -> "".equals(qr) ? "" : "(image)");
+            return copy;
+        }).toList();
     }
 
     // jsonb numbers come back as Integer/Double/BigDecimal, so compare numerically.
