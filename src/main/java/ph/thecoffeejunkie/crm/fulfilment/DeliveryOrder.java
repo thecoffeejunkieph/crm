@@ -11,6 +11,8 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -36,7 +38,8 @@ class DeliveryOrder {
     Long dispatchedBy;
     Instant deliveredAt;
     Long deliveredBy;
-    String proofKey;
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    List<String> proofKeys = new ArrayList<>();
     String receiverName;
     String customerName;
     String shipTo;

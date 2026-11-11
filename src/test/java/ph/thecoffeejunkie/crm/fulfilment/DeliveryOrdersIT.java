@@ -153,8 +153,12 @@ class DeliveryOrdersIT {
     }
 
     private ResultActions deliver(long id, byte[] photo, String receiverName) throws Exception {
+        return photo == null ? deliverAll(id, receiverName) : deliverAll(id, receiverName, photo);
+    }
+
+    private ResultActions deliverAll(long id, String receiverName, byte[]... photos) throws Exception {
         MockMultipartHttpServletRequestBuilder req = multipart("/api/delivery-orders/" + id + "/deliver");
-        if (photo != null) {
+        for (byte[] photo : photos) {
             req.file(new MockMultipartFile("photo", "proof.png", "image/png", photo));
         }
         if (receiverName != null) {
@@ -408,6 +412,11 @@ class DeliveryOrdersIT {
                 .andExpect(jsonPath("$.code").value("PROOF_REQUIRED"));
         assertThat(stateOf(id)).isEqualTo("DISPATCHED");
         assertThat(storedProofs(id)).isZero();
+        byte[][] tooMany = new byte[DeliveryService.MAX_PROOF_PHOTOS + 1][];
+        java.util.Arrays.fill(tooMany, PNG);
+        deliverAll(id, "Juan", tooMany).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        assertThat(storedProofs(id)).isZero();
     }
 
     @Test
@@ -424,14 +433,16 @@ class DeliveryOrdersIT {
     void deliverPublishesOrderDelivered() throws Exception {
         long id = dispatched("4");
         long orderId = jdbc.queryForObject("select sales_order_id from delivery_order where id = ?", Long.class, id);
-        deliver(id, PNG, "Juan").andExpect(status().isOk())
+        deliverAll(id, "Juan", PNG, PNG).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DELIVERED"))
                 .andExpect(jsonPath("$.receiverName").value("Juan"))
-                .andExpect(jsonPath("$.proofUrl").value(startsWith("/api/v1/files/delivery-orders/" + id + "/proof/")));
+                .andExpect(jsonPath("$.proofUrls.length()").value(2))
+                .andExpect(jsonPath("$.proofUrls[1]").value(startsWith("/api/v1/files/delivery-orders/" + id + "/proof/")));
         assertThat(events.stream(OrderDelivered.class)).singleElement()
                 .satisfies(e -> assertThat(e.orderId()).isEqualTo(orderId));
-        assertThat(storedProofs(id)).isEqualTo(1);
+        assertThat(storedProofs(id)).isEqualTo(2);
         assertThat(fulfilment.forOrder(orderId)).hasValueSatisfying(s -> {
+            assertThat(s.proofUrls()).hasSize(2);
             assertThat(s.status()).isEqualTo(DeliveryStatus.DELIVERED);
             assertThat(s.receiverName()).isEqualTo("Juan");
             assertThat(s.deliveredAt()).isNotNull();

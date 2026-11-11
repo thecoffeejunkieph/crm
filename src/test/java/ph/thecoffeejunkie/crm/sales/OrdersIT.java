@@ -167,4 +167,15 @@ class OrdersIT {
                     .andExpect(jsonPath("$.content[0].paymentStatus").value(c.get(0)));
         }
     }
+
+    @Test
+    void draftHasNoPaymentStatusEvenAtZero() throws Exception {
+        long draft = f.createdOrder(asRep, customer, line(productA, "1"));
+        jdbc.update("update sales_order set total = 0, settled_amount = 0 where id = ?", draft);
+        mvc.perform(get("/api/orders/" + draft).with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.paymentStatus").doesNotExist());
+        mvc.perform(get("/api/orders").param("customerId", String.valueOf(customer)).with(asRep))
+                .andExpect(jsonPath("$.content[0].paymentStatus").doesNotExist());
+    }
 }

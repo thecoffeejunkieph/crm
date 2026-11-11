@@ -94,6 +94,6 @@ public class Fulfilment {
     public Optional<DeliverySummary> forOrder(long orderId) {
         return orders.readBySalesOrderIdAndStatusNot(orderId, DeliveryStatus.CANCELLED)
                 .map(d -> new DeliverySummary(d.id, d.number, d.status, d.method, d.dispatchedAt, d.deliveredAt,
-                        d.receiverName, StorageService.url(d.proofKey)));
+                        d.receiverName, DeliveryService.proofUrls(d)));
     }
 }

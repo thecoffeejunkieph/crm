@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 
@@ -48,8 +50,8 @@ class DeliveryOrderController {
     /** Both parts are checked in the service, so a missing one is PROOF_REQUIRED rather than a binding 400. */
     @PostMapping(value = "/api/delivery-orders/{id}/deliver", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     DeliveryOrderResponse deliver(@PathVariable long id,
-                                  @RequestPart(value = "photo", required = false) MultipartFile photo,
+                                  @RequestPart(value = "photo", required = false) List<MultipartFile> photos,
                                   @RequestParam(value = "receiverName", required = false) String receiverName) {
-        return deliveries.deliver(id, photo, receiverName);
+        return deliveries.deliver(id, photos, receiverName);
     }
 }

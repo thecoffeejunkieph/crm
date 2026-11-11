@@ -598,7 +598,11 @@ class OrderService {
         return o.status == OrderStatus.QUOTED && o.quoteValidUntil != null && o.quoteValidUntil.isBefore(today);
     }
 
+    /** Null until the order is billable: a draft or quote owes nothing yet, so a ₱0 draft is not "Paid". */
     static PaymentStatus paymentStatus(SalesOrder o, LocalDate today) {
+        if (!BILLABLE.contains(o.status)) {
+            return null;
+        }
         return Balances.status(o.total, o.settledAmount, o.dueDate, today);
     }
 

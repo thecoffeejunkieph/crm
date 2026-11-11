@@ -25,6 +25,7 @@ import ph.thecoffeejunkie.crm.shared.Scope;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 class DeliveryService {
 
     static final String ENTITY = "DELIVERY_ORDER";
+    static final int MAX_PROOF_PHOTOS = 10;
     private static final Sort NEWEST = Sort.by(Sort.Direction.DESC, "id");
 
     private final DeliveryOrderRepository orders;
@@ -144,11 +146,15 @@ class DeliveryService {
         return toResponse(d);
     }
 
-    /** The photo is stored only after every state check has passed, so a refused delivery stores nothing. */
-    DeliveryOrderResponse deliver(long id, MultipartFile photo, String receiverName) {
+    /** The photos are stored only after every state check has passed, so a refused delivery stores nothing. */
+    DeliveryOrderResponse deliver(long id, List<MultipartFile> photos, String receiverName) {
         DeliveryOrder d = lock(id);
-        if (photo == null || photo.isEmpty() || receiverName == null || receiverName.isBlank()) {
+        List<MultipartFile> given = photos == null ? List.of() : photos.stream().filter(p -> !p.isEmpty()).toList();
+        if (given.isEmpty() || receiverName == null || receiverName.isBlank()) {
             throw new DomainException(ErrorCode.PROOF_REQUIRED, "A photo and the name of the receiver are required.");
+        }
+        if (given.size() > MAX_PROOF_PHOTOS) {
+            throw invalid("photo", "Attach at most " + MAX_PROOF_PHOTOS + " photos.");
         }
         if (d.method == DeliveryMethod.PICKUP && d.status == DeliveryStatus.PICKING) {
             consume(d);
@@ -156,7 +162,8 @@ class DeliveryService {
             throw new DomainException(ErrorCode.INVALID_STATE, "This delivery order cannot be delivered now.");
         }
         // A bad photo throws 400 here and rolls back the pickup's stock postings with it.
-        d.proofKey = storage.store("delivery-orders/" + d.id + "/proof", photo, StorageService.IMAGE_TYPES);
+        d.proofKeys = new ArrayList<>(given.stream()
+                .map(p -> storage.store("delivery-orders/" + d.id + "/proof", p, StorageService.IMAGE_TYPES)).toList());
         d.receiverName = receiverName.trim();
         d.status = DeliveryStatus.DELIVERED;
         d.deliveredAt = Instant.now();
@@ -204,6 +211,10 @@ class DeliveryService {
                 Map.of("errors", List.of(Map.of("field", field, "message", msg))));
     }
 
+    static List<String> proofUrls(DeliveryOrder d) {
+        return d.proofKeys.stream().map(StorageService::url).toList();
+    }
+
     private DeliveryOrderResponse toResponse(DeliveryOrder d) {
         return toResponses(List.of(d)).get(0);
     }
@@ -213,7 +224,7 @@ class DeliveryService {
                 .map(l -> l.productId).toList());
         return ds.stream().map(d -> new DeliveryOrderResponse(d.id, d.number, d.status, d.method, d.salesOrderId,
                 d.orderNumber, d.warehouseId, d.customerName, d.shipTo, d.createdAt, d.dispatchedAt, d.deliveredAt,
-                d.receiverName, StorageService.url(d.proofKey), d.lines.stream().map(l ->
+                d.receiverName, proofUrls(d), d.lines.stream().map(l ->
                         new DeliveryOrderResponse.DeliveryLineResponse(l.id, l.orderLineId, l.productId,
                                 products.get(l.productId).sku(), l.description, l.unit,
                                 l.qty.setScale(3, RoundingMode.UNNECESSARY),

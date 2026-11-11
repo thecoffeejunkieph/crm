@@ -933,8 +933,11 @@
           "orderNumber" : {
             "type" : "string"
           },
-          "proofUrl" : {
-            "type" : "string"
+          "proofUrls" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
           },
           "receiverName" : {
             "type" : "string"
@@ -1000,8 +1003,11 @@
           "number" : {
             "type" : "string"
           },
-          "proofUrl" : {
-            "type" : "string"
+          "proofUrls" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
           },
           "receiverName" : {
             "type" : "string"
@@ -5982,8 +5988,11 @@
               "schema" : {
                 "properties" : {
                   "photo" : {
-                    "format" : "binary",
-                    "type" : "string"
+                    "items" : {
+                      "format" : "binary",
+                      "type" : "string"
+                    },
+                    "type" : "array"
                   }
                 },
                 "type" : "object"
