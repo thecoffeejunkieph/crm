@@ -41,6 +41,8 @@ class AdjustmentsIT {
     long p;
     RequestPostProcessor admin;
     RequestPostProcessor warehouse1;
+    long adminId;
+    long whId;
 
     @BeforeEach
     void seed() {
@@ -49,8 +51,11 @@ class AdjustmentsIT {
         wh1 = f.warehouse("A");
         p = f.product("P", "KG");
         jdbc.update("update product set cost = 100 where id = ?", p);
-        admin = as(f.user("adm"), Role.ADMIN);
-        warehouse1 = as(f.user("wh"), Role.WAREHOUSE, wh1);
+        adminId = f.user("adm");
+        jdbc.update("update app_user set role = 'ADMIN' where id = ?", adminId);
+        admin = as(adminId, Role.ADMIN);
+        whId = f.user("wh");
+        warehouse1 = as(whId, Role.WAREHOUSE, wh1);
     }
 
     @AfterEach
@@ -116,6 +121,19 @@ class AdjustmentsIT {
         f.receive(p, wh1, "100");
         delta("-50", warehouse1).andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("POSTED"));
         assertThat(f.onHand(p, wh1)).isEqualByComparingTo("50");
+    }
+
+    @Test
+    void writeOffNotificationsPointAtAdjustmentAndReachTheRequester() throws Exception {
+        f.receive(p, wh1, "100");
+        delta("-60", warehouse1).andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("select entity_type || '|' || entity_id from notification "
+                + "where recipient_user_id = ? and type = 'APPROVAL_REQUESTED'", String.class, adminId))
+                .isEqualTo("STOCK_ADJUSTMENT|" + adjustmentId());
+        decide(true);
+        assertThat(jdbc.queryForList("select entity_type || '|' || entity_id from notification "
+                + "where recipient_user_id = ? and type = 'APPROVAL_DECIDED'", String.class, whId))
+                .containsExactly("STOCK_ADJUSTMENT|" + adjustmentId());
     }
 
     @Test

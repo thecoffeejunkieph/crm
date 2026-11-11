@@ -62,6 +62,7 @@ class ApprovalsIT {
         SecurityContextHolder.clearContext();
         jdbc.update("delete from notification where recipient_user_id in (select id from app_user where email like '%@apr.it')");
         jdbc.update("delete from approval_request where subject_type = ?", SUBJECT);
+        jdbc.update("delete from approval_request where requested_by in (select id from app_user where email like '%@apr.it')");
         jdbc.update("delete from app_user where email like '%@apr.it'");
     }
 
@@ -137,6 +138,39 @@ class ApprovalsIT {
                 Long.class, SUBJECT)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from notification where type = 'APPROVAL_REQUESTED' "
                 + "and entity_id = ? and recipient_user_id = ?", Long.class, first, admin)).isEqualTo(1);
+    }
+
+    private String link(long userId, String type) {
+        return jdbc.queryForObject("select entity_type || '|' || entity_id from notification where recipient_user_id = ? "
+                + "and type = ?", String.class, userId, type);
+    }
+
+    @Test
+    void requestAndDecisionNotificationsPointAtOrder() throws Exception {
+        long id = requestVia(sales, "ORDER", 424242, 1);
+        assertThat(link(admin, "APPROVAL_REQUESTED")).isEqualTo("ORDER|424242");
+        decide(id, true).andExpect(status().isOk());
+        assertThat(link(sales, "APPROVAL_DECIDED")).isEqualTo("ORDER|424242");
+    }
+
+    @Test
+    void unknownSubjectKeepsApprovalLink() throws Exception {
+        long id = requestVia(sales, 7, 3);
+        assertThat(link(admin, "APPROVAL_REQUESTED")).isEqualTo("APPROVAL|" + id);
+    }
+
+    @Test
+    void listFiltersBySubject() throws Exception {
+        requestVia(sales, 7, 1);
+        requestVia(sales, 8, 1);
+        requestVia(sales, 9, 1);
+        requestVia(sales, "ORDER", 7, 1);
+
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).param("subjectId", "7", "8")
+                        .with(as(admin, Role.ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2));
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).with(as(admin, Role.ADMIN)))
+                .andExpect(jsonPath("$.totalElements").value(3));
     }
 
     @Test
@@ -285,7 +319,11 @@ class ApprovalsIT {
     }
 
     private long requestVia(long userId, long subjectId, long subjectVersion) throws Exception {
-        String body = "{\"type\":\"DISCOUNT\",\"subjectType\":\"" + SUBJECT + "\",\"subjectId\":" + subjectId
+        return requestVia(userId, SUBJECT, subjectId, subjectVersion);
+    }
+
+    private long requestVia(long userId, String subjectType, long subjectId, long subjectVersion) throws Exception {
+        String body = "{\"type\":\"DISCOUNT\",\"subjectType\":\"" + subjectType + "\",\"subjectId\":" + subjectId
                 + ",\"subjectVersion\":" + subjectVersion + ",\"requestedValue\":{\"pct\":15},\"reason\":\"loyal\"}";
         String json = mvc.perform(post("/api/approvals").with(as(userId, Role.SALES)).with(csrf(mvc))
                         .contentType(APPLICATION_JSON).content(body))

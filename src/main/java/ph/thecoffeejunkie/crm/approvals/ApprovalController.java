@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/approvals")
 class ApprovalController {
@@ -30,8 +32,10 @@ class ApprovalController {
 
     @GetMapping
     PageResponse<ApprovalResponse> list(@RequestParam(required = false) ApprovalStatus status,
-                                        @RequestParam(defaultValue = "false") boolean mine, PageQuery page) {
-        return approvals.list(status, mine, page);
+                                        @RequestParam(defaultValue = "false") boolean mine,
+                                        @RequestParam(required = false) String subjectType,
+                                        @RequestParam(required = false) List<Long> subjectId, PageQuery page) {
+        return approvals.list(status, mine, subjectType, subjectId, page);
     }
 
     @PostMapping("/{id}/decision")

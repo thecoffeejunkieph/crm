@@ -4,6 +4,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,9 +42,11 @@ public class Approvals {
     private final CurrentActor actor;
     private final TransactionTemplate tx;
     private final ApplicationEventPublisher events;
+    private final JdbcTemplate jdbc;
 
     Approvals(ApprovalRequestRepository repo, AuditLog audit, Notifications notifications, Users users,
-              CurrentActor actor, PlatformTransactionManager txm, ApplicationEventPublisher events) {
+              CurrentActor actor, PlatformTransactionManager txm, ApplicationEventPublisher events, JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.repo = repo;
         this.audit = audit;
         this.notifications = notifications;
@@ -129,7 +132,8 @@ public class Approvals {
         repo.saveAndFlush(a);
         audit.record(AuditAction.APPROVAL_REQUESTED, ENTITY, a.id,
                 req.type() + " approval requested for " + req.subjectType() + " #" + req.subjectId(), null);
-        notifications.toRole(Role.ADMIN, NotificationType.APPROVAL_REQUESTED, ENTITY, a.id,
+        Link link = link(a);
+        notifications.toRole(Role.ADMIN, NotificationType.APPROVAL_REQUESTED, link.type(), link.id(),
                 "Approval requested", req.type() + " on " + req.subjectType() + " #" + req.subjectId()
                         + ": " + req.reason());
         return toResponse(a);
@@ -147,7 +151,8 @@ public class Approvals {
         String outcome = a.status.name().toLowerCase();
         audit.record(AuditAction.APPROVAL_DECIDED, ENTITY, id, "approval " + outcome, null);
         events.publishEvent(new ApprovalDecided(a.id, a.type, a.subjectType, a.subjectId, a.subjectVersion, a.status));
-        notifications.toUser(a.requestedBy, NotificationType.APPROVAL_DECIDED, ENTITY, id,
+        Link link = link(a);
+        notifications.toUser(a.requestedBy, NotificationType.APPROVAL_DECIDED, link.type(), link.id(),
                 "Approval " + outcome, req.note());
         return toResponse(a);
     }
@@ -164,13 +169,19 @@ public class Approvals {
         audit.record(AuditAction.APPROVAL_CANCELLED, ENTITY, id, "approval cancelled", null);
     }
 
-    /** Admins see everything (or just their own with mine=true); everyone else only their own. */
+    /**
+     * Admins see everything (or just their own with mine=true); everyone else only their own. subjectType/subjectIds
+     * narrow to one record's approvals (the order page, the stock page); null = any.
+     */
     @Transactional(readOnly = true)
-    public PageResponse<ApprovalResponse> list(ApprovalStatus status, boolean mine, PageQuery page) {
+    public PageResponse<ApprovalResponse> list(ApprovalStatus status, boolean mine, String subjectType,
+                                               List<Long> subjectIds, PageQuery page) {
         Scope scope = actor.scope();
         boolean own = mine || !scope.isAdmin();
         Specification<ApprovalRequest> spec = Specification.allOf(
                 (r, q, cb) -> status == null ? null : cb.equal(r.get("status"), status),
+                (r, q, cb) -> subjectType == null ? null : cb.equal(r.get("subjectType"), subjectType),
+                (r, q, cb) -> subjectIds == null || subjectIds.isEmpty() ? null : r.get("subjectId").in(subjectIds),
                 (r, q, cb) -> own ? cb.equal(r.get("requestedBy"), scope.userId()) : null);
         var found = repo.findAll(spec, page.toPageable(Set.of("id", "requestedAt"),
                 Sort.by(Sort.Direction.DESC, "id")));
@@ -183,6 +194,21 @@ public class Approvals {
         });
         Map<Long, String> names = users.displayNames(ids);
         return PageResponse.of(found.map(a -> a.toResponse(names)));
+    }
+
+    /** The record a notification about this approval opens: the page where it is shown and decided. */
+    private record Link(String type, long id) {
+    }
+
+    private Link link(ApprovalRequest a) {
+        return switch (a.subjectType) {
+            case "ORDER", "STOCK_ADJUSTMENT" -> new Link(a.subjectType, a.subjectId);
+            // Invoices live on their order's page.
+            case "INVOICE" -> jdbc.queryForList("select order_id from invoice where id = ?", Long.class, a.subjectId)
+                    .stream().findFirst().map(orderId -> new Link("ORDER", orderId))
+                    .orElse(new Link(ENTITY, a.id));
+            default -> new Link(ENTITY, a.id);
+        };
     }
 
     private Optional<ApprovalRequest> findPending(CreateApprovalRequest req) {

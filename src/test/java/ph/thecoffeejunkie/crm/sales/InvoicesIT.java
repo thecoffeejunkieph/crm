@@ -145,6 +145,18 @@ class InvoicesIT {
     }
 
     @Test
+    void invoiceVoidNotificationPointsAtItsOrder() throws Exception {
+        long id = confirmedOrder();
+        long invoiceId = SalesFixture.id(issue(asRep, id));
+        mvc.perform(f.json(post("/api/approvals"), "{\"type\":\"INVOICE_VOID\",\"subjectType\":\"INVOICE\","
+                + "\"subjectId\":" + invoiceId + ",\"subjectVersion\":1,\"requestedValue\":{},\"reason\":\"Wrong TIN\"}")
+                .with(asRep)).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select entity_type || '|' || entity_id from notification "
+                + "where recipient_user_id = ? and type = 'APPROVAL_REQUESTED'", String.class, admin))
+                .isEqualTo("ORDER|" + id);
+    }
+
+    @Test
     void salesReissueNeedsInvoiceVoidApproval() throws Exception {
         long id = confirmedOrder();
         long invoiceId = SalesFixture.id(issue(asRep, id));

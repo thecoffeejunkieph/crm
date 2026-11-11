@@ -1968,7 +1968,7 @@
             "type" : "string"
           },
           "type" : {
-            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND", "FOLLOW_UPS_DUE" ],
+            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND", "FOLLOW_UPS_DUE", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "LOW_STOCK", "OUT_OF_STOCK", "ORDER_SHORT", "ORDER_RELEASED", "ORDER_DELIVERED", "RELEASED_ORDER_CHANGED", "TARGET_MILESTONE" ],
             "type" : "string"
           }
         },
@@ -4751,6 +4751,24 @@
           }
         }, {
           "in" : "query",
+          "name" : "subjectType",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "subjectId",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
           "name" : "page",
           "required" : true,
           "schema" : {
@@ -7436,6 +7454,14 @@
       "get" : {
         "operationId" : "list_15",
         "parameters" : [ {
+          "in" : "query",
+          "name" : "unread",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        }, {
           "in" : "query",
           "name" : "page",
           "required" : true,
