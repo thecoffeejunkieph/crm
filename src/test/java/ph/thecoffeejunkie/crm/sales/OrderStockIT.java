@@ -75,6 +75,8 @@ class OrderStockIT {
 
     @AfterEach
     void cleanUp() {
+        jdbc.update("delete from user_warehouse where user_id in (select id from app_user where email like ?)",
+                f.tag + "%");
         // The ledger is append-only for crm_app; delivering posts DISPATCH movements, removed here as the owner.
         new JdbcTemplate(new DriverManagerDataSource(env.getProperty("spring.datasource.url"),
                 env.getProperty("spring.flyway.user"), env.getProperty("spring.flyway.password")))
@@ -267,6 +269,71 @@ class OrderStockIT {
         mvc.perform(f.json(post("/api/orders/" + order + "/cover-shortage"), "{}").with(asRep))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
+    private List<String> notes(long userId, String type) {
+        return jdbc.queryForList("select entity_type || '|' || entity_id || '|' || title from notification "
+                + "where recipient_user_id = ? and type = ? order by id", String.class, userId, type);
+    }
+
+    private long picker() {
+        long id = f.user("pick", Role.WAREHOUSE);
+        jdbc.update("insert into user_warehouse (user_id, warehouse_id) values (?, ?)", id, wh);
+        return id;
+    }
+
+    private String number(long order) {
+        return jdbc.queryForObject("select number from sales_order where id = ?", String.class, order);
+    }
+
+    @Test
+    void releaseNotifiesRep() throws Exception {
+        f.stock(p, "5");
+        long order = confirmed("2");
+        f.transition(asAdmin, order, "release", null).andExpect(status().isOk());
+        assertThat(notes(rep, "ORDER_RELEASED"))
+                .containsExactly("ORDER|" + order + "|Order " + number(order) + " released to the warehouse");
+    }
+
+    @Test
+    void deliveredNotifiesRep() throws Exception {
+        f.stock(p, "5");
+        long order = released("2");
+        delivered(order);
+        assertThat(notes(rep, "ORDER_DELIVERED")).containsExactly("ORDER|" + order + "|Order " + number(order) + " delivered");
+    }
+
+    @Test
+    void cancellingReleasedOrderNotifiesAdminsAndWarehouse() throws Exception {
+        long picker = picker();
+        f.stock(p, "5");
+        long order = released("2");
+        long d = deliveryOrder(order);
+        String doNumber = jdbc.queryForObject("select number from delivery_order where id = ?", String.class, d);
+        f.transition(asRep, order, "cancel", "No longer needed").andExpect(status().isOk());
+        assertThat(notes(admin, "RELEASED_ORDER_CHANGED"))
+                .containsExactly("ORDER|" + order + "|Delivery order " + doNumber + " cancelled");
+        assertThat(notes(picker, "RELEASED_ORDER_CHANGED"))
+                .containsExactly("DELIVERY_ORDER|" + d + "|Delivery order " + doNumber + " cancelled");
+    }
+
+    @Test
+    void revisingReleasedOrderNotifiesWarehouse() throws Exception {
+        long picker = picker();
+        f.stock(p, "5");
+        long order = released("2");
+        long d = deliveryOrder(order);
+        revise(order, "", line(lineId(order), p, "3")).andExpect(status().isOk());
+        assertThat(notes(picker, "RELEASED_ORDER_CHANGED")).singleElement().asString().startsWith("DELIVERY_ORDER|" + d + "|");
+        assertThat(notes(admin, "RELEASED_ORDER_CHANGED")).hasSize(1);
+    }
+
+    @Test
+    void cancellingConfirmedOrderTellsNobody() throws Exception {
+        f.stock(p, "5");
+        long order = confirmed("2");
+        f.transition(asRep, order, "cancel", "No longer needed").andExpect(status().isOk());
+        assertThat(notes(admin, "RELEASED_ORDER_CHANGED")).isEmpty();
     }
 
     @Test

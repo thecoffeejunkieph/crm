@@ -24,6 +24,8 @@ import ph.thecoffeejunkie.crm.fulfilment.DeliveryRequest;
 import ph.thecoffeejunkie.crm.fulfilment.DeliverySummary;
 import ph.thecoffeejunkie.crm.fulfilment.Fulfilment;
 import ph.thecoffeejunkie.crm.identity.Users;
+import ph.thecoffeejunkie.crm.notifications.NotificationType;
+import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.inventory.Inventory;
 import ph.thecoffeejunkie.crm.inventory.LineStock;
 import ph.thecoffeejunkie.crm.inventory.TransferResponse;
@@ -90,12 +92,15 @@ class OrderService {
     private final Fulfilment fulfilment;
     private final Warehouses warehouses;
     private final ApplicationEventPublisher events;
+    private final Notifications notifications;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
                  Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
                  PaymentService payments, OrderRevisionRepository revisions, Inventory inventory,
-                 Fulfilment fulfilment, Warehouses warehouses, ApplicationEventPublisher events) {
+                 Fulfilment fulfilment, Warehouses warehouses, ApplicationEventPublisher events,
+                 Notifications notifications) {
+        this.notifications = notifications;
         this.events = events;
         this.inventory = inventory;
         this.fulfilment = fulfilment;
@@ -411,6 +416,8 @@ class OrderService {
                 o.deliveryMethod, c.displayName(), c.address(), o.lines.stream().map(l ->
                         new DeliveryRequest.DeliveryLine(l.id, l.productId, l.description, l.unit, l.qty)).toList()));
         audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number, null);
+        notifications.toUser(OrderStockMapper.rep(o), NotificationType.ORDER_RELEASED, ENTITY, id,
+                "Order " + o.number + " released to the warehouse", null);
         return toResponse(o, s);
     }
 

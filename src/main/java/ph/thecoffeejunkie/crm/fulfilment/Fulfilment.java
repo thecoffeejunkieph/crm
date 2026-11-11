@@ -11,6 +11,7 @@ import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -86,6 +87,12 @@ public class Fulfilment {
             d.updatedAt = Instant.now();
             audit.record(AuditAction.DELIVERY_CANCELLED, DeliveryService.ENTITY, d.id,
                     "Cancelled delivery order " + d.number, null);
+            String title = "Delivery order " + d.number + " cancelled";
+            String body = "Order " + d.orderNumber + " was changed or cancelled; stop picking.";
+            notifications.toUsers(users.activeIdsWithRole(Role.ADMIN), NotificationType.RELEASED_ORDER_CHANGED,
+                    "ORDER", orderId, title, body);
+            notifications.toUsers(users.idsForWarehouse(d.warehouseId), NotificationType.RELEASED_ORDER_CHANGED,
+                    DeliveryService.ENTITY, d.id, title, body);
         });
     }
 

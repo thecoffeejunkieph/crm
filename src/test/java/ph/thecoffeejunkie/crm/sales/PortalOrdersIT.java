@@ -152,6 +152,19 @@ class PortalOrdersIT {
     }
 
     @Test
+    void declineNotifiesAdminsAndRep() throws Exception {
+        long admin = f.user("boss", Role.ADMIN);
+        long id = quoted(customer, line(product, "1"));
+        mvc.perform(f.json(post("/api/portal/orders/" + id + "/decline"),
+                        "{\"version\":" + f.version(id) + ",\"reason\":\"Too expensive\"}").with(me))
+                .andExpect(status().isNoContent());
+        assertThat(notifications("QUOTE_DECLINED")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select body from notification where recipient_user_id = ? "
+                + "and type = 'QUOTE_DECLINED' and entity_type = 'ORDER' and entity_id = ?", String.class, admin, id))
+                .isEqualTo("Too expensive");
+    }
+
+    @Test
     void declineReturnsToDraftAndHides() throws Exception {
         long id = quoted(customer, line(product, "1"));
         mvc.perform(f.json(post("/api/portal/orders/" + id + "/decline"),

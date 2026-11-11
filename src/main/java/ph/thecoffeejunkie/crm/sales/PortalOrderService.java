@@ -12,11 +12,13 @@ import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.fulfilment.DeliverySummary;
 import ph.thecoffeejunkie.crm.fulfilment.Fulfilment;
+import ph.thecoffeejunkie.crm.identity.Users;
 import ph.thecoffeejunkie.crm.notifications.NotificationType;
 import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.shared.PdfFile;
 import ph.thecoffeejunkie.crm.shared.ContactPrincipal;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
+import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
@@ -25,6 +27,7 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -49,11 +52,13 @@ class PortalOrderService {
     private final CurrentActor actor;
     private final Clock clock;
     private final Fulfilment fulfilment;
+    private final Users users;
 
     PortalOrderService(SalesOrderRepository repo, OrderService orders, PaymentService payments,
                        PaymentRepository paymentRepo, InvoiceRepository invoices, InvoiceDocument invoiceDocument,
                        QuoteDocument quoteDocument, Approvals approvals, Notifications notifications, AuditLog audit,
-                       CurrentActor actor, Clock clock, Fulfilment fulfilment) {
+                       CurrentActor actor, Clock clock, Fulfilment fulfilment, Users users) {
+        this.users = users;
         this.fulfilment = fulfilment;
         this.repo = repo;
         this.orders = orders;
@@ -132,7 +137,9 @@ class PortalOrderService {
         String reason = req.reason() == null || req.reason().isBlank() ? "no reason given" : req.reason().trim();
         audit.record(AuditAction.QUOTE_DECLINED, OrderService.ENTITY, id,
                 "Customer declined quote " + o.number + ": " + reason, null);
-        notifications.toUser(rep(o), NotificationType.QUOTE_DECLINED, OrderService.ENTITY, id,
+        List<Long> told = new ArrayList<>(users.activeIdsWithRole(Role.ADMIN));
+        told.add(rep(o));
+        notifications.toUsers(told, NotificationType.QUOTE_DECLINED, OrderService.ENTITY, id,
                 "Quote " + o.number + " declined", reason);
     }
 
