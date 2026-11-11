@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -8,8 +9,11 @@ import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.files.StorageService;
 import ph.thecoffeejunkie.crm.identity.Users;
+import ph.thecoffeejunkie.crm.notifications.NotificationType;
+import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
@@ -37,9 +41,14 @@ class PaymentService {
     private final Users users;
     private final Customers customers;
     private final Clock clock;
+    private final Notifications notifications;
+    private final ApplicationEventPublisher events;
 
     PaymentService(PaymentRepository repo, SalesOrderRepository orderRepo, OrderAccess access, StorageService storage,
-                   AuditLog audit, Users users, Customers customers, Clock clock) {
+                   AuditLog audit, Users users, Customers customers, Clock clock, Notifications notifications,
+                   ApplicationEventPublisher events) {
+        this.notifications = notifications;
+        this.events = events;
         this.repo = repo;
         this.orderRepo = orderRepo;
         this.access = access;
@@ -71,6 +80,11 @@ class PaymentService {
         repo.saveAndFlush(p);
         audit.record(AuditAction.PAYMENT_RECORDED, OrderService.ENTITY, o.id, "Recorded payment of "
                 + p.amount().toPlainString() + " (" + p.method + ")" + (s.isAdmin() ? "" : ", awaiting admin confirmation"), null);
+        if (s.isAdmin()) {
+            verified(o, p);
+        } else {
+            submitted(o, p);
+        }
         return toResponse(p);
     }
 
@@ -106,6 +120,7 @@ class PaymentService {
         repo.saveAndFlush(p);
         audit.record(AuditAction.PAYMENT_VERIFIED, OrderService.ENTITY, o.id,
                 "Verified payment of " + p.amount().toPlainString(), null);
+        verified(o, p);
         return toResponse(p);
     }
 
@@ -117,7 +132,25 @@ class PaymentService {
         markRejected(p, req.reason().trim());
         audit.record(AuditAction.PAYMENT_REJECTED, OrderService.ENTITY, o.id,
                 "Rejected payment of " + p.amount().toPlainString() + ": " + p.rejectReason, null);
+        notifications.toUser(OrderStockMapper.rep(o), NotificationType.PAYMENT_REJECTED, OrderService.ENTITY, o.id,
+                "Payment rejected for " + o.number, p.rejectReason);
         return toResponse(p);
+    }
+
+    /** Tells admins a payment waits for them: a rep's record, or a customer's portal upload. */
+    void submitted(SalesOrder o, Payment p) {
+        notifications.toRole(Role.ADMIN, NotificationType.PAYMENT_SUBMITTED, OrderService.ENTITY, o.id,
+                "Payment to verify for " + o.number, label(p));
+    }
+
+    private void verified(SalesOrder o, Payment p) {
+        notifications.toUser(OrderStockMapper.rep(o), NotificationType.PAYMENT_VERIFIED, OrderService.ENTITY, o.id,
+                "Payment verified for " + o.number, label(p));
+        events.publishEvent(new PaymentVerified(o.id, p.id, o.repId, p.verifiedAt));
+    }
+
+    private static String label(Payment p) {
+        return p.amount().toPlainString() + " (" + p.method + ")";
     }
 
     @Transactional

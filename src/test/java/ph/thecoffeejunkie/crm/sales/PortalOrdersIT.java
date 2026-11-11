@@ -166,6 +166,22 @@ class PortalOrdersIT {
     }
 
     @Test
+    void portalPaymentNotifiesAdminsAndRep() throws Exception {
+        long admin = f.user("boss", Role.ADMIN);
+        long id = quoted(customer, line(product, "1"));
+        f.setStatus(id, "CONFIRMED");
+        var json = new MockMultipartFile("payment", "", "application/json", PaymentsIT.payment("100", "0").getBytes());
+        mvc.perform(multipart("/api/portal/orders/" + id + "/payments").file(json)
+                        .file(new MockMultipartFile("proof", "p.pdf", "application/pdf", PaymentsIT.PDF))
+                        .header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(me))
+                .andExpect(status().isOk());
+        assertThat(notifications("PAYMENT_SUBMITTED")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select title from notification where recipient_user_id = ? "
+                + "and type = 'PAYMENT_SUBMITTED' and entity_type = 'ORDER' and entity_id = ?", String.class, admin, id))
+                .startsWith("Payment to verify for ");
+    }
+
+    @Test
     void portalPaymentPendingAndProofRequired() throws Exception {
         long id = quoted(customer, line(product, "1"));
         f.setStatus(id, "CONFIRMED");

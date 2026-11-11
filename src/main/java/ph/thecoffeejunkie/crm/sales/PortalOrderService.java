@@ -141,6 +141,7 @@ class PortalOrderService {
         ContactPrincipal c = contact();
         SalesOrder o = visibleForUpdate(c, id);
         Payment p = payments.submitFromPortal(c.contactId(), o, req, proof);
+        payments.submitted(o, p);
         notifications.toUser(rep(o), NotificationType.PAYMENT_SUBMITTED, OrderService.ENTITY, id,
                 "Payment submitted for " + o.number, "Verify " + p.amount().toPlainString() + " (" + p.method + ")");
         return toResponse(p, c);

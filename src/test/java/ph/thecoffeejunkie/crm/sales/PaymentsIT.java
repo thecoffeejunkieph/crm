@@ -9,6 +9,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.files.StorageService;
@@ -38,6 +40,7 @@ import static ph.thecoffeejunkie.crm.sales.SalesFixture.as;
 import static ph.thecoffeejunkie.crm.sales.SalesFixture.line;
 
 @IntegrationTest
+@RecordApplicationEvents
 class PaymentsIT {
 
     static final byte[] PDF = "%PDF-1.7 proof".getBytes();
@@ -56,12 +59,14 @@ class PaymentsIT {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired StorageService storage;
+    @Autowired ApplicationEvents events;
 
     SalesFixture f;
     long rep;
     long customer;
     long product;
     long order;
+    long admin;
     RequestPostProcessor asRep;
     RequestPostProcessor asAdmin;
 
@@ -72,7 +77,8 @@ class PaymentsIT {
         customer = f.customer("acme", rep);
         product = f.product("A", "112.00", null, "VATABLE");
         asRep = as(rep, Role.SALES);
-        asAdmin = as(f.user("boss", Role.ADMIN), Role.ADMIN);
+        admin = f.user("boss", Role.ADMIN);
+        asAdmin = as(admin, Role.ADMIN);
         order = f.createdOrder(asRep, customer, line(product, "3")); // total 336.00
         f.setStatus(order, "CONFIRMED");
     }
@@ -133,6 +139,62 @@ class PaymentsIT {
         long draft = f.createdOrder(asRep, customer, line(product, "3"));
         f.update(asRep, draft, "\"discountType\":\"AMOUNT\",\"discountValue\":337", line(product, "3"))
                 .andExpect(status().isBadRequest());
+    }
+
+    private List<String> notes(long userId, String type) {
+        return jdbc.queryForList("select title || '|' || coalesce(body, '') || '|' || entity_type || '|' || entity_id "
+                + "from notification where recipient_user_id = ? and type = ? order by id", String.class, userId, type);
+    }
+
+    private String number() {
+        return jdbc.queryForObject("select number from sales_order where id = ?", String.class, order);
+    }
+
+    @Test
+    void repRecordedPaymentNotifiesAdmins() throws Exception {
+        record(order, payment("100", "0"), null, asRep).andExpect(status().isOk());
+        assertThat(notes(admin, "PAYMENT_SUBMITTED"))
+                .containsExactly("Payment to verify for " + number() + "|100.00 (BANK_TRANSFER)|ORDER|" + order);
+        assertThat(notes(rep, "PAYMENT_SUBMITTED")).isEmpty();
+    }
+
+    @Test
+    void verifyNotifiesRepAndPublishesEvent() throws Exception {
+        long p = pendingPayment("100");
+        verify(p).andExpect(status().isOk());
+        assertThat(notes(rep, "PAYMENT_VERIFIED"))
+                .containsExactly("Payment verified for " + number() + "|100.00 (GCASH)|ORDER|" + order);
+        assertThat(events.stream(PaymentVerified.class).filter(e -> e.paymentId() == p))
+                .singleElement().satisfies(e -> {
+                    assertThat(e.orderId()).isEqualTo(order);
+                    assertThat(e.repId()).isEqualTo(rep);
+                });
+    }
+
+    @Test
+    void adminRecordedPaymentNotifiesRep() throws Exception {
+        record(order, payment("100", "0"), null).andExpect(status().isOk());
+        assertThat(notes(rep, "PAYMENT_VERIFIED")).hasSize(1);
+        assertThat(events.stream(PaymentVerified.class)).hasSize(1);
+    }
+
+    @Test
+    void rejectNotifiesRepWithReason() throws Exception {
+        long p = pendingPayment("100");
+        mvc.perform(f.json(post("/api/payments/" + p + "/reject"), "{\"version\":0,\"reason\":\"No such transfer\"}")
+                .with(asAdmin)).andExpect(status().isOk());
+        assertThat(notes(rep, "PAYMENT_REJECTED"))
+                .containsExactly("Payment rejected for " + number() + "|No such transfer|ORDER|" + order);
+    }
+
+    @Test
+    void unassignedOrderNotifiesCreator() throws Exception {
+        jdbc.update("update sales_order set rep_id = null where id = ?", order);
+        long p = pendingPayment("100");
+        verify(p).andExpect(status().isOk());
+        assertThat(notes(rep, "PAYMENT_VERIFIED")).hasSize(1);
+        assertThat(events.stream(PaymentVerified.class)).singleElement()
+                .satisfies(e -> assertThat(e.repId()).isNull());
     }
 
     @Test
