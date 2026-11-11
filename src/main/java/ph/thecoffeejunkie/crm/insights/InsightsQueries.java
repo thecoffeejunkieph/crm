@@ -60,10 +60,20 @@ class InsightsQueries {
         return verifiedSum(CREDIT, repId, m);
     }
 
+    /** As {@link #netSales(Long, YearMonth)} without one payment: the figure before that payment was verified. */
+    BigDecimal netSales(Long repId, YearMonth m, long excludePaymentId) {
+        return verifiedSum(CREDIT, repId, m, excludePaymentId);
+    }
+
     private BigDecimal verifiedSum(String amount, Long repId, YearMonth m) {
-        MapSqlParameterSource p = month(m);
+        return verifiedSum(amount, repId, m, null);
+    }
+
+    private BigDecimal verifiedSum(String amount, Long repId, YearMonth m, Long excludePaymentId) {
+        MapSqlParameterSource p = month(m).addValue("exclude", excludePaymentId);
         return money(jdbc.queryForObject("select sum(" + amount + ") from payment p join sales_order o on o.id = p.order_id "
-                + "where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end" + rep(repId, p),
+                + "where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end"
+                + (excludePaymentId == null ? "" : " and p.id <> :exclude") + rep(repId, p),
                 p, BigDecimal.class));
     }
 
