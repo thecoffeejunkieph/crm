@@ -22,9 +22,12 @@ class StockController {
     private final ReceiptService receipts;
 
     private final AdjustmentService adjustments;
+    private final InventoryOverviewService overview;
 
-    StockController(StockViews views, ReceiptService receipts, AdjustmentService adjustments) {
+    StockController(StockViews views, ReceiptService receipts, AdjustmentService adjustments,
+                    InventoryOverviewService overview) {
         this.adjustments = adjustments;
+        this.overview = overview;
         this.views = views;
         this.receipts = receipts;
     }
@@ -34,6 +37,11 @@ class StockController {
                                             @RequestParam(required = false) String q,
                                             @RequestParam(defaultValue = "false") boolean lowOnly, PageQuery page) {
         return views.levels(warehouseId, q, lowOnly, page);
+    }
+
+    @GetMapping("/api/inventory/overview")
+    InventoryOverview overview(@RequestParam(required = false) Long warehouseId) {
+        return overview.overview(warehouseId);
     }
 
     @GetMapping("/api/stock/{productId}/movements")

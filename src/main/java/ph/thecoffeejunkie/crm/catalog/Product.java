@@ -28,6 +28,7 @@ class Product {
     BigDecimal cost;
     @Enumerated(EnumType.STRING)
     TaxClass taxClass;
+    BigDecimal reorderLevel;
     Instant archivedAt;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();

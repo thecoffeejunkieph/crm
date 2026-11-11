@@ -85,7 +85,8 @@ public class Catalog {
                 .field("unit", p.unit, req.unit())
                 .field("price", money(p.price), money(req.price()))
                 .field("cost", money(p.cost), money(req.cost()))
-                .field("taxClass", p.taxClass, req.taxClass());
+                .field("taxClass", p.taxClass, req.taxClass())
+                .field("reorderLevel", qty(p.reorderLevel), qty(req.reorderLevel()));
         apply(p, req);
         p.updatedAt = Instant.now();
         save(p);
@@ -142,6 +143,11 @@ public class Catalog {
         p.price = r.price();
         p.cost = r.cost();
         p.taxClass = r.taxClass();
+        p.reorderLevel = r.reorderLevel();
+    }
+
+    private static String qty(BigDecimal v) {
+        return v == null ? null : v.stripTrailingZeros().toPlainString();
     }
 
     private static String money(BigDecimal v) {
@@ -160,6 +166,6 @@ public class Catalog {
 
     private static ProductResponse toResponse(Product p, boolean withCost) {
         return new ProductResponse(p.id, p.sku, p.name, p.description, p.unit, p.price, withCost ? p.cost : null,
-                p.taxClass, p.archivedAt, p.version);
+                p.taxClass, p.reorderLevel, p.archivedAt, p.version);
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.shared.Role;
 
+import java.sql.Timestamp;
 import java.time.YearMonth;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,6 +116,7 @@ class AdminInsightsIT {
         f.line(o, f.product("costed", "600.00"), "1", "1000.00", "600.00");
         f.line(o, f.product("uncosted", null), "1", "500.00", null);
         f.invoice(o, "ISSUED", at(q, 30), "1500.00");
+        confirmedIn(o);
         adminView(q).andExpect(jsonPath("$.margin.amount").value(400.00))
                 .andExpect(jsonPath("$.margin.pct").value(40.00))
                 .andExpect(jsonPath("$.margin.linesWithoutCost").value(1))
@@ -122,10 +124,12 @@ class AdminInsightsIT {
     }
 
     @Test
-    void marginIgnoresVoidedInvoice() throws Exception {
-        long o = f.order(custA, repA, "FULFILLED", "1000.00", "0.00", null);
-        f.line(o, f.product("v", "100.00"), "1", "1000.00", "100.00");
-        f.invoice(o, "VOID", at(q, 30), "1000.00");
+    void marginIgnoresUnbilledOrders() throws Exception {
+        for (String status : new String[] {"DRAFT", "CANCELLED"}) {
+            long o = f.order(custA, repA, status, "1000.00", "0.00", null);
+            f.line(o, f.product("v" + status, "100.00"), "1", "1000.00", "100.00");
+            confirmedIn(o);
+        }
         adminView(q).andExpect(jsonPath("$.margin.amount").value(0.00))
                 .andExpect(jsonPath("$.margin.pct").isEmpty())
                 .andExpect(jsonPath("$.margin.linesWithoutCost").value(0));
@@ -148,12 +152,30 @@ class AdminInsightsIT {
         long big = f.product("big", "1500.00");
         f.line(o, small, "1", "100.00", "50.00");
         f.line(o, big, "2", "2900.00", "1000.00");
-        f.invoice(o, "ISSUED", at(q, 30), "3000.00");
+        confirmedIn(o); // no invoice yet: still counted, like Collected
         adminView(q).andExpect(jsonPath("$.topProducts[0].productId").value(big))
                 .andExpect(jsonPath("$.topProducts[0].revenue").value(2900.00))
                 .andExpect(jsonPath("$.topProducts[0].margin").value(900.00))
                 .andExpect(jsonPath("$.topProducts[1].productId").value(small))
                 .andExpect(jsonPath("$.topProducts[1].margin").value(50.00));
+    }
+
+    @Test
+    void marginIsExVatAndWithoutShipping() throws Exception {
+        // 1,120 of VATable goods + 112 shipping: 1,000 + 100 net, 132 VAT, 1,232 total.
+        long o = f.order(custA, repA, "CONFIRMED", "1232.00", "0.00", null);
+        f.set(o, "vat_exempt_sales", java.math.BigDecimal.ZERO);
+        f.set(o, "vatable_sales", new java.math.BigDecimal("1100.00"));
+        f.set(o, "vat", new java.math.BigDecimal("132.00"));
+        f.set(o, "shipping_fee", new java.math.BigDecimal("112.00"));
+        f.line(o, f.product("vat", "600.00"), "1", "1120.00", "600.00");
+        confirmedIn(o);
+        adminView(q).andExpect(jsonPath("$.margin.amount").value(400.00))
+                .andExpect(jsonPath("$.topProducts[0].revenue").value(1000.00));
+    }
+
+    private void confirmedIn(long orderId) {
+        f.set(orderId, "confirmed_at", Timestamp.from(at(q, 30)));
     }
 
     @Test

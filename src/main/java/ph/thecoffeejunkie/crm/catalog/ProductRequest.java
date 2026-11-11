@@ -12,5 +12,6 @@ record ProductRequest(@NotBlank @Size(max = 64) String sku, @NotBlank @Size(max 
                       @NotNull ProductUnit unit,
                       @NotNull @PositiveOrZero @Digits(integer = 17, fraction = 2) BigDecimal price,
                       @PositiveOrZero @Digits(integer = 17, fraction = 2) BigDecimal cost,
-                      @NotNull TaxClass taxClass, Long version) {
+                      @NotNull TaxClass taxClass,
+                      @PositiveOrZero @Digits(integer = 9, fraction = 3) BigDecimal reorderLevel, Long version) {
 }

@@ -51,6 +51,7 @@ class ProductSheets {
                 row.add(p.cost);
             }
             row.add(p.taxClass);
+            row.add(p.reorderLevel);
             return row;
         }).toList();
         List<String> header = new ArrayList<>(List.of("id", "sku", "name", "description", "unit", "price"));
@@ -58,6 +59,7 @@ class ProductSheets {
             header.add("cost");
         }
         header.add("taxClass");
+        header.add("reorderLevel");
         audit.record(AuditAction.EXPORTED, "PRODUCT", null, "Exported " + rows.size() + " products", null);
         return Sheets.export("products", format, header, rows);
     }
@@ -75,6 +77,7 @@ class ProductSheets {
         return new ProductRequest(r.get("sku"), r.get("name"), r.get("description"),
                 enumOf(ProductUnit.class, "unit", r.get("unit")), decimal("price", r.get("price")),
                 decimal("cost", r.get("cost")),
-                enumOf(TaxClass.class, "taxClass", r.getOrDefault("taxclass", "VATABLE")), null);
+                enumOf(TaxClass.class, "taxClass", r.getOrDefault("taxclass", "VATABLE")),
+                decimal("reorderLevel", r.get("reorderlevel")), null);
     }
 }

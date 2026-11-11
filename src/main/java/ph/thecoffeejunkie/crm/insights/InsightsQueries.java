@@ -134,11 +134,11 @@ class InsightsQueries {
         return new NeedsAction(quotes, unpaid, overdue);
     }
 
-    /** Lines of orders whose ISSUED invoice was issued in the month; revenue = net of the order discount, cost = unit_cost × qty. */
+    /** Lines of billable orders confirmed in the month; revenue = ex-VAT, after the order discount; cost = unit_cost × qty. */
     AdminInsights.Margin margin(YearMonth m) {
-        return jdbc.queryForObject("select sum(" + NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) amt, "
-                + "sum(" + NET + ") filter (where l.unit_cost is not null) rev, "
-                + "count(*) filter (where l.unit_cost is null) missing from order_line l " + INVOICED_IN_MONTH,
+        return jdbc.queryForObject("select sum(" + LINE_NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) amt, "
+                + "sum(" + LINE_NET + ") filter (where l.unit_cost is not null) rev, "
+                + "count(*) filter (where l.unit_cost is null) missing from order_line l " + SOLD_IN_MONTH,
                 month(m), (rs, i) -> {
                     BigDecimal amount = money(rs.getBigDecimal("amt"));
                     BigDecimal rev = rs.getBigDecimal("rev");
@@ -148,8 +148,14 @@ class InsightsQueries {
                 });
     }
 
-    private static final String INVOICED_IN_MONTH = "join invoice i on i.order_id = l.order_id and i.status = 'ISSUED' "
-            + "and i.issued_at >= :start and i.issued_at < :end";
+    /** Booked sales: what Collected will be paid for, whether or not an invoice was issued yet. */
+    private static final String SOLD_IN_MONTH = "join sales_order o on o.id = l.order_id "
+            + "and o.status in ('CONFIRMED', 'RELEASED', 'FULFILLED') and o.confirmed_at >= :start and o.confirmed_at < :end";
+    /**
+     * A line's revenue ex-VAT: its after-discount amount scaled by the order's net goods over its gross goods.
+     * ponytail: one ratio per order, so a mixed VATable/exempt order spreads VAT evenly; per-line tax if that matters.
+     */
+    private static final String LINE_NET = "(" + NET + " * " + NET_GOODS + " / nullif(o.total - o.shipping_fee, 0))";
 
     /** {@code months} entries, oldest first, ending at {@code end}. */
     List<AdminInsights.MonthAmount> collectedByMonth(YearMonth end, int months) {
@@ -188,9 +194,9 @@ class InsightsQueries {
 
     /** By revenue; margin counts only lines with a cost. */
     List<AdminInsights.ProductRow> topProducts(YearMonth m, int limit) {
-        return jdbc.query("select pr.id, pr.name, sum(" + NET + ") rev, "
-                + "sum(" + NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) margin "
-                + "from order_line l " + INVOICED_IN_MONTH + " join product pr on pr.id = l.product_id "
+        return jdbc.query("select pr.id, pr.name, sum(" + LINE_NET + ") rev, "
+                + "sum(" + LINE_NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) margin "
+                + "from order_line l " + SOLD_IN_MONTH + " join product pr on pr.id = l.product_id "
                 + "group by pr.id, pr.name order by rev desc, pr.name limit :limit", month(m).addValue("limit", limit),
                 (rs, i) -> new AdminInsights.ProductRow(rs.getLong("id"), rs.getString("name"),
                         money(rs.getBigDecimal("rev")), money(rs.getBigDecimal("margin"))));

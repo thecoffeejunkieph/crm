@@ -1153,6 +1153,46 @@
         },
         "type" : "object"
       },
+      "InventoryOverview" : {
+        "properties" : {
+          "byWarehouse" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WarehouseValue"
+            },
+            "type" : "array"
+          },
+          "inStock" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lowStock" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "outOfStock" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "products" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ProductStock"
+            },
+            "type" : "array"
+          },
+          "slowMoving" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalValue" : {
+            "type" : "number"
+          },
+          "withoutCost" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "InviteUserRequest" : {
         "properties" : {
           "email" : {
@@ -3149,6 +3189,9 @@
           "price" : {
             "type" : "number"
           },
+          "reorderLevel" : {
+            "type" : "number"
+          },
           "sku" : {
             "maxLength" : 64,
             "minLength" : 0,
@@ -3192,6 +3235,9 @@
           "price" : {
             "type" : "number"
           },
+          "reorderLevel" : {
+            "type" : "number"
+          },
           "sku" : {
             "type" : "string"
           },
@@ -3223,6 +3269,61 @@
             "type" : "integer"
           },
           "revenue" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "ProductStock" : {
+        "properties" : {
+          "available" : {
+            "type" : "number"
+          },
+          "daysOfCover" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "health" : {
+            "enum" : [ "OK", "LOW", "OUT" ],
+            "type" : "string"
+          },
+          "lastDispatchedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "onHand" : {
+            "type" : "number"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reorderLevel" : {
+            "type" : "number"
+          },
+          "reserved" : {
+            "type" : "number"
+          },
+          "shipped30d" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "slow" : {
+            "type" : "boolean"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          },
+          "unitCost" : {
+            "type" : "number"
+          },
+          "value" : {
             "type" : "number"
           }
         },
@@ -4188,6 +4289,21 @@
             "type" : "string"
           },
           "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "WarehouseValue" : {
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "value" : {
+            "type" : "number"
+          },
+          "warehouseId" : {
             "format" : "int64",
             "type" : "integer"
           }
@@ -6486,6 +6602,33 @@
           }
         },
         "tags" : [ "insights-controller" ]
+      }
+    },
+    "/api/inventory/overview" : {
+      "get" : {
+        "operationId" : "overview",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "warehouseId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InventoryOverview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "stock-controller" ]
       }
     },
     "/api/invoices/{id}.pdf" : {

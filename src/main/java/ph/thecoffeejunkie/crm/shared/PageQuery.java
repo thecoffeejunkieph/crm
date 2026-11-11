@@ -13,8 +13,8 @@ import java.util.Set;
 public record PageQuery(@Min(1) Integer page, @Min(1) @Max(100) Integer size, String sort) {
 
     public Pageable toPageable(Set<String> sortableFields, Sort defaultSort) {
-        int p = page == null ? 1 : page;
-        int s = size == null ? 20 : size;
+        int p = page == null ? 1 : Math.max(1, page); // page 0 would make PageRequest throw a 500
+        int s = size == null ? 20 : Math.clamp(size, 1, 100);
         Sort order = defaultSort;
         if (sort != null && !sort.isBlank()) {
             String[] parts = sort.split(",", 2);

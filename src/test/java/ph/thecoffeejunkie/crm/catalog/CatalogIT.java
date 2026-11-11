@@ -63,7 +63,7 @@ class CatalogIT {
     }
 
     private String body(String sku, String price, Long version) {
-        return "{\"sku\":\"%s\",\"name\":\"%s beans\",\"unit\":\"KG\",\"price\":%s,\"cost\":7.50,\"taxClass\":\"VATABLE\"%s}"
+        return "{\"sku\":\"%s\",\"name\":\"%s beans\",\"unit\":\"KG\",\"price\":%s,\"cost\":7.50,\"taxClass\":\"VATABLE\",\"reorderLevel\":25%s}"
                 .formatted(sku, tag, price, version == null ? "" : ",\"version\":" + version);
     }
 
@@ -91,7 +91,8 @@ class CatalogIT {
     void adminSeesCost() throws Exception {
         long id = createdId(tag + "-1", "10.00");
         mvc.perform(get("/api/products/" + id).with(authentication(as(admin, Role.ADMIN))))
-                .andExpect(jsonPath("$.cost").value(7.50));
+                .andExpect(jsonPath("$.cost").value(7.50))
+                .andExpect(jsonPath("$.reorderLevel").value(25));
     }
 
     @Test
