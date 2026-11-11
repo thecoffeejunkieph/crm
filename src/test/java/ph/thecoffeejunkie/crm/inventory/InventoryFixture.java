@@ -67,6 +67,33 @@ public final class InventoryFixture {
                 + "values (?, ?, 'U', 'SALES') returning id", Long.class, tag + name + "@if.it", name);
     }
 
+    public long admin(String name) {
+        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
+                + "values (?, ?, 'U', 'ADMIN') returning id", Long.class, tag + name + "@if.it", name);
+    }
+
+    /** A WAREHOUSE user assigned to the warehouse; withRole lets a test give an admin a membership too. */
+    public long warehouseUser(String name, long warehouseId) {
+        long id = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
+                + "values (?, ?, 'U', 'WAREHOUSE') returning id", Long.class, tag + name + "@if.it", name);
+        member(id, warehouseId);
+        return id;
+    }
+
+    public void member(long userId, long warehouseId) {
+        jdbc.update("insert into user_warehouse (user_id, warehouse_id) values (?, ?)", userId, warehouseId);
+    }
+
+    public void reorderLevel(long productId, String level) {
+        jdbc.update("update product set reorder_level = ?::numeric where id = ?", level, productId);
+    }
+
+    /** "TYPE|entity_type|entity_id" per notification, oldest first. */
+    public List<String> notifications(long userId) {
+        return jdbc.queryForList("select type || '|' || entity_type || '|' || entity_id from notification "
+                + "where recipient_user_id = ? order by id", String.class, userId);
+    }
+
     public long warehouse(String code) {
         return jdbc.queryForObject("insert into warehouse (code, name) values (?, 'Fixture') returning id",
                 Long.class, tag + code);
@@ -133,6 +160,7 @@ public final class InventoryFixture {
         jdbc.update("delete from order_line where order_id in (" + orderIds + ")");
         jdbc.update("delete from sales_order where customer_id = ?", customer);
         jdbc.update("delete from customer where id = ?", customer);
+        jdbc.update("delete from user_warehouse where user_id in (select id from app_user where email like ?)", tag + "%");
         // The append-only ledger may reference the user (created_by): archive those instead of deleting them.
         jdbc.update("update app_user set archived_at = now() where email like ? "
                 + "and id in (select created_by from stock_movement where created_by is not null)", tag + "%");

@@ -114,6 +114,18 @@ public class Catalog {
         return out;
     }
 
+    /** Products with a reorder level; the rest are absent. */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> reorderLevels(Collection<Long> ids) {
+        Map<Long, BigDecimal> out = new HashMap<>();
+        repo.findAllById(new HashSet<>(ids)).forEach(p -> {
+            if (p.reorderLevel != null) {
+                out.put(p.id, p.reorderLevel);
+            }
+        });
+        return out;
+    }
+
     private static ProductInfo toInfo(Product p) {
         return new ProductInfo(p.id, p.sku, p.name, p.unit, p.price, p.cost, p.taxClass, p.archivedAt != null);
     }

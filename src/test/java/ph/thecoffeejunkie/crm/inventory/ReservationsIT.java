@@ -48,6 +48,85 @@ class ReservationsIT {
     }
 
     @Test
+    void crossingIntoLowNotifiesAdminsAndShipFromWarehouse() {
+        long admin = f.admin("adm");
+        long picker = f.warehouseUser("pick", wh);
+        long elsewhere = f.warehouseUser("far", f.warehouse("X"));
+        f.reorderLevel(p, "5");
+        f.receive(p, wh, "10");
+
+        inventory.reserve(f.order(rep, wh, t0, l(p, "6")));
+
+        assertThat(f.notifications(admin)).containsExactly("LOW_STOCK|PRODUCT|" + p);
+        assertThat(f.notifications(picker)).containsExactly("LOW_STOCK|PRODUCT|" + p);
+        assertThat(f.notifications(elsewhere)).isEmpty();
+        assertThat(jdbc.queryForObject("select title || '|' || body from notification where recipient_user_id = ?",
+                String.class, admin)).isEqualTo(f.tag + "P is low on stock|4 kg available, reorder level 5.");
+    }
+
+    @Test
+    void stayingBelowLevelDoesNotRepeat() {
+        long admin = f.admin("adm");
+        f.reorderLevel(p, "5");
+        f.receive(p, wh, "10");
+        inventory.reserve(f.order(rep, wh, t0, l(p, "6")));
+
+        inventory.reserve(f.order(rep, wh, t0, l(p, "1")));
+
+        assertThat(f.notifications(admin)).containsExactly("LOW_STOCK|PRODUCT|" + p);
+    }
+
+    @Test
+    void crossingToZeroSendsOutOnly() {
+        long admin = f.admin("adm");
+        f.reorderLevel(p, "5");
+        f.receive(p, wh, "10");
+        OrderStock a = f.order(rep, wh, t0, l(p, "10"));
+
+        inventory.reserve(a);
+
+        assertThat(f.notifications(admin)).containsExactly("OUT_OF_STOCK|PRODUCT|" + p);
+        assertThat(jdbc.queryForObject("select title || '|' || body from notification where recipient_user_id = ?",
+                String.class, admin)).isEqualTo(f.tag + "P is out of stock|Order " + a.orderNumber() + " took the last of it.");
+    }
+
+    @Test
+    void noReorderLevelNeverLow() {
+        long admin = f.admin("adm");
+        f.receive(p, wh, "10");
+
+        inventory.reserve(f.order(rep, wh, t0, l(p, "6")));
+
+        assertThat(f.notifications(admin)).isEmpty();
+    }
+
+    @Test
+    void adminInWarehouseGetsOne() {
+        long admin = f.admin("adm");
+        f.member(admin, wh);
+        f.reorderLevel(p, "5");
+        f.receive(p, wh, "10");
+
+        inventory.reserve(f.order(rep, wh, t0, l(p, "6")));
+
+        assertThat(f.notifications(admin)).containsExactly("LOW_STOCK|PRODUCT|" + p);
+    }
+
+    @Test
+    void shortReservationNotifiesAdmins() {
+        long admin = f.admin("adm");
+        f.receive(p, wh, "3");
+        OrderStock a = f.order(rep, wh, t0, l(p, "5"));
+
+        inventory.reserve(a);
+
+        assertThat(f.notifications(admin)).containsExactly("OUT_OF_STOCK|PRODUCT|" + p, "ORDER_SHORT|ORDER|" + a.orderId());
+        assertThat(jdbc.queryForObject("select title || '|' || body from notification where recipient_user_id = ? "
+                + "and type = 'ORDER_SHORT'", String.class, admin))
+                .isEqualTo("Order " + a.orderNumber() + " is short|2 short after reservation.");
+    }
+
+    @Test
     void reserveTakesAvailableRestShort() {
         f.receive(p, wh, "3");
         OrderStock a = f.order(rep, wh, t0, l(p, "5"));

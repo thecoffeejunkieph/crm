@@ -4,19 +4,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
+import ph.thecoffeejunkie.crm.identity.Users;
 import ph.thecoffeejunkie.crm.notifications.NotificationType;
 import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -39,10 +43,12 @@ public class Inventory {
     private final StockLevelRepository levels;
     private final Notifications notifications;
     private final Catalog catalog;
+    private final Users users;
 
     Inventory(StockLedger ledger, Allocator allocator, StockReservationRepository reservations,
               AdjustmentService adjustments, TransferService transfers, StockLevelRepository levels,
-              Notifications notifications, Catalog catalog) {
+              Notifications notifications, Catalog catalog, Users users) {
+        this.users = users;
         this.notifications = notifications;
         this.catalog = catalog;
         this.transfers = transfers;
@@ -66,6 +72,8 @@ public class Inventory {
     /** Per line, reserves min(qty, available) and records the rest as short. */
     public void reserve(OrderStock o) {
         lockAll(o.lines().stream().map(l -> new Key(l.productId(), o.warehouseId())));
+        Set<Long> products = o.lines().stream().map(ReserveLine::productId).collect(Collectors.toSet());
+        Map<Long, BigDecimal> before = productAvailable(products);
         o.lines().stream().sorted(LINE_ORDER).forEach(l -> {
             StockReservation r = new StockReservation();
             r.orderLineId = l.orderLineId();
@@ -76,6 +84,53 @@ public class Inventory {
             increase(r, qty(l));
             reservations.save(r);
         });
+        notifyStockCrossings(o, before, productAvailable(products));
+        BigDecimal shortQty = totalShort(o.orderId());
+        if (shortQty.signum() > 0) {
+            notifications.toUsers(users.activeIdsWithRole(Role.ADMIN), NotificationType.ORDER_SHORT, "ORDER",
+                    o.orderId(), "Order " + o.orderNumber() + " is short",
+                    shortQty.stripTrailingZeros().toPlainString() + " short after reservation.");
+        }
+    }
+
+    /** Product-wide on hand minus reserved, the Inventory page's rule; levels are the managed (locked) entities. */
+    private Map<Long, BigDecimal> productAvailable(Set<Long> productIds) {
+        Map<Long, BigDecimal> out = new HashMap<>();
+        productIds.forEach(id -> out.put(id, BigDecimal.ZERO));
+        levels.findByProductIdIn(productIds).forEach(l -> out.merge(l.productId, l.available(), BigDecimal::add));
+        return out;
+    }
+
+    /** Only a crossing notifies: OUT at or below zero wins over LOW at or below the reorder level. */
+    private void notifyStockCrossings(OrderStock o, Map<Long, BigDecimal> before, Map<Long, BigDecimal> after) {
+        Map<Long, BigDecimal> reorder = catalog.reorderLevels(before.keySet());
+        Map<Long, ProductInfo> info = null;
+        List<Long> recipients = null;
+        for (Long id : before.keySet()) {
+            BigDecimal b = before.get(id);
+            BigDecimal a = after.get(id);
+            BigDecimal level = reorder.get(id);
+            boolean out = b.signum() > 0 && a.signum() <= 0;
+            boolean low = !out && level != null && b.compareTo(level) > 0 && a.compareTo(level) <= 0;
+            if (!out && !low) {
+                continue;
+            }
+            if (info == null) {
+                info = catalog.info(before.keySet());
+                recipients = new ArrayList<>(users.activeIdsWithRole(Role.ADMIN));
+                recipients.addAll(users.idsForWarehouse(o.warehouseId()));
+            }
+            ProductInfo p = info.get(id);
+            if (out) {
+                notifications.toUsers(recipients, NotificationType.OUT_OF_STOCK, "PRODUCT", id,
+                        p.sku() + " is out of stock", "Order " + o.orderNumber() + " took the last of it.");
+            } else {
+                notifications.toUsers(recipients, NotificationType.LOW_STOCK, "PRODUCT", id,
+                        p.sku() + " is low on stock", a.stripTrailingZeros().toPlainString() + " "
+                                + p.unit().name().toLowerCase() + " available, reorder level "
+                                + level.stripTrailingZeros().toPlainString() + ".");
+            }
+        }
     }
 
     /**
