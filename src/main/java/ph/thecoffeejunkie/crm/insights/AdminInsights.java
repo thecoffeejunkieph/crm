@@ -24,7 +24,7 @@ record AdminInsights(YearMonth month, BigDecimal collected, BigDecimal collected
 
     /** {@code repId} null is the "Unassigned" row: orders whose customer had no rep at confirm. */
     record RepRow(Long repId, String name, BigDecimal target, BigDecimal commissionPct, BigDecimal collected,
-                  Integer progressPct, boolean targetHit, BigDecimal commission) implements Serializable {
+                  BigDecimal netSales, Integer progressPct, boolean targetHit, BigDecimal commission) implements Serializable {
     }
 
     record ProductRow(long productId, String name, BigDecimal revenue, BigDecimal margin) implements Serializable {

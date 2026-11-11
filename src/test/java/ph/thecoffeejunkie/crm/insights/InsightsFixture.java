@@ -82,12 +82,12 @@ class InsightsFixture {
         return jdbc.queryForObject("select id from app_user order by id limit 1", Long.class);
     }
 
-    /** A B2B order; {@code due} may be null. */
+    /** A B2B order with no VAT or shipping, so its net sales equal its total; {@code due} may be null. */
     long order(long customerId, Long repId, String status, String total, String settled, LocalDate due) {
         return jdbc.queryForObject("insert into sales_order (number, customer_id, rep_id, status, payment_terms, total, "
-                + "settled_amount, due_date, created_by, ship_from_warehouse_id, confirmed_at) "
-                + "values (?, ?, ?, ?, 'NET_30', ?::numeric, ?::numeric, ?, ?, ?, now()) returning id", Long.class,
-                tag + "-" + seq++, customerId, repId, status, total, settled, due, creator(), anyWarehouse());
+                + "vat_exempt_sales, settled_amount, due_date, created_by, ship_from_warehouse_id, confirmed_at) "
+                + "values (?, ?, ?, ?, 'NET_30', ?::numeric, ?::numeric, ?::numeric, ?, ?, ?, now()) returning id", Long.class,
+                tag + "-" + seq++, customerId, repId, status, total, total, settled, due, creator(), anyWarehouse());
     }
 
     void set(long orderId, String column, Object value) {

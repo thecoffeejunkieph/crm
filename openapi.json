@@ -3418,6 +3418,9 @@
           "name" : {
             "type" : "string"
           },
+          "netSales" : {
+            "type" : "number"
+          },
           "progressPct" : {
             "format" : "int32",
             "type" : "integer"
@@ -3552,6 +3555,9 @@
           },
           "needsAction" : {
             "$ref" : "#/components/schemas/NeedsAction"
+          },
+          "netSales" : {
+            "type" : "number"
           },
           "outstanding" : {
             "type" : "number"

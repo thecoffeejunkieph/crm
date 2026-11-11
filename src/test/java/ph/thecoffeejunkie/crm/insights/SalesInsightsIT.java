@@ -110,6 +110,29 @@ class SalesInsightsIT {
         sales(repB, m).andExpect(jsonPath("$.collected").value(0.00));
     }
 
+    /**
+     * ₱12,000 of VATable goods less an ₱800 discount, plus ₱500 shipping: total 11,700, of which 10,000 is goods
+     * net of VAT. Only that counts toward the target and commission; collected stays the cash.
+     */
+    @Test
+    void targetAndCommissionExcludeVatShippingAndDiscount() throws Exception {
+        long o = f.order(cust, repA, "FULFILLED", "11700.00", "0.00", null);
+        jdbc.update("update sales_order set vat_exempt_sales = 0, vatable_sales = 10446.43, vat = 1253.57, "
+                + "shipping_fee = 500, discount_amount = 800 where id = ?", o);
+        target(repA, "10000.00", "5.00");
+        f.payment(o, "VERIFIED", "5850.00", "0.00", at(m, 30));
+        sales(repA, m).andExpect(jsonPath("$.collected").value(5850.00))
+                .andExpect(jsonPath("$.netSales").value(5000.00))
+                .andExpect(jsonPath("$.progressPct").value(50))
+                .andExpect(jsonPath("$.targetHit").value(false));
+        caches.getCache("insights").invalidate();
+        f.payment(o, "VERIFIED", "5850.00", "0.00", at(m, 30));
+        sales(repA, m).andExpect(jsonPath("$.collected").value(11700.00))
+                .andExpect(jsonPath("$.netSales").value(10000.00))
+                .andExpect(jsonPath("$.targetHit").value(true))
+                .andExpect(jsonPath("$.commission").value(500.00));
+    }
+
     @Test
     void invoicedExcludesVoid() throws Exception {
         long a = paidOrder(repA);

@@ -32,6 +32,14 @@ class InsightsQueries {
 
     static final String MANILA_DATE = "(%s at time zone 'Asia/Manila')::date";
     private static final String PAID = "p.cash_amount + p.withholding_amount";
+    /**
+     * The order's goods net of VAT, after the whole-order discount, without shipping. The stored sales figures are
+     * already net of VAT and discount but include shipping (net of VAT when the order carries VAT, in full otherwise).
+     */
+    static final String NET_GOODS = "(o.vatable_sales + o.vat_exempt_sales + o.zero_rated_sales"
+            + " - case when o.vat > 0 then round(o.shipping_fee / 1.12, 2) else o.shipping_fee end)";
+    /** A payment's share of the order's net goods: what counts toward a rep's target and commission. */
+    static final String CREDIT = "case when o.total > 0 then (" + PAID + ") * " + NET_GOODS + " / o.total else 0 end";
     private static final String HAS_INVOICE = "exists (select 1 from invoice i where i.order_id = o.id and i.status = 'ISSUED')";
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -44,8 +52,17 @@ class InsightsQueries {
     }
 
     BigDecimal collected(Long repId, YearMonth m) {
+        return verifiedSum(PAID, repId, m);
+    }
+
+    /** Net sales collected: VAT, shipping and discounts excluded. Targets and commission run on this. */
+    BigDecimal netSales(Long repId, YearMonth m) {
+        return verifiedSum(CREDIT, repId, m);
+    }
+
+    private BigDecimal verifiedSum(String amount, Long repId, YearMonth m) {
         MapSqlParameterSource p = month(m);
-        return money(jdbc.queryForObject("select sum(" + PAID + ") from payment p join sales_order o on o.id = p.order_id "
+        return money(jdbc.queryForObject("select sum(" + amount + ") from payment p join sales_order o on o.id = p.order_id "
                 + "where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end" + rep(repId, p),
                 p, BigDecimal.class));
     }
@@ -152,14 +169,19 @@ class InsightsQueries {
         return out;
     }
 
-    /** Collected per credited rep; the null key holds orders with no rep. */
-    Map<Long, BigDecimal> collectedByRep(YearMonth m) {
-        Map<Long, BigDecimal> out = new HashMap<>();
-        jdbc.query("select o.rep_id, sum(" + PAID + ") amount from payment p join sales_order o on o.id = p.order_id "
+    record RepAmounts(BigDecimal collected, BigDecimal netSales) {
+    }
+
+    /** Collected and net sales per credited rep; the null key holds orders with no rep. */
+    Map<Long, RepAmounts> collectedByRep(YearMonth m) {
+        Map<Long, RepAmounts> out = new HashMap<>();
+        jdbc.query("select o.rep_id, sum(" + PAID + ") amount, sum(" + CREDIT + ") net from payment p "
+                + "join sales_order o on o.id = p.order_id "
                 + "where p.status = 'VERIFIED' and p.verified_at >= :start and p.verified_at < :end group by o.rep_id",
                 month(m), rs -> {
                     long id = rs.getLong("rep_id");
-                    out.put(rs.wasNull() ? null : id, money(rs.getBigDecimal("amount")));
+                    out.put(rs.wasNull() ? null : id,
+                            new RepAmounts(money(rs.getBigDecimal("amount")), money(rs.getBigDecimal("net"))));
                 });
         return out;
     }
