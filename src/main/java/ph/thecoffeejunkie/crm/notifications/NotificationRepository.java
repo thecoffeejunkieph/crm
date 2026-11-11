@@ -13,6 +13,8 @@ interface NotificationRepository extends JpaRepository<Notification, Long> {
 
     Page<Notification> findByRecipientUserId(long recipientUserId, Pageable pageable);
 
+    Page<Notification> findByRecipientUserIdAndReadAtIsNull(long recipientUserId, Pageable pageable);
+
     long countByRecipientUserIdAndReadAtIsNull(long recipientUserId);
 
     Optional<Notification> findByIdAndRecipientUserId(long id, long recipientUserId);

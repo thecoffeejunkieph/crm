@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -51,6 +52,7 @@ class NotificationsIT {
 
     @AfterEach
     void clean() {
+        SecurityContextHolder.clearContext();
         // toRole also reaches other tests' sales users, so clean by marker, not by our users.
         jdbc.update("delete from notification where title like 'NT:%'");
         jdbc.update("delete from app_user where email like '%@notif.it'");
@@ -85,7 +87,7 @@ class NotificationsIT {
         });
         assertThat(notifications.unreadCount(sales)).isEqualTo(2);
 
-        var page = notifications.list(sales, new PageQuery(null, null, null));
+        var page = notifications.list(sales, false, new PageQuery(null, null, null));
         assertThat(page.content()).extracting(NotificationResponse::title).containsExactly("NT:Two", "NT:One");
 
         notifications.markRead(sales, page.content().get(0).id());
@@ -130,6 +132,44 @@ class NotificationsIT {
     }
 
     @Test
+    void actorIsNotNotifiedOfOwnAction() {
+        SecurityContextHolder.getContext().setAuthentication(token(sales));
+        tx.executeWithoutResult(s -> notifications.toUsers(List.of(sales, otherSales),
+                NotificationType.ORDER_RELEASED, "ORDER", 1L, "NT:Released", null));
+        assertThat(count(sales)).isZero();
+        assertThat(count(otherSales)).isEqualTo(1);
+    }
+
+    @Test
+    void noStaffActorDropsNobody() {
+        tx.executeWithoutResult(s -> notifications.toUser(sales, NotificationType.ORDER_RELEASED, "ORDER", 1L,
+                "NT:Sys", null));
+        assertThat(count(sales)).isEqualTo(1);
+    }
+
+    @Test
+    void toUsersDeduplicates() {
+        tx.executeWithoutResult(s -> notifications.toUsers(List.of(sales, sales), NotificationType.LOW_STOCK,
+                "PRODUCT", 1L, "NT:Low", null));
+        assertThat(count(sales)).isEqualTo(1);
+    }
+
+    @Test
+    void unreadFilterListsOnlyUnread() throws Exception {
+        tx.executeWithoutResult(s -> {
+            notifications.toUser(sales, NotificationType.APPROVAL_DECIDED, "quote", 1L, "NT:Old", null);
+            notifications.toUser(sales, NotificationType.APPROVAL_DECIDED, "quote", 2L, "NT:New", null);
+        });
+        long old = jdbc.queryForObject("select id from notification where title = 'NT:Old'", Long.class);
+        notifications.markRead(sales, old);
+
+        mvc.perform(get("/api/notifications").param("unread", "true").with(as(sales)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].title").value("NT:New"))
+                .andExpect(jsonPath("$.content[0].read").value(false));
+    }
+
+    @Test
     void streamRequiresSession() throws Exception {
         mvc.perform(get("/api/notifications/stream")).andExpect(status().isUnauthorized());
     }
@@ -144,7 +184,11 @@ class NotificationsIT {
     }
 
     private static RequestPostProcessor as(long userId) {
-        return authentication(new UsernamePasswordAuthenticationToken(
+        return authentication(token(userId));
+    }
+
+    private static UsernamePasswordAuthenticationToken token(long userId) {
+        return (new UsernamePasswordAuthenticationToken(
                 new StaffPrincipal(userId, "u" + userId + "@notif.it", "N U", Role.SALES, Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_SALES"))));
     }

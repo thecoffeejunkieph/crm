@@ -8,19 +8,23 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import ph.thecoffeejunkie.crm.identity.Users;
+import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
+import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 /**
  * Stores a notification per recipient and pushes it live once the surrounding transaction commits,
- * so a rolled-back action never notifies anyone. Call it inside the business transaction.
+ * so a rolled-back action never notifies anyone. Call it inside the business transaction. The signed-in staff user
+ * is never told about their own action; system and portal actions notify everyone addressed.
  */
 @Service
 public class Notifications {
@@ -30,11 +34,13 @@ public class Notifications {
     private final NotificationRepository repo;
     private final NotificationStreams streams;
     private final Users users;
+    private final CurrentActor actor;
 
-    Notifications(NotificationRepository repo, NotificationStreams streams, Users users) {
+    Notifications(NotificationRepository repo, NotificationStreams streams, Users users, CurrentActor actor) {
         this.repo = repo;
         this.streams = streams;
         this.users = users;
+        this.actor = actor;
     }
 
     @Transactional
@@ -43,14 +49,22 @@ public class Notifications {
     }
 
     @Transactional
+    public void toUsers(Collection<Long> userIds, NotificationType type, String entityType, Long entityId,
+                        String title, String body) {
+        send(userIds, type, entityType, entityId, title, body);
+    }
+
+    @Transactional
     public void toRole(Role role, NotificationType type, String entityType, Long entityId, String title, String body) {
         send(users.activeIdsWithRole(role), type, entityType, entityId, title, body);
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<NotificationResponse> list(long userId, PageQuery page) {
+    public PageResponse<NotificationResponse> list(long userId, boolean unreadOnly, PageQuery page) {
         var pageable = page.toPageable(Set.of("id", "createdAt"), Sort.by(Sort.Direction.DESC, "id"));
-        return PageResponse.of(repo.findByRecipientUserId(userId, pageable).map(Notification::toResponse));
+        var rows = unreadOnly ? repo.findByRecipientUserIdAndReadAtIsNull(userId, pageable)
+                : repo.findByRecipientUserId(userId, pageable);
+        return PageResponse.of(rows.map(Notification::toResponse));
     }
 
     @Transactional(readOnly = true)
@@ -73,9 +87,10 @@ public class Notifications {
         repo.markAllRead(userId, Instant.now());
     }
 
-    private void send(List<Long> recipients, NotificationType type, String entityType, Long entityId,
+    private void send(Collection<Long> recipients, NotificationType type, String entityType, Long entityId,
                       String title, String body) {
-        List<Notification> rows = recipients.stream().distinct().map(userId -> {
+        Long self = actor.staff().map(StaffPrincipal::userId).orElse(null);
+        List<Notification> rows = recipients.stream().distinct().filter(id -> !id.equals(self)).map(userId -> {
             Notification n = new Notification();
             n.recipientUserId = userId;
             n.type = type;
