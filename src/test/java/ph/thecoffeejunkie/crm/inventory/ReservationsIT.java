@@ -6,11 +6,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import ph.thecoffeejunkie.crm.IntegrationTest;
+import ph.thecoffeejunkie.crm.shared.Role;
+import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -124,6 +130,68 @@ class ReservationsIT {
         assertThat(jdbc.queryForObject("select title || '|' || body from notification where recipient_user_id = ? "
                 + "and type = 'ORDER_SHORT'", String.class, admin))
                 .isEqualTo("Order " + a.orderNumber() + " is short|2 short after reservation.");
+    }
+
+    private static OrderStock revised(OrderStock o, long warehouseId, String qty) {
+        ReserveLine l = o.lines().get(0);
+        return new OrderStock(o.orderId(), o.orderNumber(), o.repUserId(), warehouseId, o.confirmedAt(),
+                List.of(new ReserveLine(l.orderLineId(), l.productId(), new BigDecimal(qty))));
+    }
+
+    @Test
+    void revisionThatReservesMoreCrossesIntoLow() {
+        long admin = f.admin("adm");
+        f.reorderLevel(p, "5");
+        f.receive(p, wh, "10");
+        OrderStock a = f.order(rep, wh, t0, l(p, "2"));
+        inventory.reserve(a);
+
+        inventory.adjust(revised(a, wh, "8"));
+
+        assertThat(f.notifications(admin)).containsExactly("LOW_STOCK|PRODUCT|" + p);
+    }
+
+    @Test
+    void shipFromChangeDoesNotRepeatLowAndReportsNewShort() {
+        long admin = f.admin("adm");
+        long wh2 = f.warehouse("W2");
+        f.reorderLevel(p, "5");
+        f.receive(p, wh, "7");
+        OrderStock a = f.order(rep, wh, t0, l(p, "3"));
+        inventory.reserve(a);
+
+        inventory.adjust(revised(a, wh2, "3"));
+
+        assertThat(f.notifications(admin)).containsExactly("LOW_STOCK|PRODUCT|" + p, "ORDER_SHORT|ORDER|" + a.orderId());
+    }
+
+    @Test
+    void alreadyShortOrderIsNotReportedAgain() {
+        long admin = f.admin("adm");
+        f.receive(p, wh, "3");
+        OrderStock a = f.order(rep, wh, t0, l(p, "5"));
+        inventory.reserve(a);
+
+        inventory.adjust(revised(a, wh, "6"));
+
+        assertThat(f.notifications(admin)).containsExactly("OUT_OF_STOCK|PRODUCT|" + p, "ORDER_SHORT|ORDER|" + a.orderId());
+    }
+
+    @Test
+    void adminWhoConfirmsStillHearsTheProductWentLow() {
+        long admin = f.admin("adm");
+        f.reorderLevel(p, "5");
+        f.receive(p, wh, "10");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new StaffPrincipal(admin, "a@if.it", "A", Role.ADMIN, Set.of()), null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+        try {
+            inventory.reserve(f.order(rep, wh, t0, l(p, "6")));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        assertThat(f.notifications(admin)).containsExactly("LOW_STOCK|PRODUCT|" + p);
     }
 
     @Test

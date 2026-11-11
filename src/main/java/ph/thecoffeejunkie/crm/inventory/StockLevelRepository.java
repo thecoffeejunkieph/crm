@@ -19,6 +19,11 @@ interface StockLevelRepository extends JpaRepository<StockLevel, Long> {
 
     List<StockLevel> findByProductIdIn(Collection<Long> productIds);
 
+    /** [productId, sum(on_hand - reserved)] per product across warehouses. */
+    @Query("select l.productId, sum(l.onHand - l.reserved) from StockLevel l where l.productId in :productIds "
+            + "group by l.productId")
+    List<Object[]> availableByProduct(Collection<Long> productIds);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<StockLevel> findByProductIdAndWarehouseId(long productId, long warehouseId);
 }

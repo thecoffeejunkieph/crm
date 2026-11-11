@@ -18,18 +18,25 @@ import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
 /**
  * Stores a notification per recipient and pushes it live once the surrounding transaction commits,
  * so a rolled-back action never notifies anyone. Call it inside the business transaction. The signed-in staff user
- * is never told about their own action; system and portal actions notify everyone addressed.
+ * is never told about their own action (consequences such as stock alerts still reach them); system and portal
+ * actions notify everyone addressed.
  */
 @Service
 public class Notifications {
 
     private static final Logger log = LoggerFactory.getLogger(Notifications.class);
+
+    /** Consequences of an action rather than news of it: the actor still needs to hear these. */
+    private static final Set<NotificationType> TOLD_TO_ACTOR = EnumSet.of(NotificationType.LOW_STOCK,
+            NotificationType.OUT_OF_STOCK, NotificationType.ORDER_SHORT, NotificationType.TARGET_MILESTONE,
+            NotificationType.RESERVATION_TAKEN, NotificationType.ORDER_RESERVED);
 
     private final NotificationRepository repo;
     private final NotificationStreams streams;
@@ -89,7 +96,7 @@ public class Notifications {
 
     private void send(Collection<Long> recipients, NotificationType type, String entityType, Long entityId,
                       String title, String body) {
-        Long self = actor.staff().map(StaffPrincipal::userId).orElse(null);
+        Long self = TOLD_TO_ACTOR.contains(type) ? null : actor.staff().map(StaffPrincipal::userId).orElse(null);
         List<Notification> rows = recipients.stream().distinct().filter(id -> !id.equals(self)).map(userId -> {
             Notification n = new Notification();
             n.recipientUserId = userId;

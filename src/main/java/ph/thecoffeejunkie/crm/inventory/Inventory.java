@@ -71,9 +71,11 @@ public class Inventory {
 
     /** Per line, reserves min(qty, available) and records the rest as short. */
     public void reserve(OrderStock o) {
+        withStockAlerts(o, () -> reserveLines(o));
+    }
+
+    private void reserveLines(OrderStock o) {
         lockAll(o.lines().stream().map(l -> new Key(l.productId(), o.warehouseId())));
-        Set<Long> products = o.lines().stream().map(ReserveLine::productId).collect(Collectors.toSet());
-        Map<Long, BigDecimal> before = productAvailable(products);
         o.lines().stream().sorted(LINE_ORDER).forEach(l -> {
             StockReservation r = new StockReservation();
             r.orderLineId = l.orderLineId();
@@ -84,20 +86,34 @@ public class Inventory {
             increase(r, qty(l));
             reservations.save(r);
         });
+    }
+
+    /**
+     * Runs a reservation change and tells people what it caused: a product crossing into low or out of stock, and
+     * the order becoming short. Both are compared before/after this change, so nothing repeats while it stays so.
+     * ponytail: other warehouses' levels are read unlocked, so two reservations at different warehouses at the same
+     * moment can each miss a crossing; re-check after commit if that ever matters.
+     */
+    private void withStockAlerts(OrderStock o, Runnable change) {
+        lockAll(Stream.concat(keysOf(o.orderId()), o.lines().stream().map(l -> new Key(l.productId(), o.warehouseId()))));
+        Set<Long> products = o.lines().stream().map(ReserveLine::productId).collect(Collectors.toSet());
+        Map<Long, BigDecimal> before = productAvailable(products);
+        BigDecimal shortBefore = totalShort(o.orderId());
+        change.run();
         notifyStockCrossings(o, before, productAvailable(products));
-        BigDecimal shortQty = totalShort(o.orderId());
-        if (shortQty.signum() > 0) {
+        BigDecimal shortAfter = totalShort(o.orderId());
+        if (shortBefore.signum() == 0 && shortAfter.signum() > 0) {
             notifications.toUsers(users.activeIdsWithRole(Role.ADMIN), NotificationType.ORDER_SHORT, "ORDER",
                     o.orderId(), "Order " + o.orderNumber() + " is short",
-                    shortQty.stripTrailingZeros().toPlainString() + " short after reservation.");
+                    shortAfter.stripTrailingZeros().toPlainString() + " short after reservation.");
         }
     }
 
-    /** Product-wide on hand minus reserved, the Inventory page's rule; levels are the managed (locked) entities. */
+    /** Product-wide on hand minus reserved, the Inventory page's rule; a query, so no level entity is loaded unlocked. */
     private Map<Long, BigDecimal> productAvailable(Set<Long> productIds) {
         Map<Long, BigDecimal> out = new HashMap<>();
         productIds.forEach(id -> out.put(id, BigDecimal.ZERO));
-        levels.findByProductIdIn(productIds).forEach(l -> out.merge(l.productId, l.available(), BigDecimal::add));
+        levels.availableByProduct(productIds).forEach(row -> out.put((Long) row[0], (BigDecimal) row[1]));
         return out;
     }
 
@@ -139,13 +155,17 @@ public class Inventory {
      * increasing, so stock this order already held stays with it.
      */
     public void adjust(OrderStock o) {
+        withStockAlerts(o, () -> adjustLines(o));
+    }
+
+    private void adjustLines(OrderStock o) {
         lockAll(Stream.concat(keysOf(o.orderId()),
                 o.lines().stream().map(l -> new Key(l.productId(), o.warehouseId()))));
         // Read after locking: a concurrent allocate may have filled this order's short rows meanwhile.
         List<StockReservation> existing = reservations.findBySalesOrderId(o.orderId());
         if (existing.stream().anyMatch(r -> r.warehouseId != o.warehouseId())) {
             release(o.orderId());
-            reserve(o);
+            reserveLines(o);
             return;
         }
         Map<Long, StockReservation> byLine = existing.stream()
