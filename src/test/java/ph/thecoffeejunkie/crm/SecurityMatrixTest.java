@@ -255,9 +255,9 @@ class SecurityMatrixTest {
     void seedPersonas() throws Exception {
         for (Role role : Role.values()) {
             String email = tag + role.name().toLowerCase() + "@matrix.it";
-            long id = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                    + "values (?, 'M', 'X', ?) returning id", Long.class, email, role.name());
-            principals.put(Who.valueOf(role.name()), new StaffPrincipal(id, email, "M X", role, Set.of()));
+            long id = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                    + "values (?, 'M', 'X') returning id) insert into user_role select id, ? from u returning user_id", Long.class, email, role.name());
+            principals.put(Who.valueOf(role.name()), new StaffPrincipal(id, email, "M X", Set.of(role), Set.of()));
         }
         customerId = jdbc.queryForObject("insert into customer (type, display_name, phone, payment_terms) "
                 + "values ('BUSINESS', ?, '1', 'NET_30') returning id", Long.class, tag);

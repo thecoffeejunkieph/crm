@@ -20,7 +20,7 @@ public class CurrentActor {
 
     public Scope scope() {
         StaffPrincipal p = staff().orElseThrow(() -> new DomainException(ErrorCode.UNAUTHORIZED, "Login required"));
-        return new Scope(p.userId(), p.role(), p.warehouseIds());
+        return new Scope(p.userId(), p.roles(), p.warehouseIds());
     }
 
     public String clientIp() {

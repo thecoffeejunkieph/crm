@@ -40,8 +40,8 @@ final class SalesFixture {
     }
 
     long user(String name, Role role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, ?, 'U', ?) returning id", Long.class, tag + name + "@sf.it", name, role.name());
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, ?, 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, tag + name + "@sf.it", name, role.name());
     }
 
     /** BUSINESS, NET_30, no credit limit, REGULAR. */
@@ -97,7 +97,7 @@ final class SalesFixture {
     }
 
     static UsernamePasswordAuthenticationToken token(long id, Role role) {
-        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@sf.it", "Staff " + id, role,
+        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@sf.it", "Staff " + id, Set.of(role),
                 Set.of()), null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 

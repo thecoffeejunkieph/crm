@@ -53,7 +53,7 @@ class ApprovalPushAfterCommitIT {
         admin2 = user("a2@push.it", "ADMIN");
         sales = user("s@push.it", "SALES");
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(sales, "s@push.it", "S U", Role.SALES, Set.of()), null,
+                new StaffPrincipal(sales, "s@push.it", "S U", Set.of(Role.SALES), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_SALES"))));
         Mockito.clearInvocations(streams);
     }
@@ -80,7 +80,7 @@ class ApprovalPushAfterCommitIT {
 
         // Committed: one push per active ADMIN.
         tx.executeWithoutResult(s -> approvals.request(req(2)));
-        long admins = jdbc.queryForObject("select count(*) from app_user where role = 'ADMIN' and archived_at is null",
+        long admins = jdbc.queryForObject("select count(*) from app_user where id in (select user_id from user_role where role = 'ADMIN') and archived_at is null",
                 Long.class);
         verify(streams, times((int) admins)).publish(anyLong(), any());
         verify(streams).publish(Mockito.eq(admin1), any());
@@ -92,7 +92,7 @@ class ApprovalPushAfterCommitIT {
     }
 
     private long user(String email, String role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'P', 'U', ?) returning id", Long.class, email, role);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'P', 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, email, role);
     }
 }

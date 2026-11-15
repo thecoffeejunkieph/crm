@@ -45,9 +45,9 @@ class CatalogIT {
 
     @BeforeEach
     void users() {
-        admin = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) values (?, 'A', 'D', 'ADMIN') returning id",
+        admin = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) values (?, 'A', 'D') returning id) insert into user_role select id, 'ADMIN' from u returning user_id",
                 Long.class, tag + "a@ca.it");
-        sales = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) values (?, 'S', 'R', 'SALES') returning id",
+        sales = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) values (?, 'S', 'R') returning id) insert into user_role select id, 'SALES' from u returning user_id",
                 Long.class, tag + "s@ca.it");
     }
 
@@ -58,7 +58,7 @@ class CatalogIT {
     }
 
     private static UsernamePasswordAuthenticationToken as(long id, Role role) {
-        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@ca.it", "A U", role, Set.of()),
+        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@ca.it", "A U", Set.of(role), Set.of()),
                 null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 

@@ -40,8 +40,8 @@ class SettingsIT {
 
     @BeforeEach
     void createActor() {
-        adminId = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values ('actor@settings.it', 'Ann', 'Admin', 'ADMIN') returning id", Long.class);
+        adminId = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values ('actor@settings.it', 'Ann', 'Admin') returning id) insert into user_role select id, 'ADMIN' from u returning user_id", Long.class);
     }
 
     @AfterEach
@@ -58,7 +58,7 @@ class SettingsIT {
     }
 
     private UsernamePasswordAuthenticationToken auth(Role role) {
-        var p = new StaffPrincipal(adminId, "a@x.ph", "Ann Admin", role, Set.of());
+        var p = new StaffPrincipal(adminId, "a@x.ph", "Ann Admin", Set.of(role), Set.of());
         return new UsernamePasswordAuthenticationToken(p, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
     }
 

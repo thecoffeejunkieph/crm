@@ -59,7 +59,7 @@ class InvoiceNumberingIT {
             f.setStatus(id, "CONFIRMED");
             orders.add(id);
         }
-        Scope scope = new Scope(admin, Role.ADMIN, Set.of());
+        Scope scope = new Scope(admin, Set.of(Role.ADMIN), Set.of());
         long rolledBack = orders.removeLast();
         ExecutorService pool = Executors.newFixedThreadPool(13);
         CountDownLatch gate = new CountDownLatch(1);

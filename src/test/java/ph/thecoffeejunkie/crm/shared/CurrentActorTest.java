@@ -27,10 +27,10 @@ class CurrentActorTest {
 
     @Test
     void staffScopeComesFromSecurityContext() {
-        var p = new StaffPrincipal(7, "a@b.c", "Ann", Role.ADMIN, Set.of(1L));
+        var p = new StaffPrincipal(7, "a@b.c", "Ann", Set.of(Role.ADMIN), Set.of(1L));
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(p, null));
 
-        assertEquals(new Scope(7, Role.ADMIN, Set.of(1L)), actor.scope());
+        assertEquals(new Scope(7, Set.of(Role.ADMIN), Set.of(1L)), actor.scope());
         assertTrue(actor.scope().isAdmin());
         assertTrue(actor.contact().isEmpty());
         assertEquals("user:7", p.getName());
@@ -49,7 +49,7 @@ class CurrentActorTest {
 
     @Test
     void principalsSurviveJdkSerialization() throws Exception {
-        var p = new StaffPrincipal(7, "a@b.c", "Ann", Role.SALES, Set.of(1L, 2L));
+        var p = new StaffPrincipal(7, "a@b.c", "Ann", Set.of(Role.SALES), Set.of(1L, 2L));
         var out = new ByteArrayOutputStream();
         try (var o = new ObjectOutputStream(out)) {
             o.writeObject(p);

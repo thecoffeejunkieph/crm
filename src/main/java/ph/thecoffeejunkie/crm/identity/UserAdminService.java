@@ -34,7 +34,7 @@ import java.util.Set;
 class UserAdminService {
 
     private static final String ENTITY = "USER";
-    private static final Set<String> SORTABLE = Set.of("email", "firstName", "lastName", "role", "createdAt");
+    private static final Set<String> SORTABLE = Set.of("email", "firstName", "lastName", "createdAt");
     private static final Sort DEFAULT_SORT = Sort.by("email");
 
     private final AppUserRepository users;
@@ -63,7 +63,7 @@ class UserAdminService {
     UserResponse invite(InviteUserRequest req) {
         String email = req.email().trim().toLowerCase(Locale.ROOT);
         Set<Long> assigned = activeWarehouses(req.warehouseIds());
-        requireForRole(req.role(), assigned);
+        requireForRoles(req.roles(), assigned);
         if (users.findByEmailAndArchivedAtIsNull(email).isPresent()) {
             throw duplicate();
         }
@@ -72,7 +72,7 @@ class UserAdminService {
         u.firstName = req.firstName().trim();
         u.lastName = req.lastName().trim();
         u.phone = req.phone();
-        u.role = req.role();
+        u.roles = new HashSet<>(req.roles());
         u.warehouseIds = new HashSet<>(assigned);
         u.inviteEmailStatus = "PENDING";
         try {
@@ -92,10 +92,10 @@ class UserAdminService {
             throw new DomainException(ErrorCode.STALE_VERSION,
                     "This record was changed by someone else. Reload and retry.");
         }
-        Role role = req.role() == null ? u.role : req.role();
+        Set<Role> roles = req.roles() == null ? u.roles : req.roles();
         Set<Long> assigned = req.warehouseIds() == null ? u.warehouseIds : activeWarehouses(req.warehouseIds());
-        requireForRole(role, assigned);
-        if (u.role == Role.ADMIN && role != Role.ADMIN) {
+        requireForRoles(roles, assigned);
+        if (u.has(Role.ADMIN) && !roles.contains(Role.ADMIN)) {
             requireAnotherAdmin(u);
         }
 
@@ -103,7 +103,7 @@ class UserAdminService {
                 .field("firstName", u.firstName, req.firstName() == null ? u.firstName : req.firstName().trim())
                 .field("lastName", u.lastName, req.lastName() == null ? u.lastName : req.lastName().trim())
                 .field("phone", u.phone, req.phone() == null ? u.phone : req.phone());
-        AuditChanges roleChange = AuditChanges.diff().field("role", u.role.name(), role.name());
+        AuditChanges roleChange = AuditChanges.diff().field("roles", u.roles.stream().sorted().toList(), roles.stream().sorted().toList());
         AuditChanges assignment = AuditChanges.diff().field("warehouseIds",
                 u.warehouseIds.stream().sorted().toList(), assigned.stream().sorted().toList());
         if (req.firstName() != null) {
@@ -115,7 +115,7 @@ class UserAdminService {
         if (req.phone() != null) {
             u.phone = req.phone();
         }
-        u.role = role;
+        u.roles = new HashSet<>(roles);
         u.warehouseIds = new HashSet<>(assigned);
         users.saveAndFlush(u);
 
@@ -139,7 +139,7 @@ class UserAdminService {
     @Transactional
     void archive(long id) {
         AppUser u = active(id);
-        if (u.role == Role.ADMIN) {
+        if (u.has(Role.ADMIN)) {
             requireAnotherAdmin(u);
         }
         u.archivedAt = Instant.now();
@@ -164,7 +164,7 @@ class UserAdminService {
     PageResponse<UserResponse> list(String q, Role role, boolean includeArchived, PageQuery page) {
         Specification<AppUser> spec = Specification.allOf(
                 (r, cq, cb) -> includeArchived ? null : cb.isNull(r.get("archivedAt")),
-                (r, cq, cb) -> role == null ? null : cb.equal(r.get("role"), role),
+                (r, cq, cb) -> role == null ? null : cb.isMember(role, r.get("roles")),
                 matches(q));
         return PageResponse.of(users.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT)).map(UserResponse::of));
     }
@@ -200,15 +200,21 @@ class UserAdminService {
         return set;
     }
 
-    private static void requireForRole(Role role, Set<Long> assigned) {
-        if (role == Role.WAREHOUSE && assigned.isEmpty()) {
+    private static void requireForRoles(Set<Role> roles, Set<Long> assigned) {
+        // Sales and warehouse scope data differently (own customers vs own warehouses); Role.dominant can't merge them.
+        if (roles.contains(Role.SALES) && roles.contains(Role.WAREHOUSE)) {
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "A user cannot be both sales and warehouse staff.",
+                    Map.of("field", "roles"));
+        }
+        if (roles.contains(Role.WAREHOUSE) && assigned.isEmpty()) {
             throw invalid("Warehouse staff need at least one warehouse.");
         }
     }
 
     /** Locks the active admins first, so two concurrent removals cannot both see the other as the survivor. */
     private void requireAnotherAdmin(AppUser leaving) {
-        if (users.findByRoleAndArchivedAtIsNullOrderById(Role.ADMIN).stream().noneMatch(a -> !a.id.equals(leaving.id))) {
+        users.lockActiveWithRole(Role.ADMIN);
+        if (!users.anyOtherActiveWithRole(Role.ADMIN, leaving.id)) {
             throw new DomainException(ErrorCode.LAST_ADMIN, "There must be at least one active admin.");
         }
     }

@@ -75,7 +75,7 @@ class LoginIT {
         u.passwordHash = BCRYPT.encode(PW);
         u.firstName = "Ana";
         u.lastName = "Cruz";
-        u.role = role;
+        u.roles = java.util.EnumSet.of(role);
         return users.save(u);
     }
 
@@ -120,7 +120,7 @@ class LoginIT {
         mvc.perform(get("/api/me").cookie(res.getCookie("TCJSESSION")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("cookie@login.it"))
-                .andExpect(jsonPath("$.role").value("SALES"));
+                .andExpect(jsonPath("$.roles[0]").value("SALES"));
     }
 
     @Test
@@ -318,7 +318,7 @@ class LoginIT {
         u.passwordHash = BCRYPT.encode(PW);
         u.firstName = "Tia";
         u.lastName = "Totp";
-        u.role = Role.SALES;
+        u.roles = java.util.EnumSet.of(Role.SALES);
         u.totpEnabledAt = Instant.now();
         users.save(u);
         Cookie session = login("totp@login.it", PW).andExpect(status().isOk())

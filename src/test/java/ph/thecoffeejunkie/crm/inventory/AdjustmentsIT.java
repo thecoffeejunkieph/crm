@@ -52,7 +52,7 @@ class AdjustmentsIT {
         p = f.product("P", "KG");
         jdbc.update("update product set cost = 100 where id = ?", p);
         adminId = f.user("adm");
-        jdbc.update("update app_user set role = 'ADMIN' where id = ?", adminId);
+        jdbc.update("update user_role set role = 'ADMIN' where user_id = ?", adminId);
         admin = as(adminId, Role.ADMIN);
         whId = f.user("wh");
         warehouse1 = as(whId, Role.WAREHOUSE, wh1);

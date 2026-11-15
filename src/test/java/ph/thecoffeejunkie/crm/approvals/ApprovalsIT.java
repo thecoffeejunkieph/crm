@@ -341,13 +341,13 @@ class ApprovalsIT {
     }
 
     private long user(String email, String role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'A', 'U', ?) returning id", Long.class, email, role);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'A', 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, email, role);
     }
 
     private static UsernamePasswordAuthenticationToken token(long userId, Role role) {
         return new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(userId, "u" + userId + "@apr.it", "A U", role, Set.of()), null,
+                new StaffPrincipal(userId, "u" + userId + "@apr.it", "A U", Set.of(role), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 

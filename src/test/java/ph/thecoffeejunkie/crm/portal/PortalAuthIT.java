@@ -56,8 +56,8 @@ class PortalAuthIT {
     @BeforeEach
     void setUp() throws Exception {
         MailSupport.stub(sender);
-        admin = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'A', 'U', 'ADMIN') returning id", Long.class, tag + "adm@portal.it");
+        admin = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'A', 'U') returning id) insert into user_role select id, 'ADMIN' from u returning user_id", Long.class, tag + "adm@portal.it");
         String res = asAdmin(post("/api/customers"), "{\"type\":\"BUSINESS\",\"displayName\":\"" + tag
                 + "\",\"phone\":\"1\",\"paymentTerms\":\"NET_30\"}").andReturn().getResponse().getContentAsString();
         customerId = ((Number) JsonPath.read(res, "$.id")).longValue();
@@ -83,7 +83,7 @@ class PortalAuthIT {
 
     private static UsernamePasswordAuthenticationToken staff(long id) {
         return new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(id, "a@portal.it", "A U", Role.ADMIN, Set.of()), null,
+                new StaffPrincipal(id, "a@portal.it", "A U", Set.of(Role.ADMIN), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
     }
 
@@ -225,8 +225,8 @@ class PortalAuthIT {
     @Test
     void staffLoginDropsPortalSessionInsteadOfInheritingItsInterval() throws Exception {
         Cookie portal = signIn();
-        jdbc.update("insert into app_user (email, first_name, last_name, role, password_hash) "
-                + "values (?, 'S', 'U', 'SALES', ?)", tag.toLowerCase() + "sales@portal.it", new BCryptPasswordEncoder().encode("correct-horse-battery"));
+        jdbc.update("with u as (insert into app_user (email, first_name, last_name, password_hash) "
+                + "values (?, 'S', 'U', ?) returning id) insert into user_role select id, 'SALES' from u", tag.toLowerCase() + "sales@portal.it", new BCryptPasswordEncoder().encode("correct-horse-battery"));
         long staffId = jdbc.queryForObject("select id from app_user where email = ?", Long.class, tag.toLowerCase() + "sales@portal.it");
         mvc.perform(post("/api/auth/login").cookie(portal).with(csrf(mvc)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"" + tag.toLowerCase() + "sales@portal.it\",\"password\":\"correct-horse-battery\"}"))

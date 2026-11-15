@@ -40,8 +40,8 @@ class CustomerSourceIT {
 
     @BeforeEach
     void seed() {
-        admin = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) values (?, 'A', 'U', "
-                + "'ADMIN') returning id", Long.class, tag + "@cs.it");
+        admin = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) values (?, 'A', 'U') returning id) insert into user_role select id, "
+                + "'ADMIN' from u returning user_id", Long.class, tag + "@cs.it");
         referral = jdbc.queryForObject("select id from lead_source where name = 'Referral'", Long.class);
         oldSource = jdbc.queryForObject("insert into lead_source (name, archived_at) values (?, now()) returning id",
                 Long.class, tag + "Old");
@@ -56,7 +56,7 @@ class CustomerSourceIT {
 
     private RequestPostProcessor asAdmin() {
         return authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(admin, "a@cs.it", "Admin",
-                Role.ADMIN, Set.of()), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+                Set.of(Role.ADMIN), Set.of()), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
     }
 
     private MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder b, String body) {

@@ -1211,9 +1211,14 @@
           "phone" : {
             "type" : "string"
           },
-          "role" : {
-            "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
-            "type" : "string"
+          "roles" : {
+            "items" : {
+              "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
+              "type" : "string"
+            },
+            "minItems" : 1,
+            "type" : "array",
+            "uniqueItems" : true
           },
           "warehouseIds" : {
             "items" : {
@@ -1224,7 +1229,7 @@
             "uniqueItems" : true
           }
         },
-        "required" : [ "email", "firstName", "lastName", "role" ],
+        "required" : [ "email", "firstName", "lastName", "roles" ],
         "type" : "object"
       },
       "InvoiceResponse" : {
@@ -1825,9 +1830,13 @@
           "phone" : {
             "type" : "string"
           },
-          "role" : {
-            "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
-            "type" : "string"
+          "roles" : {
+            "items" : {
+              "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
           },
           "totpEnabled" : {
             "type" : "boolean"
@@ -4161,9 +4170,15 @@
           "phone" : {
             "type" : "string"
           },
-          "role" : {
-            "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
-            "type" : "string"
+          "roles" : {
+            "items" : {
+              "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
+              "type" : "string"
+            },
+            "maxItems" : 3,
+            "minItems" : 1,
+            "type" : "array",
+            "uniqueItems" : true
           },
           "version" : {
             "format" : "int64",
@@ -4208,9 +4223,13 @@
           "phone" : {
             "type" : "string"
           },
-          "role" : {
-            "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
-            "type" : "string"
+          "roles" : {
+            "items" : {
+              "enum" : [ "ADMIN", "SALES", "WAREHOUSE" ],
+              "type" : "string"
+            },
+            "type" : "array",
+            "uniqueItems" : true
           },
           "totpEnabled" : {
             "type" : "boolean"

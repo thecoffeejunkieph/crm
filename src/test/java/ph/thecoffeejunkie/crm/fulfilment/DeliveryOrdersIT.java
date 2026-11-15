@@ -93,7 +93,7 @@ class DeliveryOrdersIT {
         q = f.product("Q", "PC");
         admin = as(f.user("adm"), Role.ADMIN);
         whUserId = f.user("wh");
-        jdbc.update("update app_user set role = 'WAREHOUSE' where id = ?", whUserId);
+        jdbc.update("update user_role set role = 'WAREHOUSE' where user_id = ?", whUserId);
         jdbc.update("insert into user_warehouse (user_id, warehouse_id) values (?, ?)", whUserId, wh);
         whUser = as(whUserId, Role.WAREHOUSE, wh);
         otherWhUser = as(f.user("ow"), Role.WAREHOUSE, otherWh);

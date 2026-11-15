@@ -50,10 +50,10 @@ class BootstrapAdmin {
         }
         try {
             if (users.count() == 0) {
-                admin.invite(new InviteUserRequest(adminEmail, firstName, lastName, null, Role.ADMIN, Set.of()));
-            } else if (!users.existsByRoleAndArchivedAtIsNullAndPasswordHashIsNotNull(Role.ADMIN)) {
+                admin.invite(new InviteUserRequest(adminEmail, firstName, lastName, null, Set.of(Role.ADMIN), Set.of()));
+            } else if (!users.anyActivatedWithRole(Role.ADMIN)) {
                 users.findByEmailAndArchivedAtIsNull(adminEmail.trim().toLowerCase(Locale.ROOT))
-                        .filter(u -> u.role == Role.ADMIN && u.passwordHash == null)
+                        .filter(u -> u.has(Role.ADMIN) && u.passwordHash == null)
                         .ifPresent(u -> admin.resendInvite(u.id));
             }
         } catch (DomainException e) {

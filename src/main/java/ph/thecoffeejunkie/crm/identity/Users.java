@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /** Read-only view of staff users for other modules (customers, approvals, notifications). */
@@ -22,12 +23,12 @@ public class Users {
 
     @Transactional(readOnly = true)
     public Optional<UserSummary> find(long id) {
-        return repo.findById(id).map(u -> new UserSummary(u.id, u.email, u.displayName(), u.role, u.archivedAt == null));
+        return repo.findById(id).map(u -> new UserSummary(u.id, u.email, u.displayName(), Set.copyOf(u.roles), u.archivedAt == null));
     }
 
     @Transactional(readOnly = true)
     public boolean isActiveWithRole(long id, Role role) {
-        return repo.existsByIdAndRoleAndArchivedAtIsNull(id, role);
+        return repo.isActiveWithRole(id, role);
     }
 
     @Transactional(readOnly = true)

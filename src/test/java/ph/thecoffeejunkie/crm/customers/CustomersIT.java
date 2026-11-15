@@ -48,13 +48,13 @@ class CustomersIT {
     }
 
     private long user(String name, String role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'A', 'U', ?) returning id", Long.class, tag + name + "@cu.it", role);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'A', 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, tag + name + "@cu.it", role);
     }
 
     private static UsernamePasswordAuthenticationToken as(long id, Role role) {
         return new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(id, "u" + id + "@cu.it", "A U", role, Set.of()), null,
+                new StaffPrincipal(id, "u" + id + "@cu.it", "A U", Set.of(role), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 
@@ -283,16 +283,16 @@ class CustomersIT {
         long archived = createdId(rep, Role.SALES, "v2");
         long foreign = createdId(other, Role.SALES, "v3");
         jdbc.update("update customer set archived_at = now() where id = ?", archived);
-        var ids = customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Role.SALES, Set.of()));
+        var ids = customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Set.of(Role.SALES), Set.of()));
         assertThat(ids).hasValueSatisfying(set -> assertThat(set).contains(own, archived).doesNotContain(foreign));
-        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Role.WAREHOUSE, Set.of())))
+        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Set.of(Role.WAREHOUSE), Set.of())))
                 .contains(Set.of());
     }
 
     @Test
     void visibleIdsForAdminUnrestricted() {
         long admin = user("adm", "ADMIN");
-        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(admin, Role.ADMIN, Set.of())))
+        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(admin, Set.of(Role.ADMIN), Set.of())))
                 .isEmpty();
     }
 

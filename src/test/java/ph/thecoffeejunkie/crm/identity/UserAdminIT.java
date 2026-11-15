@@ -53,6 +53,7 @@ class UserAdminIT {
 
     @Autowired MockMvc mvc;
     @Autowired AppUserRepository users;
+    @Autowired Users usersApi;
     @Autowired JdbcTemplate jdbc;
     @Autowired Warehouses warehouses;
     @Autowired JavaMailSender sender;
@@ -79,19 +80,19 @@ class UserAdminIT {
         u.passwordHash = BCRYPT.encode(PW);
         u.firstName = "Ana";
         u.lastName = "Cruz";
-        u.role = role;
+        u.roles = java.util.EnumSet.of(role);
         return users.save(u);
     }
 
     private static RequestPostProcessor as(AppUser u) {
         return authentication(new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(u.id, u.email, "Ana Cruz", u.role, Set.of()), null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + u.role))));
+                new StaffPrincipal(u.id, u.email, "Ana Cruz", Set.copyOf(u.roles), Set.of()), null,
+                u.roles.stream().map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList()));
     }
 
     private String inviteBody(String email, String role, String warehouseIds) {
-        return "{\"email\":\"" + email + "\",\"firstName\":\"New\",\"lastName\":\"Person\",\"role\":\"" + role
-                + "\",\"warehouseIds\":" + warehouseIds + "}";
+        return "{\"email\":\"" + email + "\",\"firstName\":\"New\",\"lastName\":\"Person\",\"roles\":[\"" + role.replace(",", "\",\"")
+                + "\"],\"warehouseIds\":" + warehouseIds + "}";
     }
 
     private org.springframework.test.web.servlet.ResultActions invite(AppUser admin, String body) throws Exception {
@@ -125,7 +126,7 @@ class UserAdminIT {
         invite(admin, inviteBody("Newbie@Users.it", "SALES", "[]")).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value("newbie@users.it"))
                 .andExpect(jsonPath("$.invitePending").value(true))
-                .andExpect(jsonPath("$.role").value("SALES"));
+                .andExpect(jsonPath("$.roles[0]").value("SALES"));
 
         List<MimeMessage> mails = MailSupport.sent(sender);
         assertThat(mails).hasSize(1);
@@ -175,6 +176,23 @@ class UserAdminIT {
     }
 
     @Test
+    void adminCanAlsoBeSalesRepButSalesCannotBeWarehouse() throws Exception {
+        AppUser admin = user("admin-multi@users.it", Role.ADMIN);
+        invite(admin, inviteBody("both@users.it", "SALES,ADMIN", "[]")).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.roles[0]").value("ADMIN")).andExpect(jsonPath("$.roles[1]").value("SALES"));
+        long id = jdbc.queryForObject("select id from app_user where email = 'both@users.it'", Long.class);
+        assertThat(usersApi.isActiveWithRole(id, Role.SALES)).isTrue();
+        assertThat(usersApi.isActiveWithRole(id, Role.ADMIN)).isTrue();
+        mvc.perform(get("/api/admin/users").param("q", "both@users.it").param("role", "SALES").with(as(admin)))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        long wh = warehouse();
+        invite(admin, inviteBody("sw@users.it", "SALES,WAREHOUSE", "[" + wh + "]"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        invite(admin, inviteBody("none@users.it", "", "[]").replace("[\"\"]", "[]"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void duplicateActiveEmailConflictsButArchivedMayBeReinvited() throws Exception {
         AppUser admin = user("admin5@users.it", Role.ADMIN);
         user("dupe@users.it", Role.SALES);
@@ -191,7 +209,7 @@ class UserAdminIT {
         onlyAdmin(admin);
         mvc.perform(put("/api/admin/users/" + admin.id).with(as(admin)).with(csrf(mvc))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"SALES\",\"version\":" + admin.version + "}"))
+                        .content("{\"roles\":[\"SALES\"],\"version\":" + admin.version + "}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("LAST_ADMIN"));
     }
 
@@ -212,8 +230,8 @@ class UserAdminIT {
         onlyAdmins(admin, other);
         mvc.perform(put("/api/admin/users/" + other.id).with(as(admin)).with(csrf(mvc))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"SALES\",\"version\":" + other.version + "}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("SALES"));
+                        .content("{\"roles\":[\"SALES\"],\"version\":" + other.version + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.roles[0]").value("SALES"));
     }
 
     /** Other tests may leave admins behind; archive them inside this test's rolled-back transaction. */
@@ -223,7 +241,7 @@ class UserAdminIT {
 
     private void onlyAdmins(AppUser... keep) {
         String ids = String.join(",", java.util.Arrays.stream(keep).map(u -> String.valueOf(u.id)).toList());
-        jdbc.update("update app_user set archived_at = now() where role = 'ADMIN' and archived_at is null "
+        jdbc.update("update app_user set archived_at = now() where id in (select user_id from user_role where role = 'ADMIN') and archived_at is null "
                 + "and id not in (" + ids + ")");
     }
 
@@ -232,7 +250,7 @@ class UserAdminIT {
     void concurrentMutualDemotionLeavesExactlyOneAdmin() throws Exception {
         AppUser a = user("race-a@users.it", Role.ADMIN);
         AppUser b = user("race-b@users.it", Role.ADMIN);
-        List<Long> others = jdbc.queryForList("select id from app_user where role = 'ADMIN' and archived_at is null "
+        List<Long> others = jdbc.queryForList("select id from app_user where id in (select user_id from user_role where role = 'ADMIN') and archived_at is null "
                 + "and id not in (?, ?)", Long.class, a.id, b.id);
         others.forEach(id -> jdbc.update("update app_user set archived_at = now() where id = ?", id));
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -244,7 +262,7 @@ class UserAdminIT {
                 results.add(pool.submit(() -> {
                     var request = put("/api/admin/users/" + pair[1].id).with(as(pair[0])).with(csrf(mvc))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"role\":\"SALES\",\"version\":" + pair[1].version + "}");
+                            .content("{\"roles\":[\"SALES\"],\"version\":" + pair[1].version + "}");
                     ready.countDown();
                     go.await();
                     return mvc.perform(request).andReturn().getResponse().getStatus();
@@ -257,7 +275,7 @@ class UserAdminIT {
                 statuses.add(f.get());
             }
             assertThat(statuses).containsExactlyInAnyOrder(200, 409);
-            assertThat(jdbc.queryForObject("select count(*) from app_user where role = 'ADMIN' "
+            assertThat(jdbc.queryForObject("select count(*) from app_user where id in (select user_id from user_role where role = 'ADMIN') "
                     + "and archived_at is null and id in (?, ?)", Integer.class, a.id, b.id)).isEqualTo(1);
         } finally {
             pool.shutdownNow();
@@ -306,8 +324,8 @@ class UserAdminIT {
 
         mvc.perform(put("/api/admin/users/" + sales.id).with(as(admin)).with(csrf(mvc))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"ADMIN\",\"version\":" + sales.version + "}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("ADMIN"));
+                        .content("{\"roles\":[\"ADMIN\"],\"version\":" + sales.version + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.roles[0]").value("ADMIN"));
         org.springframework.security.test.context.TestSecurityContextHolder.clearContext();
         mvc.perform(get("/api/me").cookie(session)).andExpect(status().isUnauthorized());
         assertThat(jdbc.queryForObject("select count(*) from audit_event where action = 'ROLE_CHANGED' "
@@ -380,7 +398,7 @@ class UserAdminIT {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].email").value("findme@users.it"));
         mvc.perform(get("/api/admin/users").param("q", "@users.it").param("role", "ADMIN").with(as(admin)))
-                .andExpect(jsonPath("$.content[?(@.role != 'ADMIN')]").isEmpty());
+                .andExpect(jsonPath("$.content[?(!('ADMIN' in @.roles))]").isEmpty());
         mvc.perform(get("/api/admin/users").param("q", "gone@users.it").with(as(admin)))
                 .andExpect(jsonPath("$.totalElements").value(0));
         mvc.perform(get("/api/admin/users").param("q", "gone@users.it").param("includeArchived", "true")

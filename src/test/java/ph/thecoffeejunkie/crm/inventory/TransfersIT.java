@@ -59,7 +59,7 @@ class TransfersIT {
         admin = as(f.user("adm"), Role.ADMIN);
         srcUser = as(f.user("src"), Role.WAREHOUSE, src);
         dstUserId = f.user("dst");
-        jdbc.update("update app_user set role = 'WAREHOUSE' where id = ?", dstUserId);
+        jdbc.update("update user_role set role = 'WAREHOUSE' where user_id = ?", dstUserId);
         jdbc.update("insert into user_warehouse (user_id, warehouse_id) values (?, ?)", dstUserId, dst);
         dstUser = as(dstUserId, Role.WAREHOUSE, dst);
     }

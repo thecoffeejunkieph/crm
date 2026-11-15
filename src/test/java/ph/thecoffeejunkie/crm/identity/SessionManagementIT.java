@@ -60,7 +60,7 @@ class SessionManagementIT {
         u.passwordHash = BCRYPT.encode(PW);
         u.firstName = "Ana";
         u.lastName = "Cruz";
-        u.role = role;
+        u.roles = java.util.EnumSet.of(role);
         return users.save(u);
     }
 
@@ -88,7 +88,7 @@ class SessionManagementIT {
 
     private static RequestPostProcessor as(long id, Role role) {
         return authentication(new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(id, "x@sessions.it", "X", role, Set.of()), null,
+                new StaffPrincipal(id, "x@sessions.it", "X", Set.of(role), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role))));
     }
 

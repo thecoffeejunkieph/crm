@@ -4,12 +4,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import ph.thecoffeejunkie.crm.shared.ContactPrincipal;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 
+import java.util.List;
 import java.util.Set;
 
 public final class Principals {
@@ -21,7 +23,12 @@ public final class Principals {
 
     static StaffPrincipal staffOf(AppUser u, Set<Long> warehouseIds) {
         // Set.copyOf: the principal is JDK-serialized into Redis, so no Hibernate collection proxies.
-        return new StaffPrincipal(u.id, u.email, u.displayName(), u.role, Set.copyOf(warehouseIds));
+        return new StaffPrincipal(u.id, u.email, u.displayName(), Set.copyOf(u.roles), Set.copyOf(warehouseIds));
+    }
+
+    /** One ROLE_ authority per role held: an admin who is also a rep passes both hasRole checks. */
+    static List<SimpleGrantedAuthority> authorities(StaffPrincipal p) {
+        return p.roles().stream().sorted().map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
     }
 
     /** A portal session's 7-day idle interval must not carry over to whoever signs in next on this browser. */

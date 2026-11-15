@@ -43,7 +43,7 @@ class AuditLogIT {
     }
 
     private static UsernamePasswordAuthenticationToken auth(Role role) {
-        var p = new StaffPrincipal(7, "a@x.ph", "Ada Admin", role, Set.of());
+        var p = new StaffPrincipal(7, "a@x.ph", "Ada Admin", Set.of(role), Set.of());
         return new UsernamePasswordAuthenticationToken(p, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
     }
 
