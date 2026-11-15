@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<p>Hello,</p>
+<p><span th:text="${company}">The Coffee Junkie</span> sent you quotation <b th:text="${number}">SO-00-00000</b>,
+  valid until <span th:text="${validUntil}">date</span>. The PDF is attached.</p>
+<p>You can review and accept it in your portal: <a th:href="${link}">Sign in to the portal</a></p>
+</body>
+</html>

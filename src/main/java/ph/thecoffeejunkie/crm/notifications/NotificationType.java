@@ -1,0 +1,26 @@
+package ph.thecoffeejunkie.crm.notifications;
+
+/** Later sub-projects add their own types. */
+public enum NotificationType {
+    APPROVAL_REQUESTED,
+    APPROVAL_DECIDED,
+    QUOTE_ACCEPTED,
+    QUOTE_DECLINED,
+    PAYMENT_SUBMITTED,
+    ORDER_CONFIRMED,
+    ORDER_RESERVED,
+    SHORT_PICK,
+    RESERVATION_TAKEN,
+    DELIVERY_CREATED,
+    TRANSFER_INBOUND,
+    FOLLOW_UPS_DUE,
+    PAYMENT_VERIFIED,
+    PAYMENT_REJECTED,
+    LOW_STOCK,
+    OUT_OF_STOCK,
+    ORDER_SHORT,
+    ORDER_RELEASED,
+    ORDER_DELIVERED,
+    RELEASED_ORDER_CHANGED,
+    TARGET_MILESTONE
+}

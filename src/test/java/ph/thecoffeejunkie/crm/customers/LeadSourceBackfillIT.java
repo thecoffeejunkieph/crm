@@ -1,0 +1,86 @@
+package ph.thecoffeejunkie.crm.customers;
+
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import ph.thecoffeejunkie.crm.IntegrationTest;
+
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * V14 turns free-text customer sources into lead_source rows. Runs the migrations into a scratch database: V1
+ * grants on schema public, so a scratch schema in the shared database would re-grant the app role there.
+ */
+@IntegrationTest
+class LeadSourceBackfillIT {
+
+    private static final String DB = "backfill_t";
+
+    @Value("${spring.datasource.url}") String url;
+
+    private DriverManagerDataSource owner() {
+        return new DriverManagerDataSource(url.replaceFirst("/crm$", "/" + DB), "crm_owner", "crm_owner");
+    }
+
+    private JdbcTemplate main() {
+        return new JdbcTemplate(new DriverManagerDataSource(url, "crm_owner", "crm_owner"));
+    }
+
+    @BeforeEach
+    void create() {
+        drop();
+        main().execute("create database " + DB);
+    }
+
+    @AfterEach
+    void drop() {
+        main().execute("drop database if exists " + DB + " with (force)");
+    }
+
+    private Flyway flyway(String target) {
+        var c = Flyway.configure().dataSource(owner()).locations("classpath:db/migration");
+        return (target == null ? c : c.target(target)).load();
+    }
+
+    @Test
+    void freeTextSourcesBecomeRows() {
+        flyway("13").migrate();
+        JdbcTemplate jdbc = new JdbcTemplate(owner());
+        String longer = "Referred by Juan dela Cruz from the Makati coffee expo booth, ";
+        String[] sources = {"facebook", " Facebook ", "FB", "fb", "", null, longer + "March", longer + "April"};
+        for (int i = 0; i < sources.length; i++) {
+            jdbc.update("insert into customer (type, display_name, payment_terms, source) values ('INDIVIDUAL', ?, "
+                    + "'DUE_ON_RECEIPT', ?)", "C" + i, sources[i]);
+        }
+
+        flyway(null).migrate();
+
+        Map<String, Long> ids = new java.util.HashMap<>();
+        jdbc.query("select id, name from lead_source", rs -> {
+            ids.put(rs.getString("name"), rs.getLong("id"));
+        });
+        String cut = (longer + "March").substring(0, 60);
+        assertThat(ids).hasSize(8).containsKeys("Walk-in", "Referral", "Facebook", "Website", "Phone call",
+                "Trade show", "FB", cut);
+        assertThat(sourceOf(jdbc, "C6")).isEqualTo(ids.get(cut));
+        assertThat(sourceOf(jdbc, "C7")).isEqualTo(ids.get(cut));
+        assertThat(sourceOf(jdbc, "C0")).isEqualTo(ids.get("Facebook"));
+        assertThat(sourceOf(jdbc, "C1")).isEqualTo(ids.get("Facebook"));
+        assertThat(sourceOf(jdbc, "C2")).isEqualTo(ids.get("FB"));
+        assertThat(sourceOf(jdbc, "C3")).isEqualTo(ids.get("FB"));
+        assertThat(sourceOf(jdbc, "C4")).isNull();
+        assertThat(sourceOf(jdbc, "C5")).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from information_schema.columns where table_schema = 'public' "
+                + "and table_name = 'customer' and column_name = 'source'", Integer.class)).isZero();
+    }
+
+    private static Long sourceOf(JdbcTemplate jdbc, String name) {
+        return jdbc.queryForObject("select source_id from customer where display_name = ?", Long.class, name);
+    }
+}

@@ -1,0 +1,89 @@
+package ph.thecoffeejunkie.crm.shared;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.MDC;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.time.Duration;
+import java.util.List;
+
+/**
+ * Per-IP limits on the endpoints worth brute-forcing: login and the token links in customer emails.
+ * The client IP comes from getRemoteAddr(); behind Traefik, server.forward-headers-strategy=native
+ * makes that the real client address (only trusted internal proxies' X-Forwarded-For is honoured).
+ */
+@Slf4j
+@Component
+public class RateLimitFilter extends OncePerRequestFilter {
+
+    /** failuresOnly: count only requests answered 401, so a whole office on one NAT IP can still log in. */
+    record Rule(String name, String pattern, int limit, Duration window, boolean failuresOnly) {}
+
+    private static final Duration MINUTE = Duration.ofSeconds(60);
+    private static final List<Rule> DEFAULT_RULES = List.of(
+            new Rule("login", "/api/auth/login", 10, MINUTE, true),
+            new Rule("totp", "/api/auth/totp", 10, MINUTE, true),
+            new Rule("password-forgot", "/api/auth/password/forgot", 5, MINUTE, false),
+            new Rule("portal-request-link", "/api/portal/auth/request-link", 5, MINUTE, false),
+            new Rule("invite-accept", "/api/auth/invites/accept", 20, MINUTE, false),
+            new Rule("password-reset", "/api/auth/password/reset", 20, MINUTE, false),
+            new Rule("portal-redeem", "/api/portal/auth/redeem", 20, MINUTE, false));
+
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
+    private final RateLimiter rateLimiter;
+    private final List<Rule> rules;
+
+    @Autowired
+    public RateLimitFilter(RateLimiter rateLimiter) {
+        this(rateLimiter, DEFAULT_RULES);
+    }
+
+    RateLimitFilter(RateLimiter rateLimiter, List<Rule> rules) {
+        this.rateLimiter = rateLimiter;
+        this.rules = rules;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
+        String path = request.getServletPath();
+        for (Rule rule : rules) {
+            if (!PATH_MATCHER.match(rule.pattern(), path)) {
+                continue;
+            }
+            String client = request.getRemoteAddr();
+            long retryAfter = rule.failuresOnly()
+                    ? rateLimiter.retryAfterIfOver(rule.name(), client, rule.limit(), rule.window())
+                    : rateLimiter.retryAfterSeconds(rule.name(), client, rule.limit(), rule.window());
+            if (retryAfter > 0) {
+                log.warn("Rate limit '{}' hit by {} on {}", rule.name(), request.getRemoteAddr(), path);
+                // Hand-written ProblemDetail JSON: filters run outside MVC message converters.
+                // requestId is safe to embed: RequestIdFilter only lets [A-Za-z0-9-] through or makes a UUID.
+                response.setStatus(429);
+                response.setHeader("Retry-After", String.valueOf(retryAfter));
+                response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+                response.getWriter().write("{\"title\":\"Too Many Requests\",\"status\":429,"
+                        + "\"detail\":\"Too many attempts. Try again in " + retryAfter + " seconds.\","
+                        + "\"code\":\"" + ErrorCode.RATE_LIMITED.name() + "\","
+                        + "\"requestId\":\"" + java.util.Objects.requireNonNullElse(MDC.get(RequestIdFilter.MDC_KEY), "") + "\"}");
+                return;
+            }
+            chain.doFilter(request, response);
+            if (rule.failuresOnly() && response.getStatus() == HttpServletResponse.SC_UNAUTHORIZED) {
+                rateLimiter.record(rule.name(), client, rule.window());
+            }
+            return;
+        }
+        chain.doFilter(request, response);
+    }
+}

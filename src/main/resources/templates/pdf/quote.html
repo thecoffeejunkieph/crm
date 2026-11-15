@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<style>@page { size: A4; margin: 20mm 18mm; }</style>
+</head>
+<body class="text-[10pt] leading-relaxed text-body">
+<header th:replace="~{fragments/parts :: letterhead(${heading}, ${number})}"></header>
+
+<section class="mb-12 grid grid-cols-[1fr_1fr_50mm] gap-10">
+  <div th:replace="~{fragments/parts :: company}"></div>
+  <div>
+    <div class="mb-2 text-[8.5pt] text-muted">Prepared for</div>
+    <div class="font-semibold text-ink" th:text="${customer.name}">Name</div>
+    <div class="mt-1" th:text="${customer.address}">Address</div>
+    <div class="mt-1" th:if="${customer.tin != ''}">TIN <span th:text="${customer.tin}">TIN</span></div>
+  </div>
+  <dl class="space-y-2">
+    <div class="flex justify-between gap-4"><dt class="text-muted">Date</dt><dd class="text-ink" th:text="${date}">date</dd></div>
+    <div th:if="${validUntil != ''}" class="flex justify-between gap-4"><dt class="text-muted">Valid until</dt><dd class="text-ink" th:text="${validUntil}">date</dd></div>
+    <div class="flex justify-between gap-4"><dt class="text-muted">Terms</dt><dd class="text-right text-ink" th:text="${paymentTerms}">Net 30</dd></div>
+  </dl>
+</section>
+
+<table class="w-full">
+  <thead>
+    <tr class="border-b border-ink text-left text-[8.5pt] text-muted">
+      <th class="pb-2.5 font-normal">Description</th><th class="pb-2.5 pl-4 text-right font-normal">Qty</th><th class="pb-2.5 pl-3 font-normal">Unit</th>
+      <th class="pb-2.5 pl-4 text-right font-normal">Unit price</th><th class="pb-2.5 pl-4 text-right font-normal">Disc. %</th><th class="pb-2.5 pl-4 text-right font-normal">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="l : ${lines}" class="break-inside-avoid border-b border-line">
+      <td class="py-3 text-ink" th:text="${l.description}">Item</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${l.qty}">1</td>
+      <td class="py-3 pl-3" th:text="${l.unit}">PC</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${#numbers.formatDecimal(l.unitPrice, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${#numbers.formatDecimal(l.discountPct, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+      <td class="py-3 pl-4 text-right tabular-nums text-ink" th:text="${#numbers.formatDecimal(l.lineTotal, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+    </tr>
+  </tbody>
+</table>
+
+<div th:replace="~{fragments/parts :: totals('Total')}"></div>
+
+<section th:if="${terms != ''}" class="mt-12 break-inside-avoid">
+  <div class="mb-2 text-[8.5pt] text-muted">Terms</div>
+  <div class="max-w-[150mm] whitespace-pre-line" th:text="${terms}">terms</div>
+</section>
+</body>
+</html>

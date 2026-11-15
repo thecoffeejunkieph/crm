@@ -1,66 +1,171 @@
 services:
-  mysql:
-    image: mysql:8
+  new-crm-postgres:
+    image: postgres:17-alpine
     environment:
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: admin
-      MYSQL_ROOT_PASSWORD: admin
-      MYSQL_DATABASE: crm_db
-    ports: [ "3306:3306" ]
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm_owner
+      POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD:?}
+      # Read by deploy/postgres/init/01-roles.sh on first start; there is no default.
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-padmin" ]
+      test: ["CMD-SHELL", "pg_isready -U crm_owner -d crm"]
       interval: 5s
       timeout: 5s
       retries: 10
     # Not published to the host - only the api container talks to this, over the
     # compose network. Keep the DB off the public internet.
 
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: pma_web
-    restart: always
-    depends_on:
-      - mysql
-    environment:
-      PMA_HOST: mysql
-    ports:
-      - "8081:80"
-
-  api:
-    image: ghcr.io/thecoffeejunkieph/crm:latest
+  new-crm-api:
     build: .
     restart: unless-stopped
-    env_file:
-      - .env.prod
+    # Rolling ECS JSON log files (14 days, 1 GB cap) that survive redeploys.
+    volumes:
+      - ./logs:/app/logs
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      # Overrides .env.prod's DB_URL: inside the compose network the api container
-      # reaches MySQL via the service name "mysql", not a public host.
-      DB_URL: jdbc:mysql://mysql:3306/crm_db
-    volumes:
-      - api_storage:/data/storage
+      DB_HOST: new-crm-postgres
+      DB_OWNER_USERNAME: crm_owner
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?}
+      DB_APP_USERNAME: crm_app
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT:?ENCRYPTION_SALT is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      SESSION_COOKIE_SECURE: true
+      # Subdomains of this host can read the XSRF-TOKEN cookie, so every subdomain must be trusted.
+      CSRF_COOKIE_DOMAIN: ${CSRF_COOKIE_DOMAIN:-thecoffeejunkie.ph}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_FIRST_NAME: ${BOOTSTRAP_ADMIN_FIRST_NAME:-Admin}
+      BOOTSTRAP_ADMIN_LAST_NAME: ${BOOTSTRAP_ADMIN_LAST_NAME:-User}
+      MINIO_ENDPOINT: http://new-crm-minio:9000
+      # Presigned links go out path-style (/crm/<key>) on the app's own host; see new-crm-files below.
+      MINIO_PUBLIC_URL: https://new-crm.thecoffeejunkie.ph
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
+      MINIO_BUCKET: crm
+      REDIS_HOST: new-crm-redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      LOG_PATH: /app/logs
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:?APP_FRONTEND_URL is required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+      MAIL_USERNAME: ${MAIL_USERNAME:?MAIL_USERNAME is required}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?MAIL_PASSWORD is required}
     depends_on:
-      mysql:
+      new-crm-postgres:
+        condition: service_healthy
+      new-crm-minio:
+        condition: service_healthy
+      new-crm-redis:
         condition: service_healthy
     networks:
       - default
-      - traefik-proxy
+      - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.crm-api.rule=Host(`api.thecoffeejunkie.ph`)
-      - traefik.http.routers.crm-api.entrypoints=websecure
-      - traefik.http.routers.crm-api.tls.certresolver=letsencrypt
-      - traefik.http.services.crm-api.loadbalancer.server.port=8080
+      - traefik.http.routers.new-crm-api.rule=Host(`new-crm.thecoffeejunkie.ph`) && PathPrefix(`/api`)
+      - traefik.http.routers.new-crm-api.entrypoints=websecure
+      - traefik.http.routers.new-crm-api.tls.certresolver=letsencrypt
+      - traefik.http.services.new-crm-api.loadbalancer.server.port=8080
+      - traefik.http.routers.new-crm-api.tls=true
+    # Port 8081 (actuator health) is neither published nor routed; probe it from inside the network.
     # Not published to the host - Traefik (running as its own stack on the VPS,
-    # watching the external "traefik-proxy" network) is the only thing that
+    # watching the external "dokploy-network" network) is the only thing that
     # talks to :8080, routed in via the labels above.
 
+  new-crm-minio:
+    # MinIO stopped publishing new community images; pinned to the last release we have.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    restart: unless-stopped
+    command: server /data
+    environment:
+      # Same vars the api uses - the api logs in as root, so these must match.
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+      - dokploy-network
+    # Only the bucket path of the S3 API is routed, so browsers can follow presigned links. Every
+    # object is private; a link works only while its signature is valid. The console stays unexposed.
+    # It shares the app host rather than files.thecoffeejunkie.ph, which the legacy app's MinIO owns.
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.new-crm-files.rule=Host(`new-crm.thecoffeejunkie.ph`) && PathPrefix(`/crm/`)
+      - traefik.http.routers.new-crm-files.entrypoints=websecure
+      - traefik.http.routers.new-crm-files.tls.certresolver=letsencrypt
+      - traefik.http.routers.new-crm-files.tls=true
+      - traefik.http.services.new-crm-files.loadbalancer.server.port=9000
+
+  new-crm-redis:
+    image: redis:7.4.2-alpine
+    restart: unless-stopped
+    # appendonly so a restart doesn't bring logged-out tokens back to life
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not published and not on the Traefik network - only the api talks to it.
+
+  # One-off copy of the old on-disk uploads into the bucket, keeping their relative paths
+  # (which is what the V4 Flyway migration turns the stored DB paths into):
+  #   docker compose --profile migrate run --rm new-crm-storage-migrate
+  # Once the files are verified in the bucket, delete this service and the api_storage volume.
+  new-crm-storage-migrate:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z # ships the mc client
+    profiles: ["migrate"]
+    environment:
+      MC_HOST_crm: http://${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}:${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}@new-crm-minio:9000
+    entrypoint: ["sh", "-c", "mc mb --ignore-existing crm/${MINIO_BUCKET} && mc mirror /old-storage crm/${MINIO_BUCKET}"]
+    volumes:
+      - api_storage:/old-storage:ro
+    depends_on:
+      new-crm-minio:
+        condition: service_healthy
+
+  # One-off MySQL -> Postgres migration; see deploy/migrate/CUTOVER.md. Rolls back unless ETL_COMMIT=1 and every check passes.
+  new-crm-data-migrate:
+    image: python:3.13-slim
+    profiles: ["migrate"]
+    environment:
+      ETL_COMMIT: "0"
+      LEGACY_DB_HOST: ${LEGACY_DB_HOST:-}
+      LEGACY_DB_PORT: ${LEGACY_DB_PORT:-3306}
+      LEGACY_DB_USER: ${LEGACY_DB_USER:-}
+      LEGACY_DB_PASSWORD: ${LEGACY_DB_PASSWORD:-}
+      LEGACY_DB_NAME: ${LEGACY_DB_NAME:-crm_db}
+      LEGACY_TZ: ${LEGACY_TZ:-UTC}
+      PG_HOST: new-crm-postgres
+      PG_DB: crm
+      PG_USER: crm_owner
+      PG_PASSWORD: ${DB_OWNER_PASSWORD:?DB_OWNER_PASSWORD is required}
+      STORAGE_DIR: /old-storage
+    entrypoint: ["sh", "-c", "pip install -q --root-user-action=ignore --disable-pip-version-check -r /etl/requirements.txt && exec python /etl/migrate.py"]
+    volumes:
+      - ./deploy/migrate:/etl:ro
+      - api_storage:/old-storage:ro
+    depends_on:
+      new-crm-postgres:
+        condition: service_healthy
+
 volumes:
-  mysql_data:
-  api_storage:
+  pg_data:
+  minio_data:
+  redis_data:
+  api_storage: # legacy uploads; remove after storage-migrate has run
 
 networks:
-  traefik-proxy:
+  dokploy-network:
     external: true

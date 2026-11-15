@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <!-- Staging/prod: ECS JSON on the console and in the rolling file (logging.structured.format.*), carrying
+         requestId/jobId/userId from MDC. Everything else: readable patterns that print %X{requestId}%X{jobId}
+         (logging.pattern.console / logging.pattern.file). Spec 2026-11-05 logging. -->
+    <springProfile name="staging | prod">
+        <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
+        <include resource="org/springframework/boot/logging/logback/structured-file-appender.xml"/>
+    </springProfile>
+    <springProfile name="!(staging | prod)">
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+        <include resource="org/springframework/boot/logging/logback/file-appender.xml"/>
+    </springProfile>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

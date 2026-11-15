@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@source "../src/main/resources/templates/pdf";
+
+@theme {
+  --font-sans: Helvetica, Arial, "Liberation Sans", sans-serif;
+  --color-ink: #0d2245;
+  --color-body: #3d4a5f;
+  --color-muted: #667286;
+  --color-line: #dde2ea;
+  --color-brand-yellow: #f3ec36;
+}

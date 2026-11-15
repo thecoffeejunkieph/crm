@@ -9,7 +9,8 @@ COPY src ./src
 
 RUN chmod +x gradlew && ./gradlew clean bootJar --no-daemon
 
-FROM eclipse-temurin:21-jre
+# A JRE plus Chromium for PDF generation (this image ships Java 25; the app targets 21); the tag must match the playwright version in build.gradle.
+FROM mcr.microsoft.com/playwright/java:v1.64.0-noble
 WORKDIR /app
 
 COPY --from=build /home/gradle/project/build/libs/*.jar app.jar

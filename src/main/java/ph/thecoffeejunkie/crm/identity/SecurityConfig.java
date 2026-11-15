@@ -1,0 +1,117 @@
+package ph.thecoffeejunkie.crm.identity;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.util.matcher.RequestHeaderRequestMatcher;
+import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.ProblemResponses;
+
+import java.time.Clock;
+
+import static ph.thecoffeejunkie.crm.identity.HeaderOrCookieSessionIdResolver.ANDROID;
+import static ph.thecoffeejunkie.crm.identity.HeaderOrCookieSessionIdResolver.AUTH_HEADER;
+import static ph.thecoffeejunkie.crm.identity.HeaderOrCookieSessionIdResolver.CLIENT_TYPE_HEADER;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+class SecurityConfig {
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(12);
+    }
+
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http, Environment env, Clock clock,
+                                    ph.thecoffeejunkie.crm.shared.AccessLogFilter accessLog,
+                                    @Value("${app.csrf.cookie-domain:}") String csrfCookieDomain) throws Exception {
+        var csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfRepository.setCookieCustomizer(c -> {
+            if (!csrfCookieDomain.isBlank()) {
+                c.domain(csrfCookieDomain);
+            }
+        });
+        boolean apiDocs = env.acceptsProfiles(Profiles.of("dev", "test"));
+        return http
+                .cors(Customizer.withDefaults())
+                // Header-authenticated (Android) requests carry no ambient credentials, so CSRF does not apply.
+                .csrf(c -> c.spa().csrfTokenRepository(csrfRepository).ignoringRequestMatchers(
+                        new RequestHeaderRequestMatcher(AUTH_HEADER),
+                        new RequestHeaderRequestMatcher(CLIENT_TYPE_HEADER, ANDROID)))
+                .authorizeHttpRequests(a -> {
+                    a.requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/logout",
+                                    "/api/auth/invites/accept").permitAll()
+                            // /totp is reachable with PRE_2FA only; its controller checks that authority.
+                            .requestMatchers("/api/auth/totp", "/api/auth/password/forgot",
+                                    "/api/auth/password/reset", "/api/portal/auth/**").permitAll();
+                    // "/v3/api-docs*" also catches /v3/api-docs.yaml, which "/v3/api-docs/**" does not.
+                    String[] docs = {"/v3/api-docs*", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"};
+                    if (apiDocs) {
+                        a.requestMatchers(docs).permitAll();
+                    } else {
+                        a.requestMatchers(docs).denyAll();
+                    }
+                    // Admins must reach enrolment before they hold a ROLE_ authority.
+                    a.requestMatchers(HttpMethod.POST, "/api/me/totp/setup", "/api/me/totp/enable")
+                            .hasAnyAuthority("ENROL_2FA", "ROLE_ADMIN", "ROLE_SALES", "ROLE_WAREHOUSE");
+                    // Coarse role gates ahead of @PreAuthorize: argument validation runs before method security,
+                    // so without these a forbidden caller would get a 400 instead of a 403.
+                    a.requestMatchers("/api/admin/**", "/api/approvals/*/decision", "/api/insights/targets",
+                                    "/api/insights/targets/**", "/api/insights/admin").hasRole("ADMIN")
+                            .requestMatchers("/api/follow-ups", "/api/follow-ups/**").hasAnyRole("ADMIN", "SALES")
+                            .requestMatchers(HttpMethod.POST, "/api/lead-sources", "/api/lead-sources/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/lead-sources/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.POST, "/api/leads/*/assign").hasRole("ADMIN")
+                            .requestMatchers("/api/deals", "/api/deals/**").hasAnyRole("ADMIN", "SALES")
+                            .requestMatchers("/api/leads", "/api/leads/**", "/api/lead-sources", "/api/lead-sources/**").hasAnyRole("ADMIN", "SALES")
+                            .requestMatchers("/api/attachments", "/api/attachments/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
+                            .requestMatchers("/api/insights/sales").hasRole("SALES")
+                            .requestMatchers("/api/insights/warehouse").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.POST, "/api/warehouses/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/warehouses/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
+                            .requestMatchers("/api/stock/receipts/**", "/api/stock/adjustments/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.POST, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.PUT, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.POST, "/api/delivery-orders/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers("/api/labels", "/api/labels/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.GET, "/api/products/*/availability").hasAnyRole("ADMIN", "SALES")
+                            .requestMatchers(HttpMethod.POST, "/api/payments/*/verify", "/api/payments/*/reject").hasRole("ADMIN")
+                            .requestMatchers("/api/customers/**", "/api/orders/**", "/api/payments/**", "/api/invoices/**",
+                                    "/api/reports/**").hasAnyRole("ADMIN", "SALES");
+                    a.requestMatchers("/api/portal/**").hasRole("CUSTOMER")
+                            .requestMatchers("/api/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
+                            .anyRequest().permitAll();
+                })
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint((req, res, ex) ->
+                                ProblemResponses.write(res, ErrorCode.UNAUTHORIZED, "Login required."))
+                        .accessDeniedHandler((req, res, ex) ->
+                                ProblemResponses.write(res, ErrorCode.FORBIDDEN, "You do not have access to this resource.")))
+                // First after the context loads: sees the user and every 401/403 the chain answers itself.
+                .addFilterAfter(accessLog, SecurityContextHolderFilter.class)
+                .addFilterAfter(new AbsoluteSessionTimeoutFilter(clock), SecurityContextHolderFilter.class)
+                // A 401 must not create a session just to remember the request.
+                .requestCache(c -> c.disable())
+                .logout(l -> l.disable())
+                .formLogin(f -> f.disable())
+                .httpBasic(b -> b.disable())
+                .build();
+    }
+}
