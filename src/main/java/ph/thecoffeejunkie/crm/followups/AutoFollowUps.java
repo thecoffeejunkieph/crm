@@ -3,7 +3,6 @@ package ph.thecoffeejunkie.crm.followups;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -50,11 +49,6 @@ class AutoFollowUps {
         this.clock = clock;
     }
 
-    @Scheduled(cron = "0 45 7 * * *", zone = "Asia/Manila")
-    void run() {
-        run(FollowUpDay.today(clock));
-    }
-
     /** Returns how many follow-ups were created; 0 when today's run already happened. */
     int run(LocalDate today) {
         Boolean first = tx.execute(s ->
@@ -80,7 +74,7 @@ class AutoFollowUps {
                 continue;
             }
             try {
-                tx.executeWithoutResult(s -> r.toClose(today, cfg).forEach(this::closeId));
+                tx.executeWithoutResult(s -> r.toClose(today, cfg).forEach((id, reason) -> closeId(id, r.rule(), reason)));
             } catch (RuntimeException e) {
                 log.error("Auto follow-up rule {} failed while closing", r.rule(), e);
             }
@@ -97,9 +91,9 @@ class AutoFollowUps {
         return n == null ? 0 : n;
     }
 
-    private void closeId(long id, String reason) {
+    private void closeId(long id, FollowUpRule rule, String reason) {
         jdbc.update("update follow_up set done_at = now(), done_by = null, closed_reason = ?, updated_at = now(), "
-                + "version = version + 1 where id = ? and done_at is null and rule is not null", reason, id);
+                + "version = version + 1 where id = ? and done_at is null and rule = ?", reason, id, rule.name());
     }
 
     private int create(AutoRule r, LocalDate today, RuleSettings cfg) {

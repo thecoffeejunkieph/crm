@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.node.BooleanNode;
@@ -35,11 +37,10 @@ class AutoFollowUpsIT {
         final FollowUpRule rule;
         List<Candidate> candidates = new ArrayList<>();
         Map<Long, String> closes = new HashMap<>();
-        boolean fails;
+        boolean fails; // off unless a test switches it on
 
-        FakeRule(FollowUpRule rule, boolean fails) {
+        FakeRule(FollowUpRule rule) {
             this.rule = rule;
-            this.fails = fails;
         }
 
         @Override public FollowUpRule rule() {
@@ -64,11 +65,11 @@ class AutoFollowUpsIT {
     @TestConfiguration
     static class Fakes {
         @Bean FakeRule fakeRestock() {
-            return new FakeRule(FollowUpRule.RESTOCK, false);
+            return new FakeRule(FollowUpRule.RESTOCK);
         }
 
-        @Bean FakeRule failingWinBack() {
-            return new FakeRule(FollowUpRule.WIN_BACK, true);
+        @Bean @Order(Ordered.HIGHEST_PRECEDENCE) FakeRule failingWinBack() { // first, so later rules prove they still run
+            return new FakeRule(FollowUpRule.WIN_BACK);
         }
     }
 
@@ -89,6 +90,7 @@ class AutoFollowUpsIT {
         f = new FollowUpsFixture(jdbc, mvc);
         fakeRestock.candidates = new ArrayList<>();
         fakeRestock.closes = new HashMap<>();
+        failingWinBack.fails = false;
     }
 
     @AfterEach
