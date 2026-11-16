@@ -107,6 +107,45 @@ class RestockRuleIT {
     }
 
     @Test
+    void restockStopsAtWinBackAge() {
+        f.delivered(acme, rep, last);
+
+        engine.run(last.plusDays(60));
+
+        assertThat(rows()).isEmpty();
+        assertThat(jdbc.queryForObject("select count(*) from follow_up where customer_id = ? and rule = 'WIN_BACK'",
+                Integer.class, acme)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from follow_up where customer_id = ?", Integer.class, acme))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void notWhileAnOrderIsInFlight() {
+        f.delivered(acme, rep, last);
+        f.salesOrder(acme, rep, "CONFIRMED", FollowUpsFixture.at(last.minusDays(1)));
+
+        engine.run(last.plusDays(20));
+
+        assertThat(rows()).isEmpty();
+    }
+
+    @Test
+    void safetyNetClosesRowsOfAReorderedCustomer() {
+        java.sql.Timestamp past = java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(10 * 86400));
+        for (String rule : List.of("RESTOCK", "WIN_BACK")) {
+            jdbc.update("insert into follow_up (customer_id, assignee_id, title, due_date, created_by, rule, auto_key, "
+                    + "created_at, updated_at) values (?, ?, 't', current_date, null, ?, ?, ?, ?)", acme, rep, rule,
+                    f.tag + ":" + rule, past, past);
+        }
+        long reorder = f.salesOrder(acme, rep, "CONFIRMED", java.time.Instant.now());
+
+        engine.run(f.newDay());
+
+        assertThat(jdbc.queryForList("select closed_reason from follow_up where customer_id = ?", String.class, acme))
+                .hasSize(2).allSatisfy(r -> assertThat(r).isEqualTo(f.tag + "Acme ordered " + f.orderNumber(reorder)));
+    }
+
+    @Test
     void reassignmentMovesAutoFollowUp() throws Exception {
         long admin = f.user("adm", Role.ADMIN);
         long other = f.user("other", Role.SALES);

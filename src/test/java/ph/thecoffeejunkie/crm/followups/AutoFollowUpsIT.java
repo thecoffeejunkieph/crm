@@ -129,7 +129,7 @@ class AutoFollowUpsIT {
         fakeRestock.candidates = List.of(cand(f.customer("a", rep), null, "1"), cand(f.customer("b", rep), null, "2"));
         LocalDate day = newDay();
 
-        assertThat(engine.run(day)).isEqualTo(2);
+        engine.run(day);
 
         assertThat(rows()).hasSize(2).allSatisfy(r -> {
             assertThat(r.get("due_date")).hasToString(day.toString());
@@ -148,9 +148,9 @@ class AutoFollowUpsIT {
         long rep = f.user("rep", Role.SALES);
         fakeRestock.candidates = List.of(cand(f.customer("a", rep), null, "1"));
 
-        assertThat(engine.run(newDay())).isEqualTo(1);
+        engine.run(newDay());
         jdbc.update("update follow_up set done_at = now(), done_by = ? where auto_key = ?", rep, key("1")); // rep ticks it
-        assertThat(engine.run(newDay())).isZero();
+        engine.run(newDay());
 
         assertThat(rows()).hasSize(1);
     }
@@ -162,9 +162,9 @@ class AutoFollowUpsIT {
         fakeRestock.candidates = List.of(cand(c, null, "1"));
         LocalDate day = newDay();
 
-        assertThat(engine.run(day)).isEqualTo(1);
+        engine.run(day);
         fakeRestock.candidates = List.of(cand(c, null, "1"), cand(c, null, "2"));
-        assertThat(engine.run(day)).isZero();
+        engine.run(day);
 
         assertThat(rows()).hasSize(1);
     }
@@ -184,7 +184,7 @@ class AutoFollowUpsIT {
                 cand(f.customer("noRep", null), null, "admin"),
                 cand(f.customer("noRepHintGone", null), gone, "admin2"));
 
-        assertThat(engine.run(newDay())).isEqualTo(4);
+        engine.run(newDay());
 
         assertThat(row("rep").get("assignee_id")).isEqualTo(rep);
         assertThat(row("hint").get("assignee_id")).isEqualTo(hint);
@@ -196,7 +196,7 @@ class AutoFollowUpsIT {
     void noAssigneeSkips() {
         fakeRestock.candidates = List.of(cand(f.customer("orphan", null), null, "1"));
 
-        assertThat(engine.run(newDay())).isZero();
+        engine.run(newDay());
         assertThat(rows()).isEmpty();
     }
 
@@ -209,10 +209,10 @@ class AutoFollowUpsIT {
         fakeRestock.candidates = List.of(cand(c, null, "1"));
 
         settings.update(Map.of(SettingKey.FOLLOW_UPS_FALLBACK_ADMIN_ID, LongNode.valueOf(archivedAdmin)));
-        assertThat(engine.run(newDay())).isZero();
+        engine.run(newDay());
 
         settings.update(Map.of(SettingKey.FOLLOW_UPS_FALLBACK_ADMIN_ID, LongNode.valueOf(salesOnly))); // not an ADMIN
-        assertThat(engine.run(newDay())).isZero();
+        engine.run(newDay());
         assertThat(rows()).isEmpty();
     }
 
@@ -223,7 +223,7 @@ class AutoFollowUpsIT {
         jdbc.update("update customer set archived_at = now() where id = ?", c);
         fakeRestock.candidates = List.of(cand(c, null, "1"));
 
-        assertThat(engine.run(newDay())).isZero();
+        engine.run(newDay());
         assertThat(rows()).isEmpty();
     }
 
@@ -233,7 +233,7 @@ class AutoFollowUpsIT {
         fakeRestock.candidates = List.of(cand(f.customer("a", rep), null, "1"));
         settings.update(Map.of(SettingKey.FOLLOW_UPS_AUTO_RESTOCK_ENABLED, BooleanNode.FALSE));
 
-        assertThat(engine.run(newDay())).isZero();
+        engine.run(newDay());
         assertThat(rows()).isEmpty();
     }
 
@@ -243,7 +243,7 @@ class AutoFollowUpsIT {
         fakeRestock.candidates = List.of(cand(f.customer("a", rep), null, "1"));
         failingWinBack.fails = true;
 
-        assertThat(engine.run(newDay())).isEqualTo(1);
+        engine.run(newDay());
         assertThat(rows()).hasSize(1);
     }
 

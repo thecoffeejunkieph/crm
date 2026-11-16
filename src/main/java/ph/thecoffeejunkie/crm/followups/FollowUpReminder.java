@@ -1,7 +1,6 @@
 package ph.thecoffeejunkie.crm.followups;
 
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -33,11 +32,6 @@ class FollowUpReminder {
         this.jdbc = jdbc;
         this.tx = new TransactionTemplate(txm);
         this.clock = clock;
-    }
-
-    @Scheduled(cron = "0 0 8 * * *", zone = "Asia/Manila")
-    void run() {
-        sendFor(FollowUpDay.today(clock));
     }
 
     /** Returns how many notifications went out; 0 when today's run already happened. */

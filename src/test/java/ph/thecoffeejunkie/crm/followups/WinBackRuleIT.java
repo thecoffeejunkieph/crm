@@ -79,4 +79,19 @@ class WinBackRuleIT {
         assertThat(rows()).extracting(r -> r.get("auto_key")).containsExactly(
                 "WIN_BACK:customer:" + acme + ":" + first, "WIN_BACK:customer:" + acme + ":" + second);
     }
+
+    @Test
+    void confirmedOrderClosesItImmediately() {
+        f.delivered(acme, rep, last);
+        engine.run(last.plusDays(60));
+        long reorder = f.salesOrder(acme, rep, "CONFIRMED", java.time.Instant.now());
+
+        new org.springframework.transaction.support.TransactionTemplate(txm).executeWithoutResult(s ->
+                events.publishEvent(new ph.thecoffeejunkie.crm.sales.OrderConfirmed(reorder, acme)));
+
+        assertThat(rows().getFirst().get("closed_reason")).isEqualTo(f.tag + "Acme ordered " + f.orderNumber(reorder));
+    }
+
+    @Autowired org.springframework.context.ApplicationEventPublisher events;
+    @Autowired org.springframework.transaction.PlatformTransactionManager txm;
 }

@@ -34,17 +34,17 @@ class RestockRule implements AutoRule {
     }
 
     @Override public List<Candidate> find(LocalDate today, RuleSettings s) {
-        // Newest 6 deliveries per customer is all RestockRhythm reads.
+        // Newest MAX_DATES deliveries per customer is all RestockRhythm reads.
         Map<Long, List<Delivery>> byCustomer = new LinkedHashMap<>();
         jdbc.query("select customer_id, order_id, rep_id, number, display_name, dd, reordered from ("
                 + "select so.customer_id, so.id order_id, so.rep_id, so.number, c.display_name, "
                 + "(d.delivered_at at time zone 'Asia/Manila')::date dd, "
                 + "exists (select 1 from sales_order o where o.customer_id = so.customer_id "
-                + "and o.confirmed_at > d.delivered_at) reordered, "
+                + "and (o.confirmed_at > d.delivered_at or o.status in ('CONFIRMED', 'RELEASED'))) reordered, "
                 + "row_number() over (partition by so.customer_id order by d.delivered_at desc) rn "
                 + "from delivery_order d join sales_order so on so.id = d.sales_order_id "
                 + "join customer c on c.id = so.customer_id where d.status = 'DELIVERED' and c.archived_at is null) x "
-                + "where rn <= 6 order by customer_id, rn", rs -> {
+                + "where rn <= " + RestockRhythm.MAX_DATES + " order by customer_id, rn", rs -> {
             byCustomer.computeIfAbsent(rs.getLong(1), k -> new ArrayList<>()).add(new Delivery(rs.getLong(1),
                     rs.getLong(2), (Long) rs.getObject(3), rs.getString(4), rs.getString(5),
                     rs.getObject(6, LocalDate.class), rs.getBoolean(7)));
@@ -53,7 +53,8 @@ class RestockRule implements AutoRule {
         for (List<Delivery> ds : byCustomer.values()) {
             Delivery last = ds.getFirst();
             int due = RestockRhythm.dueAfterDays(ds.stream().map(Delivery::date).toList(), s);
-            if (last.reordered() || last.date().plusDays(due).isAfter(today)) {
+            if (last.reordered() || last.date().plusDays(due).isAfter(today)
+                    || !last.date().isAfter(today.minusDays(s.winBackDays()))) { // older lapses are WIN_BACK's
                 continue;
             }
             long n = ChronoUnit.DAYS.between(last.date(), today);

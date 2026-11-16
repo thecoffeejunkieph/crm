@@ -9,7 +9,7 @@ import java.util.List;
 /** How many days after a delivery a customer usually needs to reorder, from its own recent rhythm. */
 public final class RestockRhythm {
 
-    private static final int MAX_DATES = 6; // 5 gaps
+    public static final int MAX_DATES = 6; // 5 gaps
 
     private RestockRhythm() {
     }

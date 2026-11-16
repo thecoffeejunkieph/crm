@@ -78,4 +78,13 @@ class FirstOrderRuleIT {
 
         assertThat(rows()).isEmpty();
     }
+
+    @Test
+    void dayThirtyIsStillIncluded() {
+        f.delivered(acme, rep, day);
+
+        engine.run(day.plusDays(30));
+
+        assertThat(rows()).hasSize(1);
+    }
 }
