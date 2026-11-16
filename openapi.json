@@ -4102,6 +4102,9 @@
           "payments" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "refunds" : {
+            "type" : "number"
           }
         },
         "type" : "object"

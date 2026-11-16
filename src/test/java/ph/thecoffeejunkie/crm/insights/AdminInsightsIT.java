@@ -161,6 +161,20 @@ class AdminInsightsIT {
     }
 
     @Test
+    void topProductsSubtractReturnedLine() throws Exception {
+        long o = f.order(custA, repA, "FULFILLED", "3000.00", "0.00", null);
+        long small = f.product("small", "50.00");
+        long big = f.product("big", "1500.00");
+        f.line(o, small, "1", "100.00", "50.00");
+        long bigLine = f.line(o, big, "2", "2900.00", "1000.00");
+        confirmedIn(o);
+        f.refundLine(f.refund(o, "1450.00", at(q, 40)), bigLine, "1450.00");
+        adminView(q).andExpect(jsonPath("$.topProducts[0].productId").value(big))
+                .andExpect(jsonPath("$.topProducts[0].revenue").value(1450.00))
+                .andExpect(jsonPath("$.topProducts[1].revenue").value(100.00));
+    }
+
+    @Test
     void marginIsExVatAndWithoutShipping() throws Exception {
         // 1,120 of VATable goods + 112 shipping: 1,000 + 100 net, 132 VAT, 1,232 total.
         long o = f.order(custA, repA, "CONFIRMED", "1232.00", "0.00", null);

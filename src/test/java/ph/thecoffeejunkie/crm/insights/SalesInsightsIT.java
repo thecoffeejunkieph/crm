@@ -115,6 +115,18 @@ class SalesInsightsIT {
      * net of VAT. Only that counts toward the target and commission; collected stays the cash.
      */
     @Test
+    void netSalesDropInPayoutMonth() throws Exception {
+        long o = f.order(cust, repA, "FULFILLED", "1120.00", "1120.00", null);
+        jdbc.update("update sales_order set vat_exempt_sales = 0, vatable_sales = 1000, vat = 120 where id = ?", o);
+        f.payment(o, "VERIFIED", "1120.00", "0.00", at(m.minusMonths(1), 30));
+        f.refund(o, "560.00", at(m, 30));
+        sales(repA, m.minusMonths(1)).andExpect(jsonPath("$.collected").value(1120.00))
+                .andExpect(jsonPath("$.netSales").value(1000.00));
+        sales(repA, m).andExpect(jsonPath("$.collected").value(-560.00))
+                .andExpect(jsonPath("$.netSales").value(-500.00));
+    }
+
+    @Test
     void targetAndCommissionExcludeVatShippingAndDiscount() throws Exception {
         long o = f.order(cust, repA, "FULFILLED", "11700.00", "0.00", null);
         jdbc.update("update sales_order set vat_exempt_sales = 0, vatable_sales = 10446.43, vat = 1253.57, "

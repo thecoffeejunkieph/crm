@@ -121,6 +121,18 @@ class InsightsFixture {
                 receivedOn, creator(), verifiedAt == null ? null : Timestamp.from(verifiedAt));
     }
 
+    /** A PAID refund paid at {@code paidAt}, written straight into the table. */
+    long refund(long orderId, String amount, Instant paidAt) {
+        return jdbc.queryForObject("insert into refund (order_id, kind, amount, reason, status, paid_at, requested_by) "
+                + "values (?, 'MONEY_ONLY', ?::numeric, 'test', 'PAID', ?, ?) returning id", Long.class, orderId, amount,
+                Timestamp.from(paidAt), creator());
+    }
+
+    void refundLine(long refundId, long orderLineId, String amount) {
+        jdbc.update("insert into refund_line (refund_id, order_line_id, warehouse_id, qty, disposition, amount) "
+                + "values (?, ?, ?, 1, 'RESTOCK', ?::numeric)", refundId, orderLineId, anyWarehouse(), amount);
+    }
+
     long delivery(long orderId, long warehouseId, String status, Instant deliveredAt) {
         return jdbc.queryForObject("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, "
                 + "delivered_at, customer_name, order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', ?, ?, ?, "
@@ -155,6 +167,7 @@ class InsightsFixture {
         jdbc.update("delete from delivery_order where sales_order_id in (" + orders + ") or customer_name like ?", tag + "%");
         jdbc.update("delete from stock_transfer where number like ?", tag + "%");
         jdbc.update("delete from stock_adjustment where number like ?", tag + "%");
+        jdbc.update("delete from refund where order_id in (" + orders + ")");
         jdbc.update("delete from payment where order_id in (" + orders + ")");
         jdbc.update("update invoice set replaced_by_id = null where order_id in (" + orders + ")");
         jdbc.update("delete from invoice where order_id in (" + orders + ")");
