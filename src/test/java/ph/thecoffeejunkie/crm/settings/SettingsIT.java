@@ -46,6 +46,7 @@ class SettingsIT {
 
     @AfterEach
     void restoreSeeds() {
+        jdbc.update("delete from app_setting where key like 'followUps.%'");
         jdbc.update("update app_setting set updated_by = null");
         jdbc.update("delete from app_user where id = ?", adminId);
         jdbc.update("update app_setting set value = '15' where key = 'approval.discountPercentMax'");
@@ -154,6 +155,37 @@ class SettingsIT {
         mvc.perform(putJson("{\"invoice.bankAccounts\": [{\"bankName\": \"BDO\"}]}")).andExpect(status().isBadRequest());
         mvc.perform(putJson("{\"invoice.bankAccounts\": [{\"bankName\": \"BDO\", \"accountNumber\": \"1\", \"qr\": \"data:image/svg+xml;base64,AAAA\"}]}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void followUpSettingsHaveDefaults() throws Exception {
+        mvc.perform(get("/api/admin/settings").with(authentication(auth(Role.ADMIN))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$['followUps.restock.fallbackDays']").value(15))
+                .andExpect(jsonPath("$['followUps.restock.rhythmPercent']").value(80))
+                .andExpect(jsonPath("$['followUps.auto.RESTOCK.enabled']").value(true))
+                .andExpect(jsonPath("$['followUps.fallbackAdminId']").value((Object) null));
+        assertThat(settings.bool(SettingKey.FOLLOW_UPS_AUTO_RESTOCK_ENABLED)).isTrue();
+        assertThat(settings.integer(SettingKey.FOLLOW_UPS_RESTOCK_FALLBACK_DAYS)).isEqualTo(15);
+        assertThat(settings.longOrNull(SettingKey.FOLLOW_UPS_FALLBACK_ADMIN_ID)).isNull();
+    }
+
+    @Test
+    void followUpSettingsValidate() throws Exception {
+        mvc.perform(putJson("{\"followUps.winBack.days\": 3}")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(putJson("{\"followUps.winBack.days\": 7.5}")).andExpect(status().isBadRequest());
+        mvc.perform(putJson("{\"followUps.winBack.days\": 90}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$['followUps.winBack.days']").value(90));
+        assertThat(settings.integer(SettingKey.FOLLOW_UPS_WIN_BACK_DAYS)).isEqualTo(90);
+        mvc.perform(putJson("{\"followUps.auto.RESTOCK.enabled\": \"yes\"}")).andExpect(status().isBadRequest());
+        mvc.perform(putJson("{\"followUps.auto.RESTOCK.enabled\": false}")).andExpect(status().isOk());
+        assertThat(settings.bool(SettingKey.FOLLOW_UPS_AUTO_RESTOCK_ENABLED)).isFalse();
+        mvc.perform(putJson("{\"followUps.fallbackAdminId\": 0}")).andExpect(status().isBadRequest());
+        mvc.perform(putJson("{\"followUps.fallbackAdminId\": " + adminId + "}")).andExpect(status().isOk());
+        assertThat(settings.longOrNull(SettingKey.FOLLOW_UPS_FALLBACK_ADMIN_ID)).isEqualTo(adminId);
+        mvc.perform(putJson("{\"followUps.fallbackAdminId\": null}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$['followUps.fallbackAdminId']").value((Object) null));
     }
 
     @Test
