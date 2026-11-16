@@ -170,6 +170,21 @@ public class Approvals {
     }
 
     /**
+     * For the owning module when it withdraws the subject itself (e.g. a refund cancelled by someone other than the
+     * requester): no requester check, and a request that is no longer PENDING is left alone.
+     */
+    @Transactional
+    public void cancelForSubject(long id) {
+        ApprovalRequest a = repo.findById(id).orElseThrow(Approvals::notFound);
+        if (a.status != ApprovalStatus.PENDING) {
+            return;
+        }
+        a.status = ApprovalStatus.CANCELLED;
+        repo.saveAndFlush(a);
+        audit.record(AuditAction.APPROVAL_CANCELLED, ENTITY, id, "approval cancelled (subject withdrawn)", null);
+    }
+
+    /**
      * Admins see everything (or just their own with mine=true); everyone else only their own. subjectType/subjectIds
      * narrow to one record's approvals (the order page, the stock page); null = any.
      */

@@ -205,4 +205,15 @@ class RefundsIT {
                 .andExpect(status().isUnprocessableContent());
         assertThat(List.of(refundStatus(id))).containsExactly("CANCELLED");
     }
+
+    @Test
+    void adminCancelOfRepRefundCancelsApproval() throws Exception {
+        long id = SalesFixture.id(request(asRep, order, money("700.00")).andExpect(status().isCreated()));
+        long approval = jdbc.queryForObject("select approval_request_id from refund where id = ?", Long.class, id);
+        long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, id);
+        mvc.perform(f.json(post("/api/refunds/" + id + "/cancel"), "{\"version\":" + version + "}").with(asAdmin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+        assertThat(jdbc.queryForObject("select status from approval_request where id = ?", String.class, approval))
+                .isEqualTo("CANCELLED");
+    }
 }

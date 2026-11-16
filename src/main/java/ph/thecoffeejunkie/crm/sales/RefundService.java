@@ -110,10 +110,8 @@ class RefundService {
             throw new DomainException(ErrorCode.INVALID_STATE,
                     "Can't cancel a " + r.status.name().toLowerCase() + " refund");
         }
-        // Approvals lets only the requester cancel; for anyone else the request stays pending and the
-        // listener ignores its eventual decision because the refund is no longer REQUESTED.
-        if (r.status == RefundStatus.REQUESTED && r.approvalRequestId != null && r.requestedBy == s.userId()) {
-            approvals.cancel(r.approvalRequestId);
+        if (r.status == RefundStatus.REQUESTED && r.approvalRequestId != null) {
+            approvals.cancelForSubject(r.approvalRequestId);
         }
         r.status = RefundStatus.CANCELLED;
         r.updatedAt = Instant.now();
