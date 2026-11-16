@@ -350,6 +350,9 @@ class OrderService {
         repo.saveAndFlush(o);
         audit.record(AuditAction.QUOTE_SENT, ENTITY, id, "Sent quote " + o.number + ", valid until " + o.quoteValidUntil,
                 AuditChanges.diff().field("status", before, o.status));
+        if (before == OrderStatus.QUOTED) { // the old send's chase and expiry reminders are stale
+            events.publishEvent(new QuoteClosed(id, "resent"));
+        }
         List<String> to = customers.portalContactEmails(o.customerId);
         if (!to.isEmpty()) {
             mailer.quoteAfterCommit(to, o.number, o.quoteValidUntil, quotes.render(o));
@@ -368,6 +371,7 @@ class OrderService {
         List<String> to = customers.portalContactEmails(o.customerId);
         if (!to.isEmpty()) {
             audit.record(AuditAction.QUOTE_SENT, ENTITY, id, "Resent quote " + o.number, null);
+            events.publishEvent(new QuoteClosed(id, "resent")); // only when audited: that is what keys the next reminders
             mailer.quoteAfterCommit(to, o.number, o.quoteValidUntil, quotes.render(o));
         }
         return new ResendResponse(to);

@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Asks why a customer declined a quote, the day after. The 30-day ceiling keeps the first scan after rollout from
- * flooding reps with old declines. A decline leaves the revision unchanged, so the order's current one is the key's.
+ * flooding reps with old declines. Each decline event keys its own row, so a second decline is asked about too.
  */
 @Component
 class QuoteDeclinedRule implements AutoRule {
@@ -29,12 +29,12 @@ class QuoteDeclinedRule implements AutoRule {
     }
 
     @Override public List<Candidate> find(LocalDate today, RuleSettings s) {
-        return jdbc.query("select o.customer_id, o.id, o.rep_id, o.number, c.display_name, o.revision "
-                + "from sales_order o join customer c on c.id = o.customer_id and c.archived_at is null "
-                + "where (select max(a.at at time zone 'Asia/Manila')::date from audit_event a "
-                + "where a.entity_type = 'ORDER' and a.entity_id = o.id and a.action = 'QUOTE_DECLINED') between ? and ?",
+        return jdbc.query("select o.customer_id, o.id, o.rep_id, o.number, c.display_name, a.id "
+                + "from audit_event a join sales_order o on a.entity_type = 'ORDER' and a.entity_id = o.id "
+                + "join customer c on c.id = o.customer_id and c.archived_at is null "
+                + "where a.action = 'QUOTE_DECLINED' and (a.at at time zone 'Asia/Manila')::date between ? and ?",
                 (rs, i) -> new Candidate(rs.getLong(1), rs.getLong(2), (Long) rs.getObject(3),
-                        "QUOTE_DECLINED:order:" + rs.getLong(2) + ":" + rs.getInt(6),
+                        "QUOTE_DECLINED:order:" + rs.getLong(2) + ":declined:" + rs.getLong(6),
                         "Ask " + rs.getString(5) + " why they declined " + rs.getString(4), null),
                 java.sql.Date.valueOf(today.minusDays(30)), java.sql.Date.valueOf(today.minusDays(1)));
     }

@@ -33,7 +33,7 @@ class PaymentOverdueRule implements AutoRule {
     @Override public List<Candidate> find(LocalDate today, RuleSettings s) {
         return jdbc.query("select o.customer_id, o.id, o.rep_id, o.number, o.total - o.settled_amount, o.due_date "
                 + "from sales_order o join customer c on c.id = o.customer_id and c.archived_at is null "
-                + "where o.status <> 'CANCELLED' and o.total - o.settled_amount > 0 and o.due_date < ? and o.due_date >= ?",
+                + "where o.status in ('CONFIRMED', 'RELEASED', 'FULFILLED') and o.total - o.settled_amount > 0 and o.due_date < ? and o.due_date >= ?",
                 (rs, i) -> new Candidate(rs.getLong(1), rs.getLong(2), (Long) rs.getObject(3),
                         "PAYMENT_OVERDUE:order:" + rs.getLong(2),
                         "Collect " + Quotes.money(rs.getBigDecimal(5)) + " on " + rs.getString(4) + " ("

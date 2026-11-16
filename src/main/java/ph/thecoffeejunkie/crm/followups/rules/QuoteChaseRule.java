@@ -26,12 +26,11 @@ class QuoteChaseRule implements AutoRule {
     }
 
     @Override public List<Candidate> find(LocalDate today, RuleSettings s) {
-        return jdbc.query("select o.customer_id, o.id, o.rep_id, o.number, o.total, o.revision from sales_order o "
+        return jdbc.query("select o.customer_id, o.id, o.rep_id, o.number, o.total, s.id from sales_order o "
                 + "join customer c on c.id = o.customer_id and c.archived_at is null "
-                + "where o.status = 'QUOTED' and (select max(a.at at time zone 'Asia/Manila')::date from audit_event a "
-                + "where a.entity_type = 'ORDER' and a.entity_id = o.id and a.action = 'QUOTE_SENT') <= ?",
+                + "join lateral (" + Quotes.LATEST_SENT + ") s on true where o.status = 'QUOTED' and s.d <= ?",
                 (rs, i) -> new Candidate(rs.getLong(1), rs.getLong(2), (Long) rs.getObject(3),
-                        "QUOTE_CHASE:order:" + rs.getLong(2) + ":" + rs.getInt(6),
+                        "QUOTE_CHASE:order:" + rs.getLong(2) + ":sent:" + rs.getLong(6),
                         "Follow up on quote " + rs.getString(4) + " (" + Quotes.money(rs.getBigDecimal(5)) + ")", null),
                 java.sql.Date.valueOf(today.minusDays(s.quoteChaseDays())));
     }

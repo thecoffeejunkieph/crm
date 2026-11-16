@@ -107,6 +107,18 @@ class PaymentOverdueRuleIT {
     }
 
     @Test
+    void paymentOverdueIgnoresUnconfirmedOrders() {
+        for (String status : List.of("DRAFT", "QUOTED", "CANCELLED")) {
+            long id = f.salesOrder(acme, rep, status, null);
+            jdbc.update("update sales_order set total = 500, due_date = ? where id = ?", due, id);
+        }
+
+        engine.run(due.plusDays(5));
+
+        assertThat(rows()).isEmpty();
+    }
+
+    @Test
     void rolloutLimitSixtyDays() {
         owing("500", "0");
 
