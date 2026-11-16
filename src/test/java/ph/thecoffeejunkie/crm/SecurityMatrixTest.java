@@ -226,6 +226,10 @@ class SecurityMatrixTest {
             Map.entry("POST /api/payments/{id}/reject", A),
             Map.entry("PUT /api/payments/{id}/form-2307", AS),
             Map.entry("PUT /api/payments/{id}/proof", AS),
+            Map.entry("GET /api/orders/{id}/refunds", AS),
+            Map.entry("GET /api/orders/{id}/refunds/returnable", AS),
+            Map.entry("POST /api/orders/{id}/refunds", AS),
+            Map.entry("POST /api/refunds/{id}/cancel", AS),
             Map.entry("GET /api/orders/{id}/quote.pdf", AS),
 
             Map.entry("GET /api/approvals", STAFF),

@@ -54,6 +54,8 @@ class SalesOrder {
     BigDecimal zeroRatedSales = new BigDecimal("0.00");
     BigDecimal total = new BigDecimal("0.00");
     BigDecimal settledAmount = new BigDecimal("0.00");
+    /** Money paid back out through PAID refunds; settledAmount keeps what was collected. */
+    BigDecimal refundedAmount = new BigDecimal("0.00");
     LocalDate dueDate;
     Instant quotedAt;
     Instant customerAcceptedAt;

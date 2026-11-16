@@ -171,6 +171,7 @@ final class SalesFixture {
         String orders = "select o.id from sales_order o join customer c on c.id = o.customer_id where c.display_name like '"
                 + tag + "%'";
         String products = "select id from product where sku like '" + tag + "%'";
+        jdbc.update("delete from refund where order_id in (" + orders + ")");
         jdbc.update("delete from delivery_order where sales_order_id in (" + orders + ")");
         jdbc.update("delete from stock_transfer where sales_order_id in (" + orders + ")");
         jdbc.update("delete from stock_reservation where sales_order_id in (" + orders + ")");
