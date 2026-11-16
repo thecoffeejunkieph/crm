@@ -74,6 +74,11 @@ class PortalOrderController {
         return portal.quotePdf(id).inline();
     }
 
+    @GetMapping("/orders/{orderId}/refunds/{id}/credit-memo.pdf")
+    ResponseEntity<byte[]> creditMemoPdf(@PathVariable long orderId, @PathVariable long id) {
+        return portal.creditMemoPdf(orderId, id).inline();
+    }
+
     @GetMapping("/invoices/{id}.pdf")
     ResponseEntity<byte[]> invoicePdf(@PathVariable long id) {
         return portal.invoicePdf(id).inline();

@@ -53,11 +53,16 @@ class PortalOrderService {
     private final Clock clock;
     private final Fulfilment fulfilment;
     private final Users users;
+    private final RefundRepository refunds;
+    private final CreditMemoDocument creditMemo;
 
     PortalOrderService(SalesOrderRepository repo, OrderService orders, PaymentService payments,
                        PaymentRepository paymentRepo, InvoiceRepository invoices, InvoiceDocument invoiceDocument,
                        QuoteDocument quoteDocument, Approvals approvals, Notifications notifications, AuditLog audit,
-                       CurrentActor actor, Clock clock, Fulfilment fulfilment, Users users) {
+                       CurrentActor actor, Clock clock, Fulfilment fulfilment, Users users,
+                       RefundRepository refunds, CreditMemoDocument creditMemo) {
+        this.refunds = refunds;
+        this.creditMemo = creditMemo;
         this.users = users;
         this.fulfilment = fulfilment;
         this.repo = repo;
@@ -186,6 +191,15 @@ class PortalOrderService {
                         .filter(o -> isVisible(c, o)).isPresent())
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Invoice not found"));
         return new PdfFile(i.number + ".pdf", invoiceDocument.render(i));
+    }
+
+    /** Only a PAID refund on one of this contact's visible orders; the order id in the path must match. */
+    @Transactional(readOnly = true)
+    PdfFile creditMemoPdf(long orderId, long refundId) {
+        SalesOrder o = visible(contact(), orderId);
+        Refund r = refunds.findById(refundId).filter(x -> x.orderId.equals(o.id))
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Credit memo not found"));
+        return creditMemo.render(r, o);
     }
 
     private ContactPrincipal contact() {

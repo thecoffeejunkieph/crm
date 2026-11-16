@@ -8995,6 +8995,42 @@
         "tags" : [ "portal-order-controller" ]
       }
     },
+    "/api/portal/orders/{orderId}/refunds/{id}/credit-memo.pdf" : {
+      "get" : {
+        "operationId" : "creditMemoPdf",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "orderId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
     "/api/portal/payments/{id}/form-2307" : {
       "put" : {
         "operationId" : "attach2307",
@@ -9316,6 +9352,34 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/RefundResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "refund-controller" ]
+      }
+    },
+    "/api/refunds/{id}/credit-memo.pdf" : {
+      "get" : {
+        "operationId" : "creditMemo",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
                 }
               }
             },

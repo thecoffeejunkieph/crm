@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<style>@page { size: A4; margin: 20mm 18mm; }</style>
+</head>
+<body class="text-[10pt] leading-relaxed text-body">
+
+<header th:replace="~{fragments/parts :: letterhead('CREDIT MEMO', ${number})}"></header>
+
+<section class="mb-12 grid grid-cols-[1fr_1fr_50mm] gap-10">
+  <div th:replace="~{fragments/parts :: company}"></div>
+  <div>
+    <div class="mb-2 text-[8.5pt] text-muted">Credited to</div>
+    <div class="font-semibold text-ink" th:text="${customer.name}">Name</div>
+    <div class="mt-1" th:text="${customer.address}">Address</div>
+    <div class="mt-1" th:if="${customer.tin != ''}">TIN <span th:text="${customer.tin}">TIN</span></div>
+  </div>
+  <dl class="space-y-2">
+    <div class="flex justify-between gap-4"><dt class="text-muted">Date</dt><dd class="text-ink" th:text="${date}">date</dd></div>
+    <div class="flex justify-between gap-4"><dt class="text-muted">Invoice</dt><dd class="text-ink" th:text="${invoiceNo}">SI-00000</dd></div>
+    <div class="flex justify-between gap-4"><dt class="text-muted">Invoice date</dt><dd class="text-ink" th:text="${invoiceDate}">date</dd></div>
+  </dl>
+</section>
+
+<table class="w-full">
+  <thead>
+    <tr class="border-b border-ink text-left text-[8.5pt] text-muted">
+      <th class="pb-2.5 font-normal">Description</th><th class="pb-2.5 pl-4 text-right font-normal">Qty</th><th class="pb-2.5 pl-3 font-normal">Unit</th>
+      <th class="pb-2.5 pl-4 text-right font-normal">Unit price</th><th class="pb-2.5 pl-4 text-right font-normal">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="l : ${lines}" class="break-inside-avoid border-b border-line">
+      <td class="py-3 text-ink" th:text="${l.description}">Item</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${l.qty}">1</td>
+      <td class="py-3 pl-3" th:text="${l.unit}">PC</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${#numbers.formatDecimal(l.unitPrice, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+      <td class="py-3 pl-4 text-right tabular-nums text-ink" th:text="${#numbers.formatDecimal(l.lineTotal, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="mt-8" th:if="${reason != ''}"><span class="text-muted">Reason:</span> <span th:text="${reason}">reason</span></div>
+
+<div th:replace="~{fragments/parts :: totals('Total Credit')}"></div>
+</body>
+</html>

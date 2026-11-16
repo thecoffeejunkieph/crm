@@ -74,6 +74,7 @@ class SecurityMatrixTest {
             Map.entry("PUT /api/portal/payments/{id}/form-2307", CUSTOMER),
             Map.entry("GET /api/portal/orders/{id}/quote.pdf", CUSTOMER),
             Map.entry("GET /api/portal/invoices/{id}.pdf", CUSTOMER),
+            Map.entry("GET /api/portal/orders/{orderId}/refunds/{id}/credit-memo.pdf", CUSTOMER),
 
             Map.entry("GET /api/me", STAFF),
             Map.entry("PUT /api/me", STAFF),
@@ -231,6 +232,7 @@ class SecurityMatrixTest {
             Map.entry("POST /api/orders/{id}/refunds", AS),
             Map.entry("POST /api/refunds/{id}/cancel", AS),
             Map.entry("POST /api/refunds/{id}/payout", AS),
+            Map.entry("GET /api/refunds/{id}/credit-memo.pdf", AS),
             Map.entry("GET /api/orders/{id}/quote.pdf", AS),
 
             Map.entry("GET /api/approvals", STAFF),

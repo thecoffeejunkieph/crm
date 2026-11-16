@@ -40,6 +40,12 @@ class RefundController {
         return refunds.returnable(actor.scope(), id);
     }
 
+    @GetMapping("/api/refunds/{id}/credit-memo.pdf")
+    @PreAuthorize("@salesPermissions.canRead()")
+    org.springframework.http.ResponseEntity<byte[]> creditMemo(@PathVariable long id) {
+        return refunds.creditMemoPdf(actor.scope(), id).inline();
+    }
+
     @PostMapping("/api/orders/{id}/refunds")
     @PreAuthorize("@salesPermissions.canWrite()")
     @ResponseStatus(HttpStatus.CREATED)

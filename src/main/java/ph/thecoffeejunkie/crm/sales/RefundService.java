@@ -20,6 +20,7 @@ import ph.thecoffeejunkie.crm.files.StorageService;
 import ph.thecoffeejunkie.crm.identity.Users;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.PdfFile;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
@@ -55,10 +56,12 @@ class RefundService {
     private final DocumentCounters counters;
     private final Notifications notifications;
     private final ApplicationEventPublisher events;
+    private final CreditMemoDocument creditMemo;
 
     RefundService(RefundRepository repo, OrderAccess access, Approvals approvals, AuditLog audit, Users users,
                   StorageService storage, JdbcTemplate jdbc, Inventory inventory, DocumentCounters counters,
-                  Notifications notifications, ApplicationEventPublisher events) {
+                  Notifications notifications, ApplicationEventPublisher events, CreditMemoDocument creditMemo) {
+        this.creditMemo = creditMemo;
         this.inventory = inventory;
         this.counters = counters;
         this.notifications = notifications;
@@ -194,6 +197,12 @@ class RefundService {
                 "Refund ₱%s paid on %s (%s)".formatted(r.amount.toPlainString(), o.number, r.creditMemoNo));
         events.publishEvent(new RefundPaid(o.id, r.id, o.repId, r.amount, r.paidAt));
         return toResponse(r, o);
+    }
+
+    @Transactional(readOnly = true)
+    PdfFile creditMemoPdf(Scope s, long refundId) {
+        Refund r = repo.findById(refundId).orElseThrow(RefundService::notFound);
+        return creditMemo.render(r, access.findVisible(r.orderId, s));
     }
 
     @Transactional(readOnly = true)
