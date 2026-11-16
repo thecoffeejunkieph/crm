@@ -230,6 +230,7 @@ class SecurityMatrixTest {
             Map.entry("GET /api/orders/{id}/refunds/returnable", AS),
             Map.entry("POST /api/orders/{id}/refunds", AS),
             Map.entry("POST /api/refunds/{id}/cancel", AS),
+            Map.entry("POST /api/refunds/{id}/payout", AS),
             Map.entry("GET /api/orders/{id}/quote.pdf", AS),
 
             Map.entry("GET /api/approvals", STAFF),

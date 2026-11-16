@@ -5,6 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -17,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,6 +32,7 @@ class RefundsIT {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired org.springframework.core.env.Environment env;
 
     SalesFixture f;
     long rep;
@@ -54,6 +58,11 @@ class RefundsIT {
 
     @AfterEach
     void cleanUp() {
+        jdbc.update("delete from stock_adjustment where product_id = ?", product);
+        // The ledger is append-only for crm_app: clear it as the owner so the fixture can delete its products.
+        new JdbcTemplate(new DriverManagerDataSource(env.getProperty("spring.datasource.url"),
+                env.getProperty("spring.flyway.user"), env.getProperty("spring.flyway.password")))
+                .update("delete from stock_movement where product_id = ?", product);
         f.cleanUp();
     }
 
@@ -77,16 +86,43 @@ class RefundsIT {
                 + ",\"warehouseId\":" + warehouse + ",\"qty\":" + qty + ",\"disposition\":\"RESTOCK\"}]}";
     }
 
+    private static String goods(long orderLine, long warehouse, String qty, String disposition) {
+        return goods(orderLine, warehouse, qty).replace("RESTOCK", disposition);
+    }
+
+    private ResultActions payout(RequestPostProcessor who, long refundId) throws Exception {
+        long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, refundId);
+        String json = "{\"method\":\"BANK_TRANSFER\",\"reference\":\"TRX-1\",\"paidOn\":\""
+                + java.time.LocalDate.now() + "\",\"version\":" + version + "}";
+        return mvc.perform(multipart("/api/refunds/" + refundId + "/payout")
+                .file(new MockMultipartFile("payout", "", "application/json", json.getBytes()))
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(who));
+    }
+
+    private long approved(String json) throws Exception {
+        return SalesFixture.id(request(asAdmin, order, json).andExpect(status().isCreated()));
+    }
+
+    private BigDecimal onHand(long warehouse) {
+        return jdbc.queryForObject("select coalesce((select on_hand from stock_level where product_id = ? "
+                + "and warehouse_id = ?), 0)", BigDecimal.class, product, warehouse);
+    }
+
     private long orderLine(long orderId) {
         return jdbc.queryForObject("select id from order_line where order_id = ?", Long.class, orderId);
     }
 
     /** Dispatches the whole line from the default warehouse, as a delivery order would. */
     private void dispatched(long orderId, String qty) {
-        long wh = f.defaultWarehouse();
+        dispatched(orderId, qty, f.defaultWarehouse(), "DISPATCHED");
+    }
+
+    /** One live delivery order per order, so a second shipment is recorded as a dispatched-then-cancelled one. */
+    private void dispatched(long orderId, String qty, long wh, String doStatus) {
         long d = jdbc.queryForObject("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, "
-                + "dispatched_at, customer_name, order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', 'DISPATCHED', "
-                + "now(), 'c', 'n', ?) returning id", Long.class, f.tag + "DO", orderId, wh, rep);
+                + "dispatched_at, customer_name, order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', ?, "
+                + "now(), 'c', 'n', ?) returning id", Long.class, f.tag + "DO" + wh, orderId, wh,
+                doStatus, rep);
         jdbc.update("insert into delivery_order_line (delivery_order_id, order_line_id, product_id, qty, picked_qty, "
                 + "description, unit) values (?, ?, ?, ?::numeric, ?::numeric, 'd', 'PC')", d, orderLine(orderId),
                 product, qty, qty);
@@ -215,5 +251,84 @@ class RefundsIT {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
         assertThat(jdbc.queryForObject("select status from approval_request where id = ?", String.class, approval))
                 .isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void payoutMarksPaidAndIssuesCreditMemo() throws Exception {
+        long a = approved(money("100.00"));
+        long b = approved(money("50.00"));
+        payout(asAdmin, a).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAID"))
+                .andExpect(jsonPath("$.creditMemoNo").value(org.hamcrest.Matchers.matchesPattern("CM-\\d{5}")));
+        payout(asAdmin, b).andExpect(status().isOk());
+        String cmA = jdbc.queryForObject("select credit_memo_no from refund where id = ?", String.class, a);
+        String cmB = jdbc.queryForObject("select credit_memo_no from refund where id = ?", String.class, b);
+        assertThat(Integer.parseInt(cmB.substring(3))).isEqualTo(Integer.parseInt(cmA.substring(3)) + 1);
+        assertThat(jdbc.queryForObject("select refunded_amount from sales_order where id = ?", BigDecimal.class, order))
+                .isEqualByComparingTo("150.00");
+        assertThat(jdbc.queryForObject("select count(*) from audit_event where action = 'REFUND_PAID' "
+                + "and entity_type = 'ORDER' and entity_id = ?", Integer.class, order)).isEqualTo(2);
+    }
+
+    @Test
+    void paidOrderStaysPaid() throws Exception {
+        payout(asAdmin, approved(money("300.00"))).andExpect(status().isOk());
+        mvc.perform(get("/api/orders/" + order).with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentStatus").value("PAID")).andExpect(jsonPath("$.balance").value(0));
+    }
+
+    @Test
+    void goodsPayoutPostsReturns() throws Exception {
+        long wh = f.defaultWarehouse();
+        f.stock(product, "10");
+        dispatched(order, "10");
+        long line = orderLine(order);
+        payout(asAdmin, approved(goods(line, wh, "3"))).andExpect(status().isOk());
+        assertThat(onHand(wh)).isEqualByComparingTo("13");
+        payout(asAdmin, approved(goods(line, wh, "2", "DAMAGED"))).andExpect(status().isOk());
+        assertThat(onHand(wh)).isEqualByComparingTo("13");
+        assertThat(jdbc.queryForList("select delta from stock_adjustment where product_id = ? "
+                + "and source = 'RETURN_DAMAGED'", BigDecimal.class, product)).hasSize(1);
+    }
+
+    @Test
+    void returnGoesToChosenWarehouse() throws Exception {
+        long w1 = f.defaultWarehouse();
+        long w2 = f.warehouse("2");
+        f.stock(product, "10");
+        dispatched(order, "5", w1, "DISPATCHED");
+        dispatched(order, "5", w2, "CANCELLED");
+        long line = orderLine(order);
+        request(asAdmin, order, goods(line, w2, "6")).andExpect(status().isUnprocessableContent());
+        payout(asAdmin, approved(goods(line, w2, "4"))).andExpect(status().isOk());
+        assertThat(onHand(w2)).isEqualByComparingTo("4");
+        assertThat(onHand(w1)).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void payoutRechecksGuards() throws Exception {
+        long a = approved(money("700.00"));
+        long b = approved(money("300.00"));
+        jdbc.update("update sales_order set settled_amount = 800 where id = ?", order);
+        payout(asAdmin, a).andExpect(status().isOk());
+        payout(asAdmin, b).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.refundable").value(100.00));
+        assertThat(refundStatus(b)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("select refunded_amount from sales_order where id = ?", BigDecimal.class, order))
+                .isEqualByComparingTo("700.00");
+    }
+
+    @Test
+    void payoutNotifiesRepAndAdmins() throws Exception {
+        long admin2 = f.user("boss2", Role.ADMIN);
+        payout(asAdmin, approved(money("100.00"))).andExpect(status().isOk());
+        assertThat(jdbc.queryForList("select recipient_user_id from notification where type = 'REFUND_PAID' "
+                + "and entity_id = ?", Long.class, order)).contains(rep, admin2).doesNotContain(admin);
+    }
+
+    @Test
+    void payoutRequiresApproved() throws Exception {
+        long id = SalesFixture.id(request(asRep, order, money("100.00")).andExpect(status().isCreated()));
+        payout(asAdmin, id).andExpect(status().isUnprocessableContent());
+        assertThat(refundStatus(id)).isEqualTo("REQUESTED");
+        payout(asAdmin, approved(money("100.00"))).andExpect(status().isOk());
     }
 }

@@ -1,8 +1,15 @@
 package ph.thecoffeejunkie.crm.sales;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import ph.thecoffeejunkie.crm.inventory.Inventory;
+import ph.thecoffeejunkie.crm.notifications.NotificationType;
+import ph.thecoffeejunkie.crm.notifications.Notifications;
+import ph.thecoffeejunkie.crm.shared.DocumentCounters;
+import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.approvals.ApprovalResponse;
 import ph.thecoffeejunkie.crm.approvals.ApprovalType;
 import ph.thecoffeejunkie.crm.approvals.Approvals;
@@ -20,6 +27,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,9 +51,18 @@ class RefundService {
     private final Users users;
     private final StorageService storage;
     private final JdbcTemplate jdbc;
+    private final Inventory inventory;
+    private final DocumentCounters counters;
+    private final Notifications notifications;
+    private final ApplicationEventPublisher events;
 
     RefundService(RefundRepository repo, OrderAccess access, Approvals approvals, AuditLog audit, Users users,
-                  StorageService storage, JdbcTemplate jdbc) {
+                  StorageService storage, JdbcTemplate jdbc, Inventory inventory, DocumentCounters counters,
+                  Notifications notifications, ApplicationEventPublisher events) {
+        this.inventory = inventory;
+        this.counters = counters;
+        this.notifications = notifications;
+        this.events = events;
         this.repo = repo;
         this.access = access;
         this.approvals = approvals;
@@ -69,7 +86,7 @@ class RefundService {
         } else {
             r.amount = amountOf(req);
         }
-        requireWithinRefundable(o, r.amount);
+        requireWithinRefundable(o, r.amount, repo.openAmount(o.id));
         r.status = s.isAdmin() ? RefundStatus.APPROVED : RefundStatus.REQUESTED;
         repo.saveAndFlush(r);
         Map<String, Object> value = Map.of("amount", r.amount, "orderNumber", o.number);
@@ -118,6 +135,64 @@ class RefundService {
         repo.saveAndFlush(r);
         audit.record(AuditAction.REFUND_CANCELLED, OrderService.ENTITY, o.id,
                 "Cancelled the " + r.amount.toPlainString() + " refund", null);
+        return toResponse(r, o);
+    }
+
+    /**
+     * Pays an APPROVED refund out: issues the credit memo number, counts the money as refunded and brings returned
+     * goods back into the chosen warehouses, all in one transaction under the order lock. The guards run again
+     * against what has actually been paid, since other refunds may have been paid since this one was approved.
+     */
+    @Transactional
+    RefundResponse payout(Scope s, long refundId, RefundPayoutRequest req, MultipartFile proof) {
+        Refund found = repo.findById(refundId).orElseThrow(RefundService::notFound);
+        SalesOrder o = access.findVisibleForUpdate(found.orderId, s);
+        Refund r = repo.findByIdForUpdate(refundId).orElseThrow(RefundService::notFound);
+        if (r.version != req.version()) {
+            throw new DomainException(ErrorCode.STALE_VERSION, "This refund was changed by someone else. Reload.");
+        }
+        if (r.status != RefundStatus.APPROVED) {
+            throw new DomainException(ErrorCode.INVALID_STATE,
+                    "Can't pay out a " + r.status.name().toLowerCase() + " refund");
+        }
+        // Other open refunds are checked at their own payout, so only money already paid out counts here.
+        requireWithinRefundable(o, r.amount, BigDecimal.ZERO);
+        // This refund's own lines are inside "returned", so the room left must not be negative.
+        Map<Key, BigDecimal> room = new LinkedHashMap<>();
+        returnable(o.id).forEach(t -> room.put(new Key(t.orderLineId(), t.warehouseId()),
+                t.shipped().subtract(t.returned())));
+        for (RefundLine l : r.lines) {
+            BigDecimal left = room.getOrDefault(new Key(l.orderLineId, l.warehouseId), BigDecimal.ZERO);
+            if (left.signum() < 0) {
+                throw new DomainException(ErrorCode.OVERPAYMENT, "Can't return more than was shipped from that warehouse.",
+                        Map.of("returnable", left.add(l.qty).max(BigDecimal.ZERO)));
+            }
+        }
+        r.method = req.method();
+        r.reference = req.reference();
+        r.paidOn = req.paidOn();
+        r.proofKey = proof == null || proof.isEmpty() ? null
+                : storage.store("refunds/proof", proof, StorageService.PROOF_TYPES);
+        r.paidBy = s.userId();
+        r.paidAt = Instant.now();
+        r.creditMemoNo = "CM-%05d".formatted(counters.next("CREDIT_MEMO"));
+        r.status = RefundStatus.PAID;
+        r.updatedAt = r.paidAt;
+        o.refundedAmount = o.refundedAmount.add(r.amount);
+        o.updatedAt = r.paidAt;
+        repo.saveAndFlush(r);
+        for (RefundLine l : r.lines) {
+            long productId = o.lines.stream().filter(ol -> ol.id.equals(l.orderLineId)).findFirst().orElseThrow().productId;
+            inventory.receiveReturn(l.warehouseId, productId, l.qty, l.disposition == RefundDisposition.DAMAGED,
+                    r.creditMemoNo, r.id);
+        }
+        audit.record(AuditAction.REFUND_PAID, OrderService.ENTITY, o.id, "Paid the " + r.amount.toPlainString()
+                + " refund (" + r.creditMemoNo + ")", null);
+        Set<Long> recipients = new HashSet<>(users.activeIdsWithRole(Role.ADMIN));
+        recipients.add(OrderStockMapper.rep(o));
+        notifications.toUsers(recipients, NotificationType.REFUND_PAID, OrderService.ENTITY, o.id, "Refund paid",
+                "Refund ₱%s paid on %s (%s)".formatted(r.amount.toPlainString(), o.number, r.creditMemoNo));
+        events.publishEvent(new RefundPaid(o.id, r.id, o.repId, r.amount, r.paidAt));
         return toResponse(r, o);
     }
 
@@ -198,8 +273,8 @@ class RefundService {
         r.amount = total;
     }
 
-    private void requireWithinRefundable(SalesOrder o, BigDecimal amount) {
-        BigDecimal refundable = o.settledAmount.subtract(o.refundedAmount).subtract(repo.openAmount(o.id));
+    private void requireWithinRefundable(SalesOrder o, BigDecimal amount, BigDecimal open) {
+        BigDecimal refundable = o.settledAmount.subtract(o.refundedAmount).subtract(open);
         if (amount.compareTo(refundable) > 0) {
             throw new DomainException(ErrorCode.OVERPAYMENT, "That is more than can still be refunded ("
                     + refundable.max(BigDecimal.ZERO).toPlainString() + ").",

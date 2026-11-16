@@ -2,6 +2,10 @@ package ph.thecoffeejunkie.crm.sales;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,6 +45,14 @@ class RefundController {
     @ResponseStatus(HttpStatus.CREATED)
     RefundResponse request(@PathVariable long id, @Valid @RequestBody RefundRequest req) {
         return refunds.request(actor.scope(), id, req);
+    }
+
+    @PostMapping(value = "/api/refunds/{id}/payout", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@salesPermissions.canWrite()")
+    RefundResponse payout(@PathVariable long id, @RequestHeader("Idempotency-Key") String key,
+                          @Valid @RequestPart("payout") RefundPayoutRequest req,
+                          @RequestPart(value = "proof", required = false) MultipartFile proof) {
+        return refunds.payout(actor.scope(), id, req, proof);
     }
 
     @PostMapping("/api/refunds/{id}/cancel")

@@ -3533,6 +3533,27 @@
         "required" : [ "disposition", "qty" ],
         "type" : "object"
       },
+      "RefundPayoutRequest" : {
+        "properties" : {
+          "method" : {
+            "enum" : [ "CASH", "BANK_TRANSFER", "CHECK", "GCASH", "CARD", "OTHER" ],
+            "type" : "string"
+          },
+          "paidOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "reference" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "method", "paidOn" ],
+        "type" : "object"
+      },
       "RefundRequest" : {
         "properties" : {
           "amount" : {
@@ -9288,6 +9309,59 @@
             }
           },
           "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RefundResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "refund-controller" ]
+      }
+    },
+    "/api/refunds/{id}/payout" : {
+      "post" : {
+        "operationId" : "payout",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "payout" : {
+                    "$ref" : "#/components/schemas/RefundPayoutRequest"
+                  },
+                  "proof" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "payout" ],
+                "type" : "object"
+              }
+            }
+          }
         },
         "responses" : {
           "200" : {
