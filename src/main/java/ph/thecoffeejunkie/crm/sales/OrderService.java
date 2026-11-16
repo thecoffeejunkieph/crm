@@ -209,6 +209,7 @@ class OrderService {
         if (o.status == OrderStatus.QUOTED) {
             changes.field("status", o.status, OrderStatus.DRAFT);
             o.status = OrderStatus.DRAFT;
+            events.publishEvent(new QuoteClosed(o.id, "revised"));
         }
         o.customerAcceptedAt = null;
         o.updatedAt = Instant.now();
@@ -271,6 +272,7 @@ class OrderService {
         revisions.save(r);
         changes.field("revision", o.revision, o.revision + 1);
         o.revision += 1;
+        events.publishEvent(new QuoteClosed(o.id, "revised"));
         if (released) {
             changes.field("status", o.status, OrderStatus.CONFIRMED);
             o.status = OrderStatus.CONFIRMED;
@@ -501,6 +503,7 @@ class OrderService {
         o.cancelledAt = Instant.now();
         o.cancelReason = reason;
         save(o, o.cancelledAt);
+        events.publishEvent(new QuoteClosed(o.id, "cancelled"));
         audit.record(AuditAction.CANCELLED, ENTITY, id, "Cancelled order " + o.number + ": " + reason, null);
         return toResponse(o, s);
     }
@@ -533,6 +536,7 @@ class OrderService {
     }
 
     private void markConfirmed(SalesOrder o) {
+        boolean wasQuoted = o.status == OrderStatus.QUOTED;
         // Credit is the customer's rep at confirm; never changed afterwards (spec 2026-11-05).
         o.repId = customers.salesProfile(o.customerId).assignedRepId();
         snapshotCosts(o);
@@ -542,6 +546,9 @@ class OrderService {
         repo.saveAndFlush(o);
         // Every confirm path (staff, portal acceptance, approvals decided) passes here; a revision does not.
         events.publishEvent(new OrderConfirmed(o.id, o.customerId));
+        if (wasQuoted) { // a portal acceptance publishes "accepted" itself
+            events.publishEvent(new QuoteClosed(o.id, o.customerAcceptedAt != null ? "accepted" : "confirmed"));
+        }
     }
 
     /** Fills unit cost on lines that have none yet: at confirm, and for lines a revision adds. */

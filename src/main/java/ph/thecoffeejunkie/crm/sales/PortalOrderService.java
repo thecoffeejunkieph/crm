@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -55,12 +56,15 @@ class PortalOrderService {
     private final Users users;
     private final RefundRepository refunds;
     private final CreditMemoDocument creditMemo;
+    private final ApplicationEventPublisher events;
 
     PortalOrderService(SalesOrderRepository repo, OrderService orders, PaymentService payments,
                        PaymentRepository paymentRepo, InvoiceRepository invoices, InvoiceDocument invoiceDocument,
                        QuoteDocument quoteDocument, Approvals approvals, Notifications notifications, AuditLog audit,
                        CurrentActor actor, Clock clock, Fulfilment fulfilment, Users users,
-                       RefundRepository refunds, CreditMemoDocument creditMemo) {
+                       RefundRepository refunds, CreditMemoDocument creditMemo,
+                       ApplicationEventPublisher events) {
+        this.events = events;
         this.refunds = refunds;
         this.creditMemo = creditMemo;
         this.users = users;
@@ -118,6 +122,7 @@ class PortalOrderService {
         repo.saveAndFlush(o);
         audit.record(AuditAction.QUOTE_ACCEPTED, OrderService.ENTITY, id, "Customer accepted quote " + o.number, null);
         List<RequiredApproval> missing = orders.confirmAsSystem(id);
+        events.publishEvent(new QuoteClosed(id, "accepted")); // the customer answered, even if approvals are pending
         long rep = rep(o);
         for (RequiredApproval r : missing) {
             approvals.requestOnBehalf(new CreateApprovalRequest(r.type(), r.subjectType(), r.subjectId(),
@@ -142,6 +147,7 @@ class PortalOrderService {
         String reason = req.reason() == null || req.reason().isBlank() ? "no reason given" : req.reason().trim();
         audit.record(AuditAction.QUOTE_DECLINED, OrderService.ENTITY, id,
                 "Customer declined quote " + o.number + ": " + reason, null);
+        events.publishEvent(new QuoteClosed(id, "declined"));
         List<Long> told = new ArrayList<>(users.activeIdsWithRole(Role.ADMIN));
         told.add(rep(o));
         notifications.toUsers(told, NotificationType.QUOTE_DECLINED, OrderService.ENTITY, id,
