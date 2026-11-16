@@ -34,4 +34,20 @@ final class FollowUpDay {
             }
         }
     }
+
+    /** Which follow-ups a list shows: everything, hand-made ones (no rule) or engine-made ones. */
+    enum Source {
+        ALL, MANUAL, AUTO;
+
+        static Source parse(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return ALL;
+            }
+            try {
+                return valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new DomainException(ErrorCode.VALIDATION_FAILED, "Unknown source: " + raw);
+            }
+        }
+    }
 }

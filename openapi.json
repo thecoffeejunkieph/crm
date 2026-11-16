@@ -1081,6 +1081,9 @@
           "assigneeName" : {
             "type" : "string"
           },
+          "closedReason" : {
+            "type" : "string"
+          },
           "customerId" : {
             "format" : "int64",
             "type" : "integer"
@@ -1108,6 +1111,10 @@
             "type" : "integer"
           },
           "orderNumber" : {
+            "type" : "string"
+          },
+          "rule" : {
+            "enum" : [ "RESTOCK", "WIN_BACK", "QUOTE_CHASE", "QUOTE_EXPIRING", "QUOTE_DECLINED", "FIRST_ORDER", "PAYMENT_OVERDUE", "DEAL_STALLED" ],
             "type" : "string"
           },
           "title" : {
@@ -2003,7 +2010,7 @@
             "type" : "string"
           },
           "type" : {
-            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND", "FOLLOW_UPS_DUE", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "LOW_STOCK", "OUT_OF_STOCK", "ORDER_SHORT", "ORDER_RELEASED", "ORDER_DELIVERED", "RELEASED_ORDER_CHANGED", "TARGET_MILESTONE", "REFUND_PAID" ],
+            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND", "FOLLOW_UPS_DUE", "FOLLOW_UP_OVERDUE", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "LOW_STOCK", "OUT_OF_STOCK", "ORDER_SHORT", "ORDER_RELEASED", "ORDER_DELIVERED", "RELEASED_ORDER_CHANGED", "TARGET_MILESTONE", "REFUND_PAID" ],
             "type" : "string"
           }
         },
@@ -6485,6 +6492,13 @@
           "schema" : {
             "format" : "int64",
             "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "source",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
           }
         }, {
           "in" : "query",

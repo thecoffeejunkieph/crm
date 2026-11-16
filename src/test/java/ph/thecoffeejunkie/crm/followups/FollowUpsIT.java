@@ -126,6 +126,44 @@ class FollowUpsIT {
                 .andExpect(jsonPath("$.content[*].id", contains(java.util.Arrays.stream(ids).map(Long::intValue).toArray())));
     }
 
+    private long autoRow() {
+        long id = f.followUp(acme, null, rep, "auto", f.today, null);
+        jdbc.update("update follow_up set rule = 'WIN_BACK', closed_reason = 'Customer reordered' where id = ?", id);
+        return id;
+    }
+
+    private void expectSource(String source, Long... ids) throws Exception {
+        mvc.perform(get("/api/follow-ups").param("source", source).with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].id", contains(java.util.Arrays.stream(ids).map(Long::intValue).toArray())));
+    }
+
+    @Test
+    void sourceAutoListsOnlyAutoRows() throws Exception {
+        f.followUp(acme, null, rep, "manual", f.today, null);
+        expectSource("auto", autoRow());
+    }
+
+    @Test
+    void sourceManual() throws Exception {
+        long manual = f.followUp(acme, null, rep, "manual", f.today, null);
+        autoRow();
+        expectSource("manual", manual);
+    }
+
+    @Test
+    void unknownSource400() throws Exception {
+        mvc.perform(get("/api/follow-ups").param("source", "robot").with(asRep)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void responseCarriesRuleAndClosedReason() throws Exception {
+        autoRow();
+        mvc.perform(get("/api/follow-ups").with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].rule").value("WIN_BACK"))
+                .andExpect(jsonPath("$.content[0].closedReason").value("Customer reordered"));
+    }
+
     @Test
     void repSeesOnlyOwn() throws Exception {
         f.followUp(acme, null, rep, "mine", f.today, null);

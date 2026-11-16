@@ -160,10 +160,10 @@ class FollowUpService {
 
     @Transactional(readOnly = true)
     PageResponse<FollowUpResponse> list(Scope s, FollowUpDay.Bucket bucket, Long customerId, Long orderId,
-                                        Long assigneeId, int page, int size) {
+                                        Long assigneeId, FollowUpDay.Source source, int page, int size) {
         LocalDate today = FollowUpDay.today(clock);
         Specification<FollowUp> spec = visibleTo(s, assigneeId).and(inBucket(bucket, today))
-                .and(eq("customerId", customerId)).and(eq("orderId", orderId));
+                .and(eq("customerId", customerId)).and(eq("orderId", orderId)).and(bySource(source));
         Sort sort = bucket == FollowUpDay.Bucket.DONE ? Sort.by(Sort.Order.desc("doneAt"), Sort.Order.desc("id"))
                 : Sort.by("dueDate", "id");
         Page<FollowUp> rows = repo.findAll(spec, PageRequest.of(page - 1, size, sort));
@@ -216,6 +216,14 @@ class FollowUpService {
         };
     }
 
+    private static Specification<FollowUp> bySource(FollowUpDay.Source source) {
+        return (r, q, cb) -> switch (source) {
+            case ALL -> null;
+            case MANUAL -> cb.isNull(r.get("rule"));
+            case AUTO -> cb.isNotNull(r.get("rule"));
+        };
+    }
+
     private static Specification<FollowUp> eq(String field, Object value) {
         return (r, q, cb) -> value == null ? null : cb.equal(r.get(field), value);
     }
@@ -227,6 +235,6 @@ class FollowUpService {
                 .distinct().toList());
         return rows.stream().map(f -> new FollowUpResponse(f.id, f.customerId, names.get(f.customerId), f.orderId,
                 f.orderId == null ? null : orders.get(f.orderId), f.assigneeId, people.get(f.assigneeId), f.title, f.note,
-                f.dueDate, f.doneAt, f.version)).toList();
+                f.dueDate, f.doneAt, f.version, f.rule, f.closedReason)).toList();
     }
 }
