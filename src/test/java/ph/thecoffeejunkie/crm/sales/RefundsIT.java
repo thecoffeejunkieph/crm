@@ -331,4 +331,23 @@ class RefundsIT {
         assertThat(refundStatus(id)).isEqualTo("REQUESTED");
         payout(asAdmin, approved(money("100.00"))).andExpect(status().isOk());
     }
+
+    @Test
+    void payoutRetryWithSameKeyReplays() throws Exception {
+        long id = approved(money("100.00"));
+        String key = UUID.randomUUID().toString();
+        String json = "{\"method\":\"CASH\",\"paidOn\":\"" + java.time.LocalDate.now() + "\",\"version\":"
+                + jdbc.queryForObject("select version from refund where id = ?", Long.class, id) + "}";
+        String[] memos = new String[2];
+        for (int i = 0; i < 2; i++) {
+            memos[i] = com.jayway.jsonpath.JsonPath.read(SalesFixture.body(mvc.perform(
+                    multipart("/api/refunds/" + id + "/payout")
+                            .file(new MockMultipartFile("payout", "", "application/json", json.getBytes()))
+                            .header("Idempotency-Key", key).with(csrf(mvc)).with(asAdmin))
+                    .andExpect(status().isOk())), "$.creditMemoNo");
+        }
+        assertThat(memos[1]).isEqualTo(memos[0]);
+        assertThat(jdbc.queryForObject("select refunded_amount from sales_order where id = ?", BigDecimal.class, order))
+                .isEqualByComparingTo("100.00");
+    }
 }
