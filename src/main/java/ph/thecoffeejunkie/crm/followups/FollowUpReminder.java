@@ -9,8 +9,10 @@ import ph.thecoffeejunkie.crm.notifications.Notifications;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * One bell per assignee at 08:00 Manila with what is due today or overdue. The day's marker row is inserted in the
@@ -18,6 +20,8 @@ import java.util.List;
  */
 @Component
 class FollowUpReminder {
+
+    private static final DateTimeFormatter DUE = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
 
     private final FollowUpQueries queries;
     private final Notifications notifications;
@@ -46,6 +50,14 @@ class FollowUpReminder {
                         "Follow-ups due", body(d.dueToday(), d.overdue()));
                 n++;
             }
+            var overdue = queries.unnotifiedOverdue(today);
+            for (var o : overdue) {
+                if (!o.dueDate().isBefore(today.minusDays(7))) { // older rows are only marked: rollout guard, no flood
+                    notifications.toUser(o.assigneeId(), NotificationType.FOLLOW_UP_OVERDUE, "CUSTOMER", o.customerId(),
+                            "Overdue: " + o.title(), "Due " + o.dueDate().format(DUE) + " · " + o.customerName());
+                }
+            }
+            queries.markOverdueNotified(overdue.stream().map(FollowUpQueries.Overdue::id).toList());
             return n;
         });
         return sent == null ? 0 : sent;
