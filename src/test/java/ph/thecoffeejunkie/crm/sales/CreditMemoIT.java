@@ -89,8 +89,45 @@ class CreditMemoIT {
         long id = paid("112.00");
         byte[] pdf = mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
-        assertThat(PdfText.of(pdf)).contains("CREDIT MEMO", "CM-", invoiceNo, "PHP 112.00", "VATable Sales", "PHP 100.00",
+        String cm = jdbc.queryForObject("select credit_memo_no from refund where id = ?", String.class, id);
+        assertThat(PdfText.of(pdf)).contains("CREDIT MEMO", cm, invoiceNo, "PHP 112.00", "VATable Sales", "PHP 100.00",
                 "PHP 12.00", "Damaged in transit", "123-456-789-000");
+    }
+
+    @Test
+    void goodsReturnMemoTotalEqualsRefundAmount() throws Exception {
+        // A 100.00 whole-order discount makes netTotal/qty non-terminating (10 lines' worth over 3 units).
+        long o2 = SalesFixture.id(mvc.perform(f.json(post("/api/orders"), "{\"customerId\":" + customer
+                + ",\"discountType\":\"AMOUNT\",\"discountValue\":100,\"lines\":[" + line(product, "3") + "]}")
+                .with(asAdmin)).andExpect(status().isOk()));
+        f.setStatus(o2, "CONFIRMED");
+        jdbc.update("update sales_order set settled_amount = total where id = ?", o2);
+        mvc.perform(f.json(post("/api/orders/" + o2 + "/invoice"), "{\"version\":" + f.version(o2) + "}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
+        long wh = f.defaultWarehouse();
+        long ol = jdbc.queryForObject("select id from order_line where order_id = ?", Long.class, o2);
+        long d = jdbc.queryForObject("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, "
+                + "dispatched_at, customer_name, order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', 'DISPATCHED', "
+                + "now(), 'c', 'n', ?) returning id", Long.class, f.tag + "DOX", o2, wh, rep);
+        jdbc.update("insert into delivery_order_line (delivery_order_id, order_line_id, product_id, qty, picked_qty, "
+                + "description, unit) values (?, ?, ?, 3, 3, 'd', 'PC')", d, ol, product);
+        f.setStatus(o2, "RELEASED");
+        long id = SalesFixture.id(mvc.perform(f.json(post("/api/orders/" + o2 + "/refunds"),
+                        "{\"kind\":\"GOODS_RETURN\",\"reason\":\"Wrong item\",\"lines\":[{\"orderLineId\":" + ol
+                        + ",\"warehouseId\":" + wh + ",\"qty\":1,\"disposition\":\"RESTOCK\"}]}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isCreated()));
+        long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, id);
+        String json = "{\"method\":\"CASH\",\"paidOn\":\"" + java.time.LocalDate.now() + "\",\"version\":" + version + "}";
+        mvc.perform(multipart("/api/refunds/" + id + "/payout")
+                .file(new MockMultipartFile("payout", "", "application/json", json.getBytes()))
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(asAdmin))
+                .andExpect(status().isOk());
+        java.math.BigDecimal amount = jdbc.queryForObject("select amount from refund where id = ?",
+                java.math.BigDecimal.class, id);
+        String cm = jdbc.queryForObject("select credit_memo_no from refund where id = ?", String.class, id);
+        String text = PdfText.of(mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        assertThat(text).contains(cm, "Product A", "PHP " + String.format("%,.2f", amount));
     }
 
     @Test

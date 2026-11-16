@@ -2,7 +2,7 @@ package ph.thecoffeejunkie.crm.sales;
 
 import org.springframework.stereotype.Component;
 import ph.thecoffeejunkie.crm.catalog.TaxClass;
-import ph.thecoffeejunkie.crm.customers.Customers;
+import ph.thecoffeejunkie.crm.customers.TaxTreatment;
 import ph.thecoffeejunkie.crm.settings.Settings;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
@@ -24,10 +24,8 @@ class CreditMemoDocument {
     private final PdfRenderer pdf;
     private final Settings settings;
     private final InvoiceRepository invoices;
-    private final Customers customers;
 
-    CreditMemoDocument(PdfRenderer pdf, Settings settings, InvoiceRepository invoices, Customers customers) {
-        this.customers = customers;
+    CreditMemoDocument(PdfRenderer pdf, Settings settings, InvoiceRepository invoices) {
         this.pdf = pdf;
         this.settings = settings;
         this.invoices = invoices;
@@ -50,10 +48,10 @@ class CreditMemoDocument {
         if (r.kind == RefundKind.GOODS_RETURN) {
             for (RefundLine l : r.lines) {
                 OrderLine ol = o.lines.stream().filter(x -> x.id.equals(l.orderLineId)).findFirst().orElseThrow();
-                BigDecimal unit = (ol.netTotal != null ? ol.netTotal : ol.lineTotal).divide(ol.qty, 6, RoundingMode.HALF_UP);
-                taxed.add(new OrderTotals.Line(l.qty, unit, BigDecimal.ZERO, ol.taxClass));
+                taxed.add(new OrderTotals.Line(BigDecimal.ONE, l.amount, BigDecimal.ZERO, ol.taxClass));
+                BigDecimal unit = l.amount.divide(l.qty, 2, RoundingMode.HALF_UP);
                 rows.add(vars("description", ol.description, "qty", l.qty.stripTrailingZeros().toPlainString(),
-                        "unit", ol.unit, "unitPrice", unit.setScale(2, RoundingMode.HALF_UP), "lineTotal", l.amount));
+                        "unit", ol.unit, "unitPrice", unit, "lineTotal", l.amount));
             }
         } else {
             TaxClass tc = o.lines.stream().anyMatch(l -> l.taxClass == TaxClass.VATABLE) ? TaxClass.VATABLE
@@ -62,7 +60,7 @@ class CreditMemoDocument {
             rows.add(vars("description", "Adjustment — " + r.reason, "qty", "1", "unit", "",
                     "unitPrice", r.amount, "lineTotal", r.amount));
         }
-        OrderTotals.Result t = OrderTotals.compute(taxed, BigDecimal.ZERO, customers.salesProfile(o.customerId).taxTreatment());
+        OrderTotals.Result t = OrderTotals.compute(taxed, BigDecimal.ZERO, treatment(inv));
         BigDecimal zero = BigDecimal.ZERO;
         byte[] bytes = pdf.render("credit-memo", vars(
                 "number", r.creditMemoNo,
@@ -77,5 +75,11 @@ class CreditMemoDocument {
                         "zeroRatedSales", t.zeroRatedSales(), "shippingFee", zero, "total", t.total(),
                         "discount", zero, "withholdingPct", zero, "withholding", zero, "netPayable", t.total())));
         return new PdfFile(r.creditMemoNo + ".pdf", bytes);
+    }
+
+    /** Not stored on the invoice, so read back from its frozen split: the memo follows the invoice, not the live customer. */
+    private static TaxTreatment treatment(Invoice inv) {
+        return inv.vatableSales.signum() > 0 ? TaxTreatment.REGULAR
+                : inv.zeroRatedSales.signum() > 0 ? TaxTreatment.ZERO_RATED : TaxTreatment.VAT_EXEMPT;
     }
 }
