@@ -142,4 +142,22 @@ class LedgerConsistencyIT {
         assertThat(f.reserved(p, src)).isEqualByComparingTo("2");
         assertThat(f.onHand(p, dst)).isEqualByComparingTo("5");
     }
+
+    @Test
+    void returnRestockAndDamagedKeepLedgerConsistent() {
+        f.receive(p, src, "10");
+        tx.executeWithoutResult(s -> inventory.receiveReturn(src, p, new BigDecimal("3"), false, "CM-T", 1));
+        tx.executeWithoutResult(s -> inventory.receiveReturn(src, p, new BigDecimal("2"), true, "CM-T", 1));
+
+        assertThat(f.onHand(p, src)).isEqualByComparingTo("13");
+        assertThat(jdbc.queryForObject("select sum(qty) from stock_movement where warehouse_id = ? and type = 'RETURN'",
+                BigDecimal.class, src)).isEqualByComparingTo("5");
+        assertThat(jdbc.queryForList("select a.delta from stock_adjustment a where a.warehouse_id = ? "
+                + "and a.source = 'RETURN_DAMAGED'", BigDecimal.class, src)).hasSize(1)
+                .allSatisfy(d -> assertThat(d).isEqualByComparingTo("-2"));
+        assertThat(jdbc.queryForObject("select count(*) from stock_movement where warehouse_id = ? "
+                + "and type = 'ADJUSTMENT' and qty = -2", Integer.class, src)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select sum(qty) from stock_movement where warehouse_id = ?",
+                BigDecimal.class, src)).isEqualByComparingTo(f.onHand(p, src));
+    }
 }

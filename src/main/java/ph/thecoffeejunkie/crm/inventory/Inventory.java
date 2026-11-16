@@ -231,6 +231,19 @@ public class Inventory {
         return adjustments.postSystem(warehouseId, productId, delta, source, reason, DELIVERY_ORDER, refId);
     }
 
+    /**
+     * A refund's goods come back: posts RETURN of +qty. When {@code damaged} they are then written off with a
+     * RETURN_DAMAGED system adjustment of -qty, so the net stock effect is nil but the ledger shows both steps.
+     */
+    public void receiveReturn(long warehouseId, long productId, BigDecimal qty, boolean damaged, String refNumber,
+                              long refundId) {
+        ledger.post(MovementType.RETURN, productId, warehouseId, qty, "REFUND", refundId, "Returned " + refNumber, null);
+        if (damaged) {
+            postSystemAdjustment(warehouseId, productId, qty.negate(), AdjustmentSource.RETURN_DAMAGED,
+                    "Returned damaged " + refNumber, "REFUND", refundId);
+        }
+    }
+
     /** Movements and adjustments made for a delivery order carry this ref_type. */
     private static final String DELIVERY_ORDER = "DELIVERY_ORDER";
 
