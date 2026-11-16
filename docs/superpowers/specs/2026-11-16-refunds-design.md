@@ -72,24 +72,32 @@ REQUESTED ──approve──▶ APPROVED ──record payout──▶ PAID
 
 ## 3. Money and payment status
 
-- `paidRefunds` = sum of `PAID` refunds on the order.
-- `effective total = order total − paidRefunds`; `settled = verified payments − paidRefunds`.
-  `Balances.status` is fed these, so the balance and payment status do not change on refund (a PAID order stays PAID).
-- A separate derived **refund badge** on order responses: `NONE` | `PARTIAL` (0 < paidRefunds < collected) |
-  `FULL` (paidRefunds = collected).
+- `sales_order.refunded_amount` (new, default 0) = sum of `PAID` refunds. `total` and `settled_amount` are
+  **not** touched: a refund lowers what is owed and what was kept by the same amount, so
+  `balance = total − settled` and `Balances.status` are already correct (a PAID order stays PAID).
+- Refundable = `settled_amount − refunded_amount − open refunds (REQUESTED/APPROVED)`.
+- A separate derived **refund badge** on order responses: `NONE` | `PARTIAL` (0 < refunded < settled) |
+  `FULL` (refunded = settled).
 
 ## 4. Insights, reports, dashboard
 
-- `InsightsQueries.netSales` subtracts each PAID refund's net-of-VAT amount in the month of `paid_on`.
-  Commission and target progress follow. Already-sent `TARGET_MILESTONE` notifications are not retracted.
-- Sales reports: add a **Refunds** column; totals are net of refunds.
-- Dashboard Top Products subtracts returned qty/amount; Top Customers subtracts refunded amounts.
+All money figures are cash-basis over verified payments today. A new view `money_movement` unions verified
+payments with paid refunds as negative rows (`kind` `PAYMENT` | `REFUND`, `at` = `verified_at` / `paid_at`), and
+`InsightsQueries` / `ReportQueries` read it instead of `payment`. So net sales, commission, collected, top
+customers and the per-product report split all go net of refunds in the month of payout with no per-query logic.
+Payment counts in reports count `kind = 'PAYMENT'` only. Reports' summary adds a **Refunds** total.
+
+- Already-sent `TARGET_MILESTONE` notifications are not retracted.
+- Dashboard Top Products (booked sales on order lines) subtracts `refund_line` amounts by product in the
+  payout month.
+- Refunds split over products proportionally, like payments do (report ceiling: a goods return's amount is
+  spread over all lines, not just the returned one, in the per-product **report**; Top Products is exact).
 
 ## 5. Notifications
 
 - New `NotificationType.REFUND_PAID` → order's rep and `toRole(ADMIN)` (actor self-skip as today):
   "Refund ₱{amount} paid on {orderNo} ({cmNo})", `entityType ORDER`.
-- `RESTOCK` returns re-evaluate low/out-of-stock the same way receipts do (no new alert type).
+- No stock alerts on returns (alerts fire on reservation crossings only, as today).
 
 ## 6. Credit memo
 
