@@ -244,7 +244,8 @@ class PortalOrderService {
                         l.lineTotal)).toList(),
                 TotalsResponse.of(o.totals()), o.settledAmount, o.balance(), invoice, o.customerAcceptedAt, o.version,
                 deliveryStatus(d), d == null ? null : d.deliveredAt(), o.discountAmount, o.withholdingPct, o.withholdingAmount(),
-                o.total.subtract(o.withholdingAmount()), o.refundedAmount, RefundBadge.of(o.refundedAmount, o.settledAmount));
+                o.total.subtract(o.withholdingAmount()), o.refundedAmount,
+                RefundBadge.of(o.refundedAmount, refunds.cashCollected(o.id)));
     }
 
     /** Where the delivery is; never the proof photo. */

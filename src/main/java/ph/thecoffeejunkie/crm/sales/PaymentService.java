@@ -242,10 +242,6 @@ class PaymentService {
         return repo.existsByOrderIdAndStatus(o.id, PaymentVerification.PENDING);
     }
 
-    boolean hasVerified(SalesOrder o) {
-        return repo.existsByOrderIdAndStatus(o.id, PaymentVerification.VERIFIED);
-    }
-
     Payment find(long paymentId) {
         return repo.findById(paymentId)
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Payment not found"));

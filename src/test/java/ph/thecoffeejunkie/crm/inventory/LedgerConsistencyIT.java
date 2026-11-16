@@ -146,18 +146,48 @@ class LedgerConsistencyIT {
     @Test
     void returnRestockAndDamagedKeepLedgerConsistent() {
         f.receive(p, src, "10");
-        tx.executeWithoutResult(s -> inventory.receiveReturn(src, p, new BigDecimal("3"), false, "CM-T", 1));
-        tx.executeWithoutResult(s -> inventory.receiveReturn(src, p, new BigDecimal("2"), true, "CM-T", 1));
+        tx.executeWithoutResult(s -> inventory.receiveReturns(
+                List.of(new ReturnLine(p, src, new BigDecimal("3"), false)), "CM-T", 1));
+        tx.executeWithoutResult(s -> inventory.receiveReturns(
+                List.of(new ReturnLine(p, src, new BigDecimal("2"), true)), "CM-T", 1));
 
         assertThat(f.onHand(p, src)).isEqualByComparingTo("13");
-        assertThat(jdbc.queryForObject("select sum(qty) from stock_movement where warehouse_id = ? and type = 'RETURN'",
-                BigDecimal.class, src)).isEqualByComparingTo("5");
+        assertThat(jdbc.queryForObject("select sum(qty) from stock_movement where warehouse_id = ? and type = 'RETURN' "
+                + "and ref_type = 'REFUND'", BigDecimal.class, src)).isEqualByComparingTo("5");
         assertThat(jdbc.queryForList("select a.delta from stock_adjustment a where a.warehouse_id = ? "
                 + "and a.source = 'RETURN_DAMAGED'", BigDecimal.class, src)).hasSize(1)
                 .allSatisfy(d -> assertThat(d).isEqualByComparingTo("-2"));
         assertThat(jdbc.queryForObject("select count(*) from stock_movement where warehouse_id = ? "
-                + "and type = 'ADJUSTMENT' and qty = -2", Integer.class, src)).isEqualTo(1);
+                + "and type = 'ADJUSTMENT' and qty = -2 and ref_id in (select id from stock_adjustment "
+                + "where source = 'RETURN_DAMAGED')", Integer.class, src)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select sum(qty) from stock_movement where warehouse_id = ?",
                 BigDecimal.class, src)).isEqualByComparingTo(f.onHand(p, src));
+    }
+
+    @Test
+    void damagedReturnLeavesOtherOrdersReservationsAlone() {
+        f.receive(p, src, "5");
+        // The older order is short 2; the younger holds all 5. A RETURN that allocated would fill the older one,
+        // and the write-off would then take 2 back from the younger one.
+        var older = f.order(rep, src, Instant.now().minusSeconds(3600), l(p, "2"));
+        var younger = f.order(rep, src, Instant.now(), l(p, "5"));
+        tx.executeWithoutResult(s -> inventory.reserve(younger));
+        tx.executeWithoutResult(s -> inventory.reserve(older));
+        String held = "select reserved_qty || '/' || short_qty from stock_reservation where sales_order_id = ?";
+        String olderBefore = jdbc.queryForObject(held, String.class, older.orderId());
+        String youngerBefore = jdbc.queryForObject(held, String.class, younger.orderId());
+        assertThat(olderBefore).isEqualTo("0.000/2.000");
+        assertThat(youngerBefore).isEqualTo("5.000/0.000");
+
+        tx.executeWithoutResult(s -> inventory.receiveReturns(
+                List.of(new ReturnLine(p, src, new BigDecimal("2"), true)), "CM-T", 1));
+
+        assertThat(jdbc.queryForObject(held, String.class, older.orderId())).isEqualTo(olderBefore);
+        assertThat(jdbc.queryForObject(held, String.class, younger.orderId())).isEqualTo(youngerBefore);
+        assertThat(jdbc.queryForObject("select count(*) from notification where type in "
+                + "('ORDER_RESERVED','RESERVATION_TAKEN') and entity_id in (?, ?)", Integer.class,
+                older.orderId(), younger.orderId())).isZero();
+        assertThat(f.onHand(p, src)).isEqualByComparingTo("5");
+        assertThat(f.reserved(p, src)).isEqualByComparingTo("5");
     }
 }

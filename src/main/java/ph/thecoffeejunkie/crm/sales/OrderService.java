@@ -146,10 +146,15 @@ class OrderService {
                 found.getContent().stream().map(o -> o.customerId).toList());
         Map<Long, String> repNames = users.displayNames(
                 found.getContent().stream().map(o -> o.repId).filter(Objects::nonNull).toList());
+        Map<Long, BigDecimal> cash = new HashMap<>();
+        List<Long> ids = found.getContent().stream().map(o -> o.id).toList();
+        if (!ids.isEmpty()) {
+            refunds.cashCollected(ids).forEach(row -> cash.put(((Number) row[0]).longValue(), (BigDecimal) row[1]));
+        }
         return PageResponse.of(found.map(o -> new OrderSummary(o.id, o.number, o.customerId,
                 customerNames.get(o.customerId), o.status, paymentStatus(o, today), o.total, o.balance(),
                 o.repId == null ? null : repNames.get(o.repId), o.updatedAt, o.refundedAmount,
-                RefundBadge.of(o.refundedAmount, o.settledAmount))));
+                RefundBadge.of(o.refundedAmount, cash.getOrDefault(o.id, BigDecimal.ZERO)))));
     }
 
     @Transactional(readOnly = true)
@@ -466,7 +471,8 @@ class OrderService {
     }
 
     /**
-     * Refunds happen outside the system, so verified payments block it. A PICKING delivery order is cancelled (after
+     * Collected cash must be refunded first (Refund on this order): refused while any is left to refund or a refund
+     * is still asked for or approved but unpaid. A PICKING delivery order is cancelled (after
      * dispatch: INVALID_STATE) and the reservations freed, before an active invoice is voided (not reissued).
      */
     @Transactional
@@ -477,9 +483,10 @@ class OrderService {
         String reason = req.reason().trim();
         fulfilment.lockForOrder(id); // delivery order before sales order, as deliver does; scope is checked next
         SalesOrder o = transition(s, id, req, OrderAction.CANCEL);
-        if (payments.hasVerified(o)) {
+        BigDecimal open = refunds.openAmount(o.id);
+        if (open.signum() > 0 || RefundService.refundable(refunds.cashCollected(o.id), o, open).signum() > 0) {
             throw new DomainException(ErrorCode.HAS_PAYMENTS,
-                    "This order has verified payments. Refund them outside the system first.");
+                    "Refund the collected payments first (use Refund on this order).");
         }
         fulfilment.cancelForOrder(o.id);
         inventory.release(o.id);
@@ -582,22 +589,24 @@ class OrderService {
         String repName = o.repId == null ? null : users.displayNames(List.of(o.repId)).get(o.repId);
         InvoiceSummary invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
                 .map(Invoice::toSummary).orElse(null);
+        BigDecimal cash = refunds.cashCollected(o.id);
         BigDecimal withholding = Balances.suggestedWithholding(o.totals(), o.withholdingPct, payments.withheld(o), o.balance());
         return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), o.repId, repName, o.status,
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),
                 withholding, invoice, o.quotedAt, o.customerAcceptedAt, o.confirmedAt, o.releasedAt, o.fulfilledAt,
-                o.cancelledAt, o.cancelReason, refundable(o, allowedActions(o, invoice != null, totalShort.signum() > 0, today)),
+                o.cancelledAt, o.cancelReason,
+                refundable(o, cash, allowedActions(o, invoice != null, totalShort.signum() > 0, today)),
                 OrderFingerprint.of(o), o.updatedAt, o.version, o.shipFromWarehouseId,
                 warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
                 fulfilment.forOrder(o.id).orElse(null), o.discountType, o.discountValue, o.discountAmount, o.withholdingPct,
                 o.withholdingAmount(), o.total.subtract(o.withholdingAmount()), o.refundedAmount,
-                RefundBadge.of(o.refundedAmount, o.settledAmount));
+                RefundBadge.of(o.refundedAmount, cash));
     }
 
     /** REFUND is offered to writers while money can still go back (same figure RefundService enforces). */
-    private Set<OrderAction> refundable(SalesOrder o, Set<OrderAction> actions) {
-        if (permissions.canWrite() && RefundService.refundable(o, refunds.openAmount(o.id)).signum() > 0) {
+    private Set<OrderAction> refundable(SalesOrder o, BigDecimal cash, Set<OrderAction> actions) {
+        if (permissions.canWrite() && RefundService.refundable(cash, o, refunds.openAmount(o.id)).signum() > 0) {
             actions.add(REFUND);
         }
         return actions;

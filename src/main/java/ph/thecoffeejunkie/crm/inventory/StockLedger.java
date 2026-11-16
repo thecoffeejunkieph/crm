@@ -42,6 +42,12 @@ class StockLedger {
 
     void post(MovementType type, long productId, long warehouseId, BigDecimal qty, String refType, long refId,
               String reason, Long linkedOrderId) {
+        post(type, productId, warehouseId, qty, refType, refId, reason, linkedOrderId, true);
+    }
+
+    /** {@code allocate} false: an increase stays unreserved, for stock that is written off again at once. */
+    void post(MovementType type, long productId, long warehouseId, BigDecimal qty, String refType, long refId,
+              String reason, Long linkedOrderId, boolean allocate) {
         StockLevel level = lock(productId, warehouseId);
         if (type == MovementType.ADJUSTMENT && qty.signum() < 0) {
             // A count may cut on_hand below reserved: take the excess from the youngest orders first.
@@ -62,7 +68,7 @@ class StockLedger {
         movements.save(m);
         level.onHand = level.onHand.add(qty);
         touched(level);
-        if (qty.signum() > 0) {
+        if (allocate && qty.signum() > 0) {
             allocator.allocate(productId, warehouseId, linkedOrderId);
         }
     }

@@ -23,6 +23,9 @@ CREATE TABLE refund (
   reference text, proof_key text, paid_on date,
   paid_by bigint REFERENCES app_user(id), paid_at timestamptz,
   credit_memo_no text UNIQUE,
+  -- Frozen at payout: the memo always cites this invoice and (money-only) this tax class.
+  invoice_id bigint REFERENCES invoice(id),
+  memo_tax_class text CHECK (memo_tax_class IN ('VATABLE','VAT_EXEMPT','ZERO_RATED')),
   requested_by bigint NOT NULL REFERENCES app_user(id),
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   version bigint NOT NULL DEFAULT 0);

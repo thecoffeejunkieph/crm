@@ -1,7 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
 import org.springframework.stereotype.Component;
-import ph.thecoffeejunkie.crm.catalog.TaxClass;
 import ph.thecoffeejunkie.crm.customers.TaxTreatment;
 import ph.thecoffeejunkie.crm.settings.Settings;
 import ph.thecoffeejunkie.crm.shared.DomainException;
@@ -14,10 +13,14 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static ph.thecoffeejunkie.crm.shared.PdfRenderer.vars;
 
-/** Renders a PAID refund's credit memo against the order's invoice; the seller block is that invoice's snapshot. */
+/**
+ * Renders a PAID refund's credit memo against the invoice and tax class frozen on the refund at payout, so a later
+ * void and reissue of the invoice never changes a memo already issued. The seller block is that invoice's snapshot.
+ */
 @Component
 class CreditMemoDocument {
 
@@ -36,10 +39,9 @@ class CreditMemoDocument {
         if (r.status != RefundStatus.PAID) {
             throw new DomainException(ErrorCode.NOT_FOUND, "Credit memo not found");
         }
-        Invoice inv = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
-                .or(() -> invoices.findByOrderIdOrderByIdDesc(o.id).stream().findFirst())
+        Invoice inv = Optional.ofNullable(r.invoiceId).flatMap(invoices::findById)
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND,
-                        "This order has no invoice, so no credit memo can be issued."));
+                        "This refund has no invoice, so no credit memo can be issued."));
         Map<String, Object> seller = inv.sellerSnapshot != null ? inv.sellerSnapshot : InvoiceDocument.seller(settings);
         Map<String, Object> c = inv.customerSnapshot;
 
@@ -54,9 +56,7 @@ class CreditMemoDocument {
                         "unit", ol.unit, "unitPrice", unit, "lineTotal", l.amount));
             }
         } else {
-            TaxClass tc = o.lines.stream().anyMatch(l -> l.taxClass == TaxClass.VATABLE) ? TaxClass.VATABLE
-                    : o.lines.get(0).taxClass;
-            taxed.add(new OrderTotals.Line(BigDecimal.ONE, r.amount, BigDecimal.ZERO, tc));
+            taxed.add(new OrderTotals.Line(BigDecimal.ONE, r.amount, BigDecimal.ZERO, r.memoTaxClass));
             rows.add(vars("description", "Adjustment — " + r.reason, "qty", "1", "unit", "",
                     "unitPrice", r.amount, "lineTotal", r.amount));
         }

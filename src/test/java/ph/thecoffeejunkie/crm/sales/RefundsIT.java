@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.mock.web.MockMultipartFile;
@@ -34,18 +35,20 @@ class RefundsIT {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired org.springframework.core.env.Environment env;
+    @Autowired CacheManager caches;
 
     SalesFixture f;
     long rep;
     long admin;
     long customer;
     long product;
-    long order; // 10 x 100.00 = 1000.00, fully collected
+    long order; // 10 x 100.00 = 1000.00, fully collected, invoiced
     RequestPostProcessor asRep;
     RequestPostProcessor asAdmin;
 
     @BeforeEach
     void seed() throws Exception {
+        InvoicesIT.companySettings(jdbc, caches, "The Coffee Junkie Inc.", "123-456-789-000", "Makati City");
         f = new SalesFixture(jdbc, mvc);
         rep = f.user("rep", Role.SALES);
         admin = f.user("boss", Role.ADMIN);
@@ -65,11 +68,22 @@ class RefundsIT {
                 env.getProperty("spring.flyway.user"), env.getProperty("spring.flyway.password")))
                 .update("delete from stock_movement where product_id = ?", product);
         f.cleanUp();
+        InvoicesIT.companySettings(jdbc, caches, "", "", "");
     }
 
-    /** Confirms the order and settles it in full, as a verified payment would. */
-    private void collect(long orderId) {
+    /** Confirms the order, settles it in full by a verified payment and issues its invoice. */
+    private void collect(long orderId) throws Exception {
         f.setStatus(orderId, "CONFIRMED");
+        pay(orderId, "0");
+        mvc.perform(f.json(post("/api/orders/" + orderId + "/invoice"), "{\"version\":" + f.version(orderId) + "}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
+    }
+
+    /** One VERIFIED payment settling the order in full: {@code withheld} as withholding tax, the rest in cash. */
+    private void pay(long orderId, String withheld) {
+        jdbc.update("insert into payment (order_id, status, method, cash_amount, withholding_amount, received_on, "
+                + "submitted_by_type, submitted_by_id) select id, 'VERIFIED', 'CASH', total - ?::numeric, ?::numeric, "
+                + "current_date, 'USER', ? from sales_order where id = ?", withheld, withheld, rep, orderId);
         jdbc.update("update sales_order set settled_amount = total where id = ?", orderId);
     }
 
@@ -93,8 +107,11 @@ class RefundsIT {
 
     private ResultActions payout(RequestPostProcessor who, long refundId) throws Exception {
         long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, refundId);
-        String json = "{\"method\":\"BANK_TRANSFER\",\"reference\":\"TRX-1\",\"paidOn\":\""
-                + java.time.LocalDate.now() + "\",\"version\":" + version + "}";
+        return payout(who, refundId, "{\"method\":\"BANK_TRANSFER\",\"reference\":\"TRX-1\",\"paidOn\":\""
+                + java.time.LocalDate.now() + "\",\"version\":" + version + "}");
+    }
+
+    private ResultActions payout(RequestPostProcessor who, long refundId, String json) throws Exception {
         return mvc.perform(multipart("/api/refunds/" + refundId + "/payout")
                 .file(new MockMultipartFile("payout", "", "application/json", json.getBytes()))
                 .header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(who));
@@ -309,7 +326,7 @@ class RefundsIT {
     void payoutRechecksGuards() throws Exception {
         long a = approved(money("700.00"));
         long b = approved(money("300.00"));
-        jdbc.update("update sales_order set settled_amount = 800 where id = ?", order);
+        jdbc.update("update payment set cash_amount = 800 where order_id = ?", order);
         payout(asAdmin, a).andExpect(status().isOk());
         payout(asAdmin, b).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.refundable").value(100.00));
         assertThat(refundStatus(b)).isEqualTo("APPROVED");
@@ -392,5 +409,91 @@ class RefundsIT {
         long other = f.customer("other", rep);
         mvc.perform(get("/api/portal/orders/" + order + "/refunds").with(asContact(f.contact(other, "oth", true), other)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void cannotRefundWithheldTax() throws Exception {
+        long big = f.product("B", "1000.00", null, "VATABLE");
+        long o = f.createdOrder(asRep, customer, line(big, "10"));
+        f.setStatus(o, "CONFIRMED");
+        assertThat(jdbc.queryForObject("select total from sales_order where id = ?", BigDecimal.class, o))
+                .isEqualByComparingTo("10000.00");
+        pay(o, "100.00");
+        request(asAdmin, o, money("9900.01")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.refundable").value(9900.00));
+        request(asAdmin, o, money("9900.00")).andExpect(status().isCreated());
+    }
+
+    @Test
+    void fullyRefundedOrderCanBeCancelled() throws Exception {
+        payout(asAdmin, approved(money("1000.00"))).andExpect(status().isOk());
+        f.transition(asAdmin, order, "cancel", "Customer changed mind").andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void cancelRefusedWhileCashRemains() throws Exception {
+        String message = "Refund the collected payments first (use Refund on this order).";
+        f.transition(asAdmin, order, "cancel", "Customer changed mind").andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(message));
+        payout(asAdmin, approved(money("400.00"))).andExpect(status().isOk());
+        approved(money("600.00")); // nothing left to refund, but this one is not paid out yet
+        f.transition(asAdmin, order, "cancel", "Customer changed mind").andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(message));
+        assertThat(jdbc.queryForObject("select status from sales_order where id = ?", String.class, order))
+                .isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void payoutRefusedWithoutInvoice() throws Exception {
+        long o = f.createdOrder(asRep, customer, line(product, "1"));
+        f.setStatus(o, "CONFIRMED");
+        pay(o, "0");
+        long id = SalesFixture.id(request(asAdmin, o, money("50.00")).andExpect(status().isCreated()));
+        payout(asAdmin, id).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("OVERPAYMENT"))
+                .andExpect(jsonPath("$.detail").value("Issue an invoice before paying out a refund."));
+        assertThat(refundStatus(id)).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void lastPartialReturnTakesRemainder() throws Exception {
+        // 3 x 100.00 less a 100.00 discount: 200.00 over 3 units is 66.666..., so three rounded thirds overshoot.
+        long o = SalesFixture.id(mvc.perform(f.json(post("/api/orders"), "{\"customerId\":" + customer
+                + ",\"discountType\":\"AMOUNT\",\"discountValue\":100,\"lines\":[" + line(product, "3") + "]}")
+                .with(asAdmin)).andExpect(status().isOk()));
+        collect(o);
+        dispatched(o, "3");
+        long ol = orderLine(o);
+        BigDecimal net = jdbc.queryForObject("select coalesce(net_total, line_total) from order_line where id = ?",
+                BigDecimal.class, ol);
+        BigDecimal sum = BigDecimal.ZERO;
+        for (int i = 0; i < 3; i++) {
+            long id = SalesFixture.id(request(asAdmin, o, goods(ol, f.defaultWarehouse(), "1"))
+                    .andExpect(status().isCreated()));
+            sum = sum.add(jdbc.queryForObject("select amount from refund where id = ?", BigDecimal.class, id));
+        }
+        assertThat(sum).isEqualByComparingTo(net);
+    }
+
+    @Test
+    void payoutWithStaleVersionIsRejected() throws Exception {
+        long id = approved(money("100.00"));
+        long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, id);
+        String today = java.time.LocalDate.now().toString();
+        payout(asAdmin, id, "{\"method\":\"CASH\",\"paidOn\":\"" + today + "\",\"version\":" + (version + 1) + "}")
+                .andExpect(status().isConflict());
+        payout(asAdmin, id, "{\"method\":\"CASH\",\"paidOn\":\"" + today + "\"}").andExpect(status().isBadRequest());
+        assertThat(refundStatus(id)).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void payoutWithFutureDateIsRejected() throws Exception {
+        long id = approved(money("100.00"));
+        long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, id);
+        payout(asAdmin, id, "{\"method\":\"CASH\",\"paidOn\":\"" + java.time.LocalDate.now().plusDays(2)
+                + "\",\"version\":" + version + "}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        assertThat(refundStatus(id)).isEqualTo("APPROVED");
     }
 }

@@ -5,7 +5,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import ph.thecoffeejunkie.crm.catalog.TaxClass;
 import ph.thecoffeejunkie.crm.inventory.Inventory;
+import ph.thecoffeejunkie.crm.inventory.ReturnLine;
 import ph.thecoffeejunkie.crm.notifications.NotificationType;
 import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.shared.DocumentCounters;
@@ -25,8 +27,10 @@ import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,10 +61,15 @@ class RefundService {
     private final Notifications notifications;
     private final ApplicationEventPublisher events;
     private final CreditMemoDocument creditMemo;
+    private final InvoiceRepository invoices;
+    private final Clock clock;
 
     RefundService(RefundRepository repo, OrderAccess access, Approvals approvals, AuditLog audit, Users users,
                   StorageService storage, JdbcTemplate jdbc, Inventory inventory, DocumentCounters counters,
-                  Notifications notifications, ApplicationEventPublisher events, CreditMemoDocument creditMemo) {
+                  Notifications notifications, ApplicationEventPublisher events, CreditMemoDocument creditMemo,
+                  InvoiceRepository invoices, Clock clock) {
+        this.invoices = invoices;
+        this.clock = clock;
         this.creditMemo = creditMemo;
         this.inventory = inventory;
         this.counters = counters;
@@ -158,6 +167,12 @@ class RefundService {
             throw new DomainException(ErrorCode.INVALID_STATE,
                     "Can't pay out a " + r.status.name().toLowerCase() + " refund");
         }
+        if (req.paidOn().isAfter(SalesTime.today(clock))) {
+            throw OrderService.invalid("paidOn", "The date paid can't be in the future.");
+        }
+        // The memo cites this invoice for good: a later reissue must not change a memo already handed out.
+        Invoice invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED).orElseThrow(() ->
+                new DomainException(ErrorCode.OVERPAYMENT, "Issue an invoice before paying out a refund."));
         // Other open refunds are checked at their own payout, so only money already paid out counts here.
         requireWithinRefundable(o, r.amount, BigDecimal.ZERO);
         // This refund's own lines are inside "returned", so the room left must not be negative.
@@ -179,15 +194,19 @@ class RefundService {
         r.paidBy = s.userId();
         r.paidAt = Instant.now();
         r.creditMemoNo = "CM-%05d".formatted(counters.next("CREDIT_MEMO"));
+        r.invoiceId = invoice.id;
+        r.memoTaxClass = r.kind == RefundKind.GOODS_RETURN ? null
+                : o.lines.stream().anyMatch(l -> l.taxClass == TaxClass.VATABLE) ? TaxClass.VATABLE
+                : o.lines.get(0).taxClass;
         r.status = RefundStatus.PAID;
         r.updatedAt = r.paidAt;
         o.refundedAmount = o.refundedAmount.add(r.amount);
         o.updatedAt = r.paidAt;
         repo.saveAndFlush(r);
-        for (RefundLine l : r.lines) {
-            long productId = o.lines.stream().filter(ol -> ol.id.equals(l.orderLineId)).findFirst().orElseThrow().productId;
-            inventory.receiveReturn(l.warehouseId, productId, l.qty, l.disposition == RefundDisposition.DAMAGED,
-                    r.creditMemoNo, r.id);
+        if (!r.lines.isEmpty()) {
+            inventory.receiveReturns(r.lines.stream().map(l -> new ReturnLine(
+                    o.lines.stream().filter(ol -> ol.id.equals(l.orderLineId)).findFirst().orElseThrow().productId,
+                    l.warehouseId, l.qty, l.disposition == RefundDisposition.DAMAGED)).toList(), r.creditMemoNo, r.id);
         }
         audit.record(AuditAction.REFUND_PAID, OrderService.ENTITY, o.id, "Paid the " + r.amount.toPlainString()
                 + " refund (" + r.creditMemoNo + ")", null);
@@ -256,6 +275,10 @@ class RefundService {
         Map<Key, BigDecimal> returnable = new LinkedHashMap<>();
         returnable(o.id).forEach(t -> returnable.put(new Key(t.orderLineId(), t.warehouseId()),
                 t.shipped().subtract(t.returned())));
+        // Per order line, {qty, amount} already claimed by live refunds, plus this request's lines as they are added.
+        Map<Long, BigDecimal[]> claimed = new HashMap<>();
+        repo.claimedByLine(o.id).forEach(row -> claimed.put(((Number) row[0]).longValue(),
+                new BigDecimal[]{(BigDecimal) row[1], (BigDecimal) row[2]}));
         BigDecimal total = BigDecimal.ZERO;
         List<RefundLine> lines = new ArrayList<>();
         for (RefundLineRequest lr : req.lines()) {
@@ -273,8 +296,14 @@ class RefundService {
             l.warehouseId = lr.warehouseId();
             l.qty = lr.qty();
             l.disposition = lr.disposition();
-            l.amount = lr.qty().multiply(ol.netTotal != null ? ol.netTotal : ol.lineTotal)
-                    .divide(ol.qty, 2, RoundingMode.HALF_UP);
+            BigDecimal net = ol.netTotal != null ? ol.netTotal : ol.lineTotal;
+            BigDecimal[] c = claimed.computeIfAbsent(ol.id, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            c[0] = c[0].add(lr.qty());
+            // The return that brings the last of the line back takes what its net has left, so the returns add up
+            // to the line's net exactly instead of drifting by the rounding of each share.
+            l.amount = c[0].compareTo(ol.qty) >= 0 ? net.subtract(c[1])
+                    : lr.qty().multiply(net).divide(ol.qty, 2, RoundingMode.HALF_UP);
+            c[1] = c[1].add(l.amount);
             total = total.add(l.amount);
             lines.add(l);
         }
@@ -282,13 +311,17 @@ class RefundService {
         r.amount = total;
     }
 
-    /** What can still go back: paid in, less already refunded, less refunds asked for or approved but not yet paid. */
-    static BigDecimal refundable(SalesOrder o, BigDecimal open) {
-        return o.settledAmount.subtract(o.refundedAmount).subtract(open);
+    /**
+     * What can still go back: cash collected on verified payments ({@link RefundRepository#cashCollected(long)}; withheld
+     * tax is not cash), less already refunded, less refunds asked for or approved but not yet paid. The one rule
+     * behind request, payout, the REFUND action and cancel.
+     */
+    static BigDecimal refundable(BigDecimal cashCollected, SalesOrder o, BigDecimal open) {
+        return cashCollected.subtract(o.refundedAmount).subtract(open);
     }
 
     private void requireWithinRefundable(SalesOrder o, BigDecimal amount, BigDecimal open) {
-        BigDecimal refundable = refundable(o, open);
+        BigDecimal refundable = refundable(repo.cashCollected(o.id), o, open);
         if (amount.compareTo(refundable) > 0) {
             throw new DomainException(ErrorCode.OVERPAYMENT, "That is more than can still be refunded ("
                     + refundable.max(BigDecimal.ZERO).toPlainString() + ").",

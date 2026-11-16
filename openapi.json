@@ -3591,7 +3591,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "method", "paidOn" ],
+        "required" : [ "method", "paidOn", "version" ],
         "type" : "object"
       },
       "RefundRequest" : {

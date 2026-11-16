@@ -51,7 +51,7 @@ class CreditMemoIT {
         product = f.product("A", "112.00", null, "VATABLE");
         order = f.createdOrder(as(rep, Role.SALES), customer, line(product, "10"));
         f.setStatus(order, "CONFIRMED");
-        jdbc.update("update sales_order set settled_amount = total where id = ?", order);
+        collect(order);
         mvc.perform(f.json(post("/api/orders/" + order + "/invoice"), "{\"version\":" + f.version(order) + "}")
                 .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
         invoiceNo = jdbc.queryForObject("select number from invoice where order_id = ?", String.class, order);
@@ -65,6 +65,14 @@ class CreditMemoIT {
                 .update("delete from stock_movement where product_id = ?", product);
         f.cleanUp();
         InvoicesIT.companySettings(jdbc, caches, "", "", "");
+    }
+
+    /** Settles the order in full by one VERIFIED cash payment. */
+    private void collect(long orderId) {
+        jdbc.update("insert into payment (order_id, status, method, cash_amount, received_on, submitted_by_type, "
+                + "submitted_by_id) select id, 'VERIFIED', 'CASH', total, current_date, 'USER', ? from sales_order "
+                + "where id = ?", rep, orderId);
+        jdbc.update("update sales_order set settled_amount = total where id = ?", orderId);
     }
 
     private long approved(String amount) throws Exception {
@@ -101,7 +109,7 @@ class CreditMemoIT {
                 + ",\"discountType\":\"AMOUNT\",\"discountValue\":100,\"lines\":[" + line(product, "3") + "]}")
                 .with(asAdmin)).andExpect(status().isOk()));
         f.setStatus(o2, "CONFIRMED");
-        jdbc.update("update sales_order set settled_amount = total where id = ?", o2);
+        collect(o2);
         mvc.perform(f.json(post("/api/orders/" + o2 + "/invoice"), "{\"version\":" + f.version(o2) + "}")
                 .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
         long wh = f.defaultWarehouse();
@@ -145,5 +153,19 @@ class CreditMemoIT {
         mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin)).andExpect(status().isNotFound());
         mvc.perform(get("/api/portal/orders/" + order + "/refunds/" + id + "/credit-memo.pdf")
                 .with(asContact(f.contact(customer, "cee", true), customer))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void memoKeepsOriginalInvoiceAfterReissue() throws Exception {
+        long id = paid("112.00");
+        mvc.perform(f.json(post("/api/orders/" + order + "/invoice/reissue"),
+                        "{\"version\":" + f.version(order) + ",\"reason\":\"Wrong TIN\"}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
+        String reissued = jdbc.queryForObject("select number from invoice where order_id = ? and status = 'ISSUED'",
+                String.class, order);
+        assertThat(reissued).isNotEqualTo(invoiceNo);
+        String text = PdfText.of(mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        assertThat(text).contains(invoiceNo).doesNotContain(reissued);
     }
 }

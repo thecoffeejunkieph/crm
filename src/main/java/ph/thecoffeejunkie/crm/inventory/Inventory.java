@@ -232,16 +232,23 @@ public class Inventory {
     }
 
     /**
-     * A refund's goods come back: posts RETURN of +qty. When {@code damaged} they are then written off with a
-     * RETURN_DAMAGED system adjustment of -qty, so the net stock effect is nil but the ledger shows both steps.
+     * A refund's goods come back: posts RETURN of +qty per line. Every level is locked (sorted) first, so the
+     * write-offs' document counter is only taken once all levels are held, as in {@link #shortPicks}.
+     * A restocked line is allocated to short orders as usual. A damaged line is not allocated, then written off with
+     * a RETURN_DAMAGED system adjustment of -qty: the net stock effect is nil, the ledger shows both steps, and since
+     * reserved never rose the write-off cannot take stock back from anyone, so no reservation moves and nobody is told.
      */
-    public void receiveReturn(long warehouseId, long productId, BigDecimal qty, boolean damaged, String refNumber,
-                              long refundId) {
-        ledger.post(MovementType.RETURN, productId, warehouseId, qty, "REFUND", refundId, "Returned " + refNumber, null);
-        if (damaged) {
-            postSystemAdjustment(warehouseId, productId, qty.negate(), AdjustmentSource.RETURN_DAMAGED,
-                    "Returned damaged " + refNumber, "REFUND", refundId);
-        }
+    public void receiveReturns(List<ReturnLine> lines, String refNumber, long refundId) {
+        lockAll(lines.stream().map(l -> new Key(l.productId(), l.warehouseId())));
+        lines.stream().sorted(Comparator.comparingLong(ReturnLine::productId)
+                .thenComparingLong(ReturnLine::warehouseId)).forEach(l -> {
+            ledger.post(MovementType.RETURN, l.productId(), l.warehouseId(), l.qty(), "REFUND", refundId,
+                    "Returned " + refNumber, null, !l.damaged());
+            if (l.damaged()) {
+                postSystemAdjustment(l.warehouseId(), l.productId(), l.qty().negate(), AdjustmentSource.RETURN_DAMAGED,
+                        "Returned damaged " + refNumber, "REFUND", refundId);
+            }
+        });
     }
 
     /** Movements and adjustments made for a delivery order carry this ref_type. */

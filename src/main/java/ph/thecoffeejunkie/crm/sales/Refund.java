@@ -12,6 +12,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import ph.thecoffeejunkie.crm.catalog.TaxClass;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -43,6 +44,11 @@ class Refund {
     Long paidBy;
     Instant paidAt;
     String creditMemoNo;
+    /** The order's ISSUED invoice at payout; the memo cites it even after a reissue. */
+    Long invoiceId;
+    /** MONEY_ONLY: the tax class the memo uses, frozen at payout. GOODS_RETURN: null (each line's class). */
+    @Enumerated(EnumType.STRING)
+    TaxClass memoTaxClass;
     Long requestedBy;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();
