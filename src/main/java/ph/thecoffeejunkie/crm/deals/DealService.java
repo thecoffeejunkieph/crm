@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.deals;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -41,15 +42,17 @@ class DealService {
     private final Customers customers;
     private final Users users;
     private final AuditLog audit;
+    private final ApplicationEventPublisher events;
 
     DealService(DealRepository repo, DealOrderRepository links, Orders orders, Customers customers, Users users,
-                AuditLog audit) {
+                AuditLog audit, ApplicationEventPublisher events) {
         this.repo = repo;
         this.links = links;
         this.orders = orders;
         this.customers = customers;
         this.users = users;
         this.audit = audit;
+        this.events = events;
     }
 
     @Transactional
@@ -123,6 +126,7 @@ class DealService {
             touch(d);
             audit.record(AuditAction.DEAL_STAGE_CHANGED, ENTITY, id, "Deal \"" + d.title + "\" is now " + d.stage,
                     changes);
+            events.publishEvent(new DealStageChanged(id, d.stage));
         }
         return toResponse(d);
     }
@@ -164,6 +168,7 @@ class DealService {
         touch(d);
         audit.record(AuditAction.DEAL_WON, ENTITY, d.id, "Won deal \"" + d.title + "\"",
                 AuditChanges.diff().field("wonOrderId", null, orderId));
+        events.publishEvent(new DealStageChanged(d.id, DealStage.WON));
     }
 
     void touch(Deal d) {
