@@ -282,8 +282,13 @@ class RefundService {
         r.amount = total;
     }
 
+    /** What can still go back: paid in, less already refunded, less refunds asked for or approved but not yet paid. */
+    static BigDecimal refundable(SalesOrder o, BigDecimal open) {
+        return o.settledAmount.subtract(o.refundedAmount).subtract(open);
+    }
+
     private void requireWithinRefundable(SalesOrder o, BigDecimal amount, BigDecimal open) {
-        BigDecimal refundable = o.settledAmount.subtract(o.refundedAmount).subtract(open);
+        BigDecimal refundable = refundable(o, open);
         if (amount.compareTo(refundable) > 0) {
             throw new DomainException(ErrorCode.OVERPAYMENT, "That is more than can still be refunded ("
                     + refundable.max(BigDecimal.ZERO).toPlainString() + ").",

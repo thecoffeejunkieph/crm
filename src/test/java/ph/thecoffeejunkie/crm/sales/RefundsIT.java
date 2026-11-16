@@ -25,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
 import static ph.thecoffeejunkie.crm.sales.SalesFixture.as;
+import static ph.thecoffeejunkie.crm.sales.SalesFixture.asContact;
 import static ph.thecoffeejunkie.crm.sales.SalesFixture.line;
 
 @IntegrationTest
@@ -349,5 +350,47 @@ class RefundsIT {
         assertThat(memos[1]).isEqualTo(memos[0]);
         assertThat(jdbc.queryForObject("select refunded_amount from sales_order where id = ?", BigDecimal.class, order))
                 .isEqualByComparingTo("100.00");
+    }
+
+    private String order(RequestPostProcessor who) throws Exception {
+        return SalesFixture.body(mvc.perform(get("/api/orders/" + order).with(who)).andExpect(status().isOk()));
+    }
+
+    @Test
+    void orderShowsRefundBadge() throws Exception {
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(order(asRep), "$.refundBadge")).isEqualTo("NONE");
+        assertThat(com.jayway.jsonpath.JsonPath.<java.util.List<String>>read(order(asRep), "$.allowedActions"))
+                .contains("REFUND");
+        mvc.perform(get("/api/orders").param("q", "").with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + order + ")].refundBadge").value("NONE"));
+        payout(asAdmin, approved(money("100.00"))).andExpect(status().isOk());
+        String body = order(asRep);
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(body, "$.refundBadge")).isEqualTo("PARTIAL");
+        assertThat(com.jayway.jsonpath.JsonPath.<Number>read(body, "$.refundedAmount").doubleValue()).isEqualTo(100.0);
+        mvc.perform(get("/api/orders").with(asRep))
+                .andExpect(jsonPath("$.content[?(@.id == " + order + ")].refundBadge").value("PARTIAL"));
+        payout(asAdmin, approved(money("900.00"))).andExpect(status().isOk());
+        body = order(asRep);
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(body, "$.refundBadge")).isEqualTo("FULL");
+        assertThat(com.jayway.jsonpath.JsonPath.<java.util.List<String>>read(body, "$.allowedActions"))
+                .doesNotContain("REFUND");
+    }
+
+    @Test
+    void portalListsOnlyPaidRefunds() throws Exception {
+        long paid = approved(money("100.00"));
+        payout(asAdmin, paid).andExpect(status().isOk());
+        approved(money("50.00"));
+        var me = asContact(f.contact(customer, "cee", true), customer);
+        String body = SalesFixture.body(mvc.perform(get("/api/portal/orders/" + order + "/refunds").with(me))
+                .andExpect(status().isOk()));
+        assertThat(com.jayway.jsonpath.JsonPath.<java.util.List<Object>>read(body, "$")).hasSize(1);
+        assertThat(com.jayway.jsonpath.JsonPath.<Integer>read(body, "$[0].id")).isEqualTo((int) paid);
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(body, "$[0].creditMemoNo")).startsWith("CM-");
+        String view = SalesFixture.body(mvc.perform(get("/api/portal/orders/" + order).with(me)).andExpect(status().isOk()));
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(view, "$.refundBadge")).isEqualTo("PARTIAL");
+        long other = f.customer("other", rep);
+        mvc.perform(get("/api/portal/orders/" + order + "/refunds").with(asContact(f.contact(other, "oth", true), other)))
+                .andExpect(status().isNotFound());
     }
 }

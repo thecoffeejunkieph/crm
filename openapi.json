@@ -2144,7 +2144,7 @@
           },
           "allowedActions" : {
             "items" : {
-              "enum" : [ "EDIT", "SEND_QUOTE", "RESEND_QUOTE", "CONFIRM", "ACCEPT", "DECLINE", "REVISE", "RELEASE", "CANCEL", "ISSUE_INVOICE", "REISSUE_INVOICE", "COVER_SHORTAGE", "RECORD_PAYMENT" ],
+              "enum" : [ "EDIT", "SEND_QUOTE", "RESEND_QUOTE", "CONFIRM", "ACCEPT", "DECLINE", "REVISE", "RELEASE", "CANCEL", "ISSUE_INVOICE", "REISSUE_INVOICE", "COVER_SHORTAGE", "RECORD_PAYMENT", "REFUND" ],
               "type" : "string"
             },
             "type" : "array",
@@ -2242,6 +2242,13 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "refundBadge" : {
+            "enum" : [ "NONE", "PARTIAL", "FULL" ],
+            "type" : "string"
+          },
+          "refundedAmount" : {
+            "type" : "number"
+          },
           "releasedAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -2325,6 +2332,13 @@
           "paymentStatus" : {
             "enum" : [ "UNPAID", "PARTIAL", "PAID", "OVERDUE" ],
             "type" : "string"
+          },
+          "refundBadge" : {
+            "enum" : [ "NONE", "PARTIAL", "FULL" ],
+            "type" : "string"
+          },
+          "refundedAmount" : {
+            "type" : "number"
           },
           "repName" : {
             "type" : "string"
@@ -3096,6 +3110,13 @@
             "format" : "date",
             "type" : "string"
           },
+          "refundBadge" : {
+            "enum" : [ "NONE", "PARTIAL", "FULL" ],
+            "type" : "string"
+          },
+          "refundedAmount" : {
+            "type" : "number"
+          },
           "settled" : {
             "type" : "number"
           },
@@ -3206,6 +3227,25 @@
           }
         },
         "required" : [ "token" ],
+        "type" : "object"
+      },
+      "PortalRefundResponse" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "creditMemoNo" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "paidOn" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "ProductRequest" : {
@@ -8989,6 +9029,36 @@
                 "schema" : {
                   "format" : "byte",
                   "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/orders/{id}/refunds" : {
+      "get" : {
+        "operationId" : "refunds",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PortalRefundResponse"
+                  },
+                  "type" : "array"
                 }
               }
             },

@@ -179,6 +179,13 @@ class PortalOrderService {
     }
 
     @Transactional(readOnly = true)
+    List<PortalRefundResponse> refunds(long id) {
+        SalesOrder o = visible(contact(), id);
+        return refunds.findByOrderIdOrderByIdDesc(o.id).stream().filter(r -> r.status == RefundStatus.PAID)
+                .map(r -> new PortalRefundResponse(r.id, r.amount, r.paidOn, r.creditMemoNo)).toList();
+    }
+
+    @Transactional(readOnly = true)
     PdfFile quotePdf(long id) {
         SalesOrder o = visible(contact(), id);
         return new PdfFile(o.number + ".pdf", quoteDocument.render(o));
@@ -237,7 +244,7 @@ class PortalOrderService {
                         l.lineTotal)).toList(),
                 TotalsResponse.of(o.totals()), o.settledAmount, o.balance(), invoice, o.customerAcceptedAt, o.version,
                 deliveryStatus(d), d == null ? null : d.deliveredAt(), o.discountAmount, o.withholdingPct, o.withholdingAmount(),
-                o.total.subtract(o.withholdingAmount()));
+                o.total.subtract(o.withholdingAmount()), o.refundedAmount, RefundBadge.of(o.refundedAmount, o.settledAmount));
     }
 
     /** Where the delivery is; never the proof photo. */

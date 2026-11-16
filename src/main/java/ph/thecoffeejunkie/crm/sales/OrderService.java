@@ -59,6 +59,7 @@ import static ph.thecoffeejunkie.crm.sales.OrderAction.ACCEPT;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.COVER_SHORTAGE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.DECLINE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.ISSUE_INVOICE;
+import static ph.thecoffeejunkie.crm.sales.OrderAction.REFUND;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.REISSUE_INVOICE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.RESEND_QUOTE;
 
@@ -93,13 +94,17 @@ class OrderService {
     private final Warehouses warehouses;
     private final ApplicationEventPublisher events;
     private final Notifications notifications;
+    private final RefundRepository refunds;
+    private final SalesPermissions permissions;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
                  Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
                  PaymentService payments, OrderRevisionRepository revisions, Inventory inventory,
                  Fulfilment fulfilment, Warehouses warehouses, ApplicationEventPublisher events,
-                 Notifications notifications) {
+                 Notifications notifications, RefundRepository refunds, SalesPermissions permissions) {
+        this.refunds = refunds;
+        this.permissions = permissions;
         this.notifications = notifications;
         this.events = events;
         this.inventory = inventory;
@@ -143,7 +148,8 @@ class OrderService {
                 found.getContent().stream().map(o -> o.repId).filter(Objects::nonNull).toList());
         return PageResponse.of(found.map(o -> new OrderSummary(o.id, o.number, o.customerId,
                 customerNames.get(o.customerId), o.status, paymentStatus(o, today), o.total, o.balance(),
-                o.repId == null ? null : repNames.get(o.repId), o.updatedAt)));
+                o.repId == null ? null : repNames.get(o.repId), o.updatedAt, o.refundedAmount,
+                RefundBadge.of(o.refundedAmount, o.settledAmount))));
     }
 
     @Transactional(readOnly = true)
@@ -581,11 +587,20 @@ class OrderService {
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),
                 withholding, invoice, o.quotedAt, o.customerAcceptedAt, o.confirmedAt, o.releasedAt, o.fulfilledAt,
-                o.cancelledAt, o.cancelReason, allowedActions(o, invoice != null, totalShort.signum() > 0, today),
+                o.cancelledAt, o.cancelReason, refundable(o, allowedActions(o, invoice != null, totalShort.signum() > 0, today)),
                 OrderFingerprint.of(o), o.updatedAt, o.version, o.shipFromWarehouseId,
                 warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
                 fulfilment.forOrder(o.id).orElse(null), o.discountType, o.discountValue, o.discountAmount, o.withholdingPct,
-                o.withholdingAmount(), o.total.subtract(o.withholdingAmount()));
+                o.withholdingAmount(), o.total.subtract(o.withholdingAmount()), o.refundedAmount,
+                RefundBadge.of(o.refundedAmount, o.settledAmount));
+    }
+
+    /** REFUND is offered to writers while money can still go back (same figure RefundService enforces). */
+    private Set<OrderAction> refundable(SalesOrder o, Set<OrderAction> actions) {
+        if (permissions.canWrite() && RefundService.refundable(o, refunds.openAmount(o.id)).signum() > 0) {
+            actions.add(REFUND);
+        }
+        return actions;
     }
 
     static Set<OrderAction> allowedActions(SalesOrder o, boolean hasInvoice, boolean isShort, LocalDate today) {

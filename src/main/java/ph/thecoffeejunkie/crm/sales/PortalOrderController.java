@@ -57,6 +57,11 @@ class PortalOrderController {
         return portal.payments(id);
     }
 
+    @GetMapping("/orders/{id}/refunds")
+    List<PortalRefundResponse> refunds(@PathVariable long id) {
+        return portal.refunds(id);
+    }
+
     @PostMapping(value = "/orders/{id}/payments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     PortalPaymentResponse submitPayment(@PathVariable long id, @RequestHeader("Idempotency-Key") String key,
                                         @Valid @RequestPart("payment") PaymentRequest req,

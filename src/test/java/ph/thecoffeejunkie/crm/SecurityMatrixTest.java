@@ -70,6 +70,7 @@ class SecurityMatrixTest {
             Map.entry("POST /api/portal/orders/{id}/accept", CUSTOMER),
             Map.entry("POST /api/portal/orders/{id}/decline", CUSTOMER),
             Map.entry("GET /api/portal/orders/{id}/payments", CUSTOMER),
+            Map.entry("GET /api/portal/orders/{id}/refunds", CUSTOMER),
             Map.entry("POST /api/portal/orders/{id}/payments", CUSTOMER),
             Map.entry("PUT /api/portal/payments/{id}/form-2307", CUSTOMER),
             Map.entry("GET /api/portal/orders/{id}/quote.pdf", CUSTOMER),
