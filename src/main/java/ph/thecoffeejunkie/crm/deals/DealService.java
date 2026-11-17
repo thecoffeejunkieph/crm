@@ -2,7 +2,6 @@ package ph.thecoffeejunkie.crm.deals;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,9 @@ import ph.thecoffeejunkie.crm.sales.OrderStatus;
 import ph.thecoffeejunkie.crm.sales.Orders;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 
 /** Deals (spec 2026-11-06): a rep works deals on their own customers; an admin sees all. */
@@ -34,7 +36,16 @@ import java.util.Objects;
 class DealService {
 
     static final String ENTITY = "DEAL";
-    private static final Sort SORT = Sort.by(Sort.Order.asc("expectedClose").nullsLast(), Sort.Order.asc("id"));
+    private static final Sort SORT = Sort.by(Sort.Order.asc("expectedClose").nullsLast());
+    private static final Set<String> SORTABLE = Set.of("title", "value", "createdAt", "updatedAt");
+    // Frontend column keys: close is expectedClose; stage sorts by pipeline order, not alphabetically.
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "close", SortRequest.alias("expectedClose", java.time.LocalDate.class),
+            "stage", new SortRequest.SortExpr("case ? when 'DISCOVERY' then 0 when 'PROPOSAL' then 1 when 'NEGOTIATION' then 2 "
+                    + "when 'WON' then 3 else 4 end", Integer.class, List.of("stage")));
+    private static final Map<String, SortRequest.SortJoin<Deal>> SORT_JOINS = Map.of(
+            "customer", new SortRequest.SortJoin<>("customer", "customerId", "display_name"),
+            "rep", new SortRequest.SortJoin<>("app_user", "repId", "first_name || ' ' || last_name"));
 
     private final DealRepository repo;
     private final DealOrderRepository links;
@@ -182,14 +193,14 @@ class DealService {
     }
 
     @Transactional(readOnly = true)
-    PageResponse<DealResponse> list(Scope s, DealStage stage, String q, Long customerId, Long repId, int page,
-                                    int size) {
+    PageResponse<DealResponse> list(Scope s, DealStage stage, String q, Long customerId, Long repId, PageQuery page) {
         Specification<Deal> spec = DealScopes.visibleTo(s)
                 .and(DealScopes.matches(q, customers.idsNamed(s, q)))
                 .and(DealScopes.eq("customerId", customerId))
                 .and(DealScopes.eq("repId", s.isAdmin() ? repId : null))
                 .and(stage != null ? DealScopes.eq("stage", stage) : DealScopes.stageIn(DealStage.OPEN));
-        Page<Deal> rows = repo.findAll(spec, PageRequest.of(page - 1, size, SORT));
+        var sort = SortRequest.<Deal>of(page, SORTABLE, SORT_JOINS, SORT_EXPRS, SORT);
+        Page<Deal> rows = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         return new PageResponse<>(rows.getNumber() + 1, rows.getSize(), rows.getTotalPages(), rows.getTotalElements(),
                 toResponses(rows.getContent()));
     }

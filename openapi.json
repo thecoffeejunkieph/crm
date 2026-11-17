@@ -5981,6 +5981,13 @@
             "minimum" : 1,
             "type" : "integer"
           }
+        }, {
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -7191,6 +7198,13 @@
             "maximum" : 100,
             "minimum" : 1,
             "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
           }
         } ],
         "responses" : {

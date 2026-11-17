@@ -136,6 +136,28 @@ class CustomersIT {
     }
 
     @Test
+    void historySortsBySummaryAndRejectsUnknownKey() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long id = createdId(admin, Role.ADMIN, "hsort");
+        mvc.perform(put("/api/customers/" + id).with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON).content(json("hsort", "222", null, 0L))).andExpect(status().isOk());
+        java.util.function.Function<String, List<String>> summaries = dir -> {
+            try {
+                return JsonPath.read(mvc.perform(get("/api/customers/" + id + "/history?sort=summary," + dir)
+                        .with(authentication(as(admin, Role.ADMIN)))).andExpect(status().isOk()).andReturn().getResponse()
+                        .getContentAsString(), "$.content[*].summary");
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        };
+        List<String> asc = summaries.apply("asc");
+        assertThat(asc).hasSizeGreaterThan(1).doesNotHaveDuplicates();
+        assertThat(summaries.apply("desc")).containsExactlyElementsOf(asc.reversed());
+        mvc.perform(get("/api/customers/" + id + "/history?sort=nope,asc").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
+
+    @Test
     void staleVersionOnConcurrentEdit() throws Exception {
         long admin = user("adm", "ADMIN");
         long id = createdId(admin, Role.ADMIN, "stale");

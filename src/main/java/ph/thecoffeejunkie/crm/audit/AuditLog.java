@@ -22,7 +22,7 @@ import java.util.Set;
 @Service
 public class AuditLog {
 
-    private static final Set<String> SORTABLE = Set.of("at", "id", "action", "entityType");
+    private static final Set<String> SORTABLE = Set.of("at", "id", "action", "entityType", "summary");
     // The Actor column shows the name, else the actor type.
     private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of("actorName",
             new SortRequest.SortExpr("coalesce(?, ?)", String.class, List.of("actorName", "actorType")));
