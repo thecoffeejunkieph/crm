@@ -162,15 +162,15 @@ class AdminInsightsIT {
 
     @Test
     void topListsReturnUpToTwenty() throws Exception {
-        long o = f.order(custA, repA, "FULFILLED", "1200.00", "0.00", null);
-        for (int i = 0; i < 12; i++) {
+        long o = f.order(custA, repA, "FULFILLED", "2100.00", "0.00", null);
+        for (int i = 0; i < 21; i++) {
             f.line(o, f.product("p" + i, "10.00"), "1", "100.00", "10.00");
             long c = f.customer("c" + i, repA);
             f.payment(f.order(c, repA, "FULFILLED", "500.00", "0.00", null), "VERIFIED", "100.00", "0.00", at(q, 30));
         }
         confirmedIn(o);
-        adminView(q).andExpect(jsonPath("$.topProducts.length()").value(12))
-                .andExpect(jsonPath("$.topCustomers.length()").value(12));
+        adminView(q).andExpect(jsonPath("$.topProducts.length()").value(20))
+                .andExpect(jsonPath("$.topCustomers.length()").value(20));
     }
 
     @Test

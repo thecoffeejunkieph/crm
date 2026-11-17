@@ -103,11 +103,11 @@ class SalesInsightsIT {
 
     @Test
     void topCustomersReturnUpToTwenty() throws Exception {
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 21; i++) {
             long c = f.customer("c" + i, repA);
             f.payment(f.order(c, repA, "FULFILLED", "500.00", "0.00", null), "VERIFIED", "100.00", "0.00", at(m, 30));
         }
-        sales(repA, m).andExpect(jsonPath("$.topCustomers.length()").value(12));
+        sales(repA, m).andExpect(jsonPath("$.topCustomers.length()").value(20));
     }
 
     @Test
