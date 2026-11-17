@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.fulfilment;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
@@ -11,10 +13,13 @@ import ph.thecoffeejunkie.crm.notifications.Notifications;
 import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.HtmlMail;
 import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /** What sales calls on release, revise and cancel. The caller owns the permission check. */
@@ -22,14 +27,18 @@ import java.util.Optional;
 @Transactional
 public class Fulfilment {
 
+    private static final Logger log = LoggerFactory.getLogger(Fulfilment.class);
+
     private final DeliveryOrderRepository orders;
     private final DocumentCounters counters;
     private final AuditLog audit;
     private final Users users;
     private final Notifications notifications;
+    private final StorageService storage;
 
     Fulfilment(DeliveryOrderRepository orders, DocumentCounters counters, AuditLog audit, Users users,
-               Notifications notifications) {
+               Notifications notifications, StorageService storage) {
+        this.storage = storage;
         this.orders = orders;
         this.counters = counters;
         this.audit = audit;
@@ -102,5 +111,27 @@ public class Fulfilment {
         return orders.readBySalesOrderIdAndStatusNot(orderId, DeliveryStatus.CANCELLED)
                 .map(d -> new DeliverySummary(d.id, d.number, d.status, d.method, d.dispatchedAt, d.deliveredAt,
                         d.receiverName, DeliveryService.proofUrls(d)));
+    }
+
+    /** What the customer status mails show; a proof photo that cannot be read is left out. */
+    @Transactional(readOnly = true)
+    public Optional<DeliveryMailView> mailView(long deliveryOrderId) {
+        return orders.findById(deliveryOrderId).map(d -> {
+            List<HtmlMail.Attachment> photos = new ArrayList<>();
+            for (String key : d.proofKeys) {
+                try {
+                    // the key's extension was decided from the bytes when the photo was stored
+                    String ext = key.substring(key.lastIndexOf('.') + 1);
+                    byte[] bytes = storage.read(key);
+                    photos.add(new HtmlMail.Attachment(d.number + "-proof-" + (photos.size() + 1) + "." + ext,
+                            "jpg".equals(ext) ? "image/jpeg" : "image/" + ext, bytes));
+                } catch (RuntimeException e) {
+                    log.warn("Proof photo {} of {} left out of the mail", key, d.number, e);
+                }
+            }
+            return new DeliveryMailView(d.number, d.orderNumber, d.method, d.shipTo, d.receiverName, d.deliveredAt,
+                    d.lines.stream().map(l -> new DeliveryMailView.Line(l.description, l.qty,
+                            l.unit == null ? "" : l.unit.name())).toList(), photos);
+        });
     }
 }

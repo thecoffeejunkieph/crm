@@ -466,6 +466,36 @@ class DeliveryOrdersIT {
     }
 
     @Test
+    void mailViewCarriesLinesAndPhotos() throws Exception {
+        long id = dispatched("4");
+        deliverAll(id, "Juan", PNG, PNG).andExpect(status().isOk());
+        String number = jdbc.queryForObject("select number from delivery_order where id = ?", String.class, id);
+        assertThat(fulfilment.mailView(id)).hasValueSatisfying(v -> {
+            assertThat(v.number()).isEqualTo(number);
+            assertThat(v.receiverName()).isEqualTo("Juan");
+            assertThat(v.method()).isEqualTo(DeliveryMethod.DELIVERY);
+            assertThat(v.deliveredAt()).isNotNull();
+            assertThat(v.lines()).singleElement().satisfies(l -> assertThat(l.qty()).isEqualByComparingTo("4"));
+            assertThat(v.photos()).extracting(a -> a.filename())
+                    .containsExactly(number + "-proof-1.png", number + "-proof-2.png");
+            assertThat(v.photos()).allSatisfy(a -> {
+                assertThat(a.bytes()).isEqualTo(PNG);
+                assertThat(a.contentType()).isEqualTo("image/png");
+            });
+        });
+        assertThat(fulfilment.mailView(-1)).isEmpty();
+    }
+
+    @Test
+    void mailViewSkipsUnreadablePhoto() throws Exception {
+        long id = dispatched("4");
+        deliverAll(id, "Juan", PNG).andExpect(status().isOk());
+        jdbc.update("update delivery_order set proof_keys = array_append(proof_keys, 'delivery-orders/0/proof/missing.png') "
+                + "where id = ?", id);
+        assertThat(fulfilment.mailView(id)).hasValueSatisfying(v -> assertThat(v.photos()).hasSize(1));
+    }
+
+    @Test
     void pickupDeliversFromPicking() throws Exception {
         f.receive(p, wh, "10");
         long id = deliveryFor(reserved(rep, Instant.now(), l(p, "4")), DeliveryMethod.PICKUP);
