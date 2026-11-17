@@ -239,4 +239,31 @@ class OrdersIT {
         assertThat(sortedIds(c, "balance,asc")).containsExactly(paid, small, big);
         assertThat(sortedIds(c, "balance,desc")).containsExactly(big, small, paid);
     }
+
+    private List<Long> searchIds(String q) throws Exception {
+        String body = SalesFixture.body(mvc.perform(get("/api/orders").param("q", q).with(asAdmin))
+                .andExpect(status().isOk()));
+        return ((List<Number>) JsonPath.read(body, "$.content[*].id")).stream().map(Number::longValue).toList();
+    }
+
+    @Test
+    void searchMatchesCustomerName() throws Exception {
+        long c = f.customer("Zed Café", null);
+        long mine = f.createdOrder(asAdmin, c, line(productA, "1"));
+        f.createdOrder(asAdmin, customer, line(productA, "1"));
+        assertThat(searchIds((f.tag + "zed café").toLowerCase())).containsExactly(mine);
+    }
+
+    @Test
+    void searchStillMatchesNumber() throws Exception {
+        long id = f.createdOrder(asAdmin, customer, line(productA, "1"));
+        String number = jdbc.queryForObject("select number from sales_order where id = ?", String.class, id);
+        assertThat(searchIds(number)).containsExactly(id);
+    }
+
+    @Test
+    void searchEscapesWildcards() throws Exception {
+        f.createdOrder(asAdmin, customer, line(productA, "1"));
+        assertThat(searchIds("%")).isEmpty();
+    }
 }

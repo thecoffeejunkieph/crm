@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.sales;
 
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
+import org.hibernate.query.criteria.HibernateCriteriaBuilder;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.context.ApplicationEventPublisher;
@@ -150,8 +151,17 @@ class OrderService {
                 (r, q, cb) -> f.status() == null || f.status().isEmpty() ? null : r.get("status").in(f.status()),
                 (r, q, cb) -> f.customerId() == null ? null : cb.equal(r.get("customerId"), f.customerId()),
                 (r, q, cb) -> f.repId() == null ? null : cb.equal(r.get("repId"), f.repId()),
-                (r, q, cb) -> f.q() == null || f.q().isBlank() ? null
-                        : cb.like(cb.lower(r.get("number")), Like.contains(f.q()), '\\'),
+                (r, q, cb) -> {
+                    if (f.q() == null || f.q().isBlank()) {
+                        return null;
+                    }
+                    String pattern = Like.contains(f.q());
+                    // customer is a plain id here (no association): match its name through a correlated scalar subquery
+                    Expression<String> customerName = ((HibernateCriteriaBuilder) cb).sql(
+                            "(select lower(display_name) from customer x where x.id = ?)", String.class, r.get("customerId"));
+                    return cb.or(cb.like(cb.lower(r.get("number")), pattern, '\\'),
+                            cb.like(customerName, pattern, '\\'));
+                },
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),
                 paymentStatus(f.paymentStatus(), today));
