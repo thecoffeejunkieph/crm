@@ -430,6 +430,16 @@ class DeliveryOrdersIT {
     }
 
     @Test
+    void dispatchPublishesDeliveryDispatched() throws Exception {
+        long id = dispatched("4");
+        long orderId = jdbc.queryForObject("select sales_order_id from delivery_order where id = ?", Long.class, id);
+        assertThat(events.stream(DeliveryDispatched.class)).singleElement().satisfies(e -> {
+            assertThat(e.deliveryOrderId()).isEqualTo(id);
+            assertThat(e.salesOrderId()).isEqualTo(orderId);
+        });
+    }
+
+    @Test
     void deliverPublishesOrderDelivered() throws Exception {
         long id = dispatched("4");
         long orderId = jdbc.queryForObject("select sales_order_id from delivery_order where id = ?", Long.class, id);
@@ -439,7 +449,10 @@ class DeliveryOrdersIT {
                 .andExpect(jsonPath("$.proofUrls.length()").value(2))
                 .andExpect(jsonPath("$.proofUrls[1]").value(startsWith("/api/v1/files/delivery-orders/" + id + "/proof/")));
         assertThat(events.stream(OrderDelivered.class)).singleElement()
-                .satisfies(e -> assertThat(e.orderId()).isEqualTo(orderId));
+                .satisfies(e -> {
+                    assertThat(e.orderId()).isEqualTo(orderId);
+                    assertThat(e.deliveryOrderId()).isEqualTo(id);
+                });
         assertThat(storedProofs(id)).isEqualTo(2);
         assertThat(fulfilment.forOrder(orderId)).hasValueSatisfying(s -> {
             assertThat(s.proofUrls()).hasSize(2);

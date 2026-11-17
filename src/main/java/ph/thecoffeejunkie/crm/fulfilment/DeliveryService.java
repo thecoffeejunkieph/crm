@@ -155,6 +155,7 @@ class DeliveryService {
         d.dispatchedBy = actor.scope().userId();
         d.updatedAt = d.dispatchedAt;
         audit.record(AuditAction.DISPATCHED, ENTITY, d.id, "Dispatched delivery order " + d.number, null);
+        events.publishEvent(new DeliveryDispatched(d.id, d.salesOrderId));
         return toResponse(d);
     }
 
@@ -183,7 +184,7 @@ class DeliveryService {
         d.updatedAt = d.deliveredAt;
         audit.record(AuditAction.DELIVERED, ENTITY, d.id,
                 "Delivered " + d.number + ", received by " + d.receiverName, null);
-        events.publishEvent(new OrderDelivered(d.salesOrderId, d.deliveredAt));
+        events.publishEvent(new OrderDelivered(d.salesOrderId, d.id, d.deliveredAt));
         return toResponse(d);
     }
 
