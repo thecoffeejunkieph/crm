@@ -129,6 +129,7 @@ class CustomerStatusMails {
             vars.put("deliveredAt", WHEN.format(v.deliveredAt()));
             vars.put("lines", v.lines());
             vars.put("pickup", pickup);
+            vars.put("photosLeftOut", v.photosLeftOut());
             vars.put("link", link);
             return new Mail(recipients(o), "Order " + v.orderNumber() + (pickup ? " picked up — " : " delivered — ")
                     + mail.company(), "order-delivered", vars, v.photos());

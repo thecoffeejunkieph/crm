@@ -17,6 +17,8 @@
 <p>The proof of <span th:text="${pickup} ? 'pickup' : 'delivery'">delivery</span> is attached
   (delivery order <span th:text="${number}">DO-00000</span>). Thank you for ordering from
   <span th:text="${company}">The Coffee Junkie</span>.</p>
+<p th:if="${photosLeftOut > 0}"><span th:text="${photosLeftOut}">1</span> more photo(s) were too large to attach;
+  reply to this email if you would like a copy.</p>
 <p>See your order in the <a th:href="${link}" href="#">customer portal</a>.</p>
 </body>
 </html>

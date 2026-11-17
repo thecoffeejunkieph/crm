@@ -113,16 +113,32 @@ public class Fulfilment {
                         d.receiverName, DeliveryService.proofUrls(d)));
     }
 
-    /** What the customer status mails show; a proof photo that cannot be read is left out. */
+    /** Raw bytes of proof photos one mail may carry; base64 adds a third, staying under common 25MB SMTP limits. */
+    static final long MAIL_PHOTO_BUDGET = 15L * 1024 * 1024;
+
+    /** What the customer status mails show; a photo that cannot be read, or would pass the budget, is left out. */
     @Transactional(readOnly = true)
     public Optional<DeliveryMailView> mailView(long deliveryOrderId) {
+        return mailView(deliveryOrderId, MAIL_PHOTO_BUDGET);
+    }
+
+    // ponytail: whole photos only, no resizing; shrink them server-side if drivers' photos routinely pass the budget
+    @Transactional(readOnly = true)
+    Optional<DeliveryMailView> mailView(long deliveryOrderId, long budgetBytes) {
         return orders.findById(deliveryOrderId).map(d -> {
             List<HtmlMail.Attachment> photos = new ArrayList<>();
+            long used = 0;
+            int leftOut = 0;
             for (String key : d.proofKeys) {
                 try {
                     // the key's extension was decided from the bytes when the photo was stored
                     String ext = key.substring(key.lastIndexOf('.') + 1);
                     byte[] bytes = storage.read(key);
+                    if (used + bytes.length > budgetBytes) {
+                        leftOut++;
+                        continue;
+                    }
+                    used += bytes.length;
                     photos.add(new HtmlMail.Attachment(d.number + "-proof-" + (photos.size() + 1) + "." + ext,
                             "jpg".equals(ext) ? "image/jpeg" : "image/" + ext, bytes));
                 } catch (RuntimeException e) {
@@ -131,7 +147,7 @@ public class Fulfilment {
             }
             return new DeliveryMailView(d.number, d.orderNumber, d.method, d.shipTo, d.receiverName, d.deliveredAt,
                     d.lines.stream().map(l -> new DeliveryMailView.Line(l.description, l.qty,
-                            l.unit == null ? "" : l.unit.name())).toList(), photos);
+                            l.unit == null ? "" : l.unit.name())).toList(), photos, leftOut);
         });
     }
 }

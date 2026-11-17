@@ -487,6 +487,17 @@ class DeliveryOrdersIT {
     }
 
     @Test
+    void mailViewAttachesPhotosOnlyWithinBudget() throws Exception {
+        long id = dispatched("4");
+        deliverAll(id, "Juan", PNG, PNG, PNG).andExpect(status().isOk());
+        assertThat(fulfilment.mailView(id, PNG.length * 2L)).hasValueSatisfying(v -> {
+            assertThat(v.photos()).hasSize(2);
+            assertThat(v.photosLeftOut()).isEqualTo(1);
+        });
+        assertThat(fulfilment.mailView(id)).hasValueSatisfying(v -> assertThat(v.photosLeftOut()).isZero());
+    }
+
+    @Test
     void mailViewSkipsUnreadablePhoto() throws Exception {
         long id = dispatched("4");
         deliverAll(id, "Juan", PNG).andExpect(status().isOk());
