@@ -19,7 +19,7 @@ and "did you get my payment?" messages staff answer by hand today.
 | Audit | None. Sends are logged, not audited (status mails are a by-product of an audited action) |
 | On/off switch | None. Always on. Add an admin setting later if a need appears |
 | Pickup "ready" mail | None. A pickup goes from PICKING straight to DELIVERED, so there is no "ready" moment to report |
-| Partial deliveries | One dispatched mail and one delivered mail per delivery order |
+| Partial deliveries | Not a case: a sales order has at most one non-cancelled delivery order (`Fulfilment.forOrder`), so one dispatched and one delivered mail per order |
 | Proof photos | Attached to the delivered mail (at most `MAX_PROOF_PHOTOS`, already enforced on upload) |
 
 ## 1. Emails
@@ -68,7 +68,7 @@ does not stop the rest. Recipients always come from the sales order's `customerI
 
 **`Fulfilment.mailView(long deliveryOrderId)`** (new public, read-only) returns a new public record
 `DeliveryMailView(number, orderNumber, method, shipTo, receiverName, deliveredAt, lines[description, qty, unit], photos[filename, contentType, bytes])`.
-Photo bytes are read through `StorageService` inside fulfilment, so sales never touches storage keys.
+Photo bytes are read through a new `StorageService.read(String key): byte[]` inside fulfilment, so sales never touches storage keys.
 
 ## 4. Error handling
 
@@ -85,8 +85,7 @@ Integration tests with `@MailIntegrationTest` and `MailSupport.stub(sender)`, as
 3. Rejecting a portal-uploaded payment mails `payment-rejected` with the reason; rejecting a rep-recorded payment sends nothing.
 4. Dispatching a delivery order mails `order-dispatched`; dispatch that fails its state check sends nothing (rollback).
 5. Delivering mails `order-delivered` with the proof photo attached; a pickup uses the "picked up" subject.
-6. Two delivery orders on one sales order produce two delivered mails, each with its own photos.
-7. `deliverPublishesOrderDelivered` asserts the new `deliveryOrderId`.
+6. `deliverPublishesOrderDelivered` asserts the new `deliveryOrderId`.
 
 ## Out of scope
 
