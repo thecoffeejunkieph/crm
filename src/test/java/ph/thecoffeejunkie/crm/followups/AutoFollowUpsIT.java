@@ -268,19 +268,31 @@ class AutoFollowUpsIT {
         assertThat(row("other").get("done_at")).isNull();
     }
 
+    /** The rollout backlog must not become a flood of overdue notifications the next morning. */
     @Test
-    void closeByKeyOrPrefixClosesOnlyOpenAutoRows() {
+    void firstEverRunRowsAreMarkedNotified() {
+        long rep = f.user("rep", Role.SALES);
+        fakeRestock.candidates = List.of(cand(f.customer("a", rep), null, "1"));
+        List<LocalDate> saved = jdbc.queryForList("select day from auto_follow_up_run", LocalDate.class);
+        jdbc.update("delete from auto_follow_up_run");
+        try {
+            engine.run(newDay());
+        } finally {
+            saved.forEach(d -> jdbc.update("insert into auto_follow_up_run (day) values (?) on conflict do nothing", d));
+        }
+
+        assertThat(row("1").get("overdue_notified_at")).isNotNull();
+    }
+
+    @Test
+    void laterRunsDoNotMark() {
         long rep = f.user("rep", Role.SALES);
         long c = f.customer("a", rep);
-        fakeRestock.candidates = List.of(cand(c, null, "x:1"), cand(c, null, "x:2"), cand(c, null, "y:1"));
+        engine.run(newDay()); // whatever came before, a marker exists now
+        fakeRestock.candidates = List.of(cand(c, null, "1"));
+
         engine.run(newDay());
-        long manual = f.followUp(c, null, rep, "manual", LocalDate.now(), null);
 
-        assertThat(engine.close(key("y:1"), false, "Gone")).isEqualTo(1);
-        assertThat(engine.close(f.tag + ":x:", true, "Gone")).isEqualTo(2);
-        assertThat(engine.close(f.tag + ":x:", true, "Gone")).isZero();
-
-        assertThat(rows()).allSatisfy(r -> assertThat(r.get("closed_reason")).isEqualTo("Gone"));
-        assertThat(jdbc.queryForObject("select done_at from follow_up where id = ?", Object.class, manual)).isNull();
+        assertThat(row("1").get("overdue_notified_at")).isNull();
     }
 }

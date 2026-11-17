@@ -51,9 +51,14 @@ class AutoFollowUps {
 
     /** Returns how many follow-ups were created; 0 when today's run already happened. */
     int run(LocalDate today) {
-        Boolean first = tx.execute(s ->
-                jdbc.update("insert into auto_follow_up_run (day) values (?) on conflict do nothing", today) == 1);
-        if (!Boolean.TRUE.equals(first)) {
+        // null = today's run already happened; true = the first run ever, whose rows are the rollout backlog.
+        Boolean firstEver = tx.execute(s -> {
+            boolean none = Boolean.TRUE.equals(jdbc.queryForObject(
+                    "select not exists (select 1 from auto_follow_up_run)", Boolean.class));
+            return jdbc.update("insert into auto_follow_up_run (day) values (?) on conflict do nothing", today) == 1
+                    ? none : null;
+        });
+        if (firstEver == null) {
             return 0;
         }
         RuleSettings cfg = RuleSettings.from(settings);
@@ -63,7 +68,7 @@ class AutoFollowUps {
                 continue;
             }
             try {
-                Integer n = tx.execute(s -> create(r, today, cfg));
+                Integer n = tx.execute(s -> create(r, today, cfg, firstEver));
                 created += n == null ? 0 : n;
             } catch (RuntimeException e) {
                 log.error("Auto follow-up rule {} failed while creating", r.rule(), e);
@@ -82,21 +87,13 @@ class AutoFollowUps {
         return created;
     }
 
-    /** Closes open auto follow-ups whose key equals (or starts with) the given one; returns how many. */
-    public int close(String autoKeyPrefixOrExact, boolean prefix, String reason) {
-        String where = prefix ? "starts_with(auto_key, ?)" : "auto_key = ?";
-        Integer n = tx.execute(s -> jdbc.update("update follow_up set done_at = now(), done_by = null, closed_reason = ?, "
-                + "updated_at = now(), version = version + 1 where done_at is null and rule is not null and " + where,
-                reason, autoKeyPrefixOrExact));
-        return n == null ? 0 : n;
-    }
-
     private void closeId(long id, FollowUpRule rule, String reason) {
         jdbc.update("update follow_up set done_at = now(), done_by = null, closed_reason = ?, updated_at = now(), "
                 + "version = version + 1 where id = ? and done_at is null and rule = ?", reason, id, rule.name());
     }
 
-    private int create(AutoRule r, LocalDate today, RuleSettings cfg) {
+    /** {@code firstEver}: the rows are marked already notified, so the backlog never floods tomorrow's overdue alerts. */
+    private int create(AutoRule r, LocalDate today, RuleSettings cfg, boolean firstEver) {
         int n = 0;
         for (Candidate c : r.find(today, cfg)) {
             Long assignee = assignee(c, cfg);
@@ -105,10 +102,10 @@ class AutoFollowUps {
             }
             Timestamp now = Timestamp.from(Instant.now(clock));
             List<Long> ids = jdbc.queryForList("insert into follow_up (customer_id, order_id, assignee_id, title, note, "
-                    + "due_date, created_by, rule, auto_key, created_at, updated_at) "
-                    + "values (?, ?, ?, ?, ?, ?, null, ?, ?, ?, ?) on conflict (auto_key) do nothing returning id",
+                    + "due_date, created_by, rule, auto_key, created_at, updated_at, overdue_notified_at) "
+                    + "values (?, ?, ?, ?, ?, ?, null, ?, ?, ?, ?, ?) on conflict (auto_key) do nothing returning id",
                     Long.class, c.customerId(), c.orderId(), assignee, c.title(), c.note(), today, r.rule().name(),
-                    c.key(), now, now);
+                    c.key(), now, now, firstEver ? now : null);
             if (!ids.isEmpty()) {
                 audit.record(AuditAction.FOLLOW_UP_CREATED, FollowUpService.ENTITY, ids.getFirst(),
                         "auto: " + r.rule(), null);

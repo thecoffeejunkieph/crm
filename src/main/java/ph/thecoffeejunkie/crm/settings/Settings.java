@@ -121,8 +121,8 @@ public class Settings {
 
     // jsonb numbers come back as Integer/Double/BigDecimal, so compare numerically.
     private static boolean same(Object old, Object v) {
-        return old instanceof Number n && v instanceof BigDecimal b
-                ? new BigDecimal(n.toString()).compareTo(b) == 0 : Objects.equals(v, old);
+        return old instanceof Number n && v instanceof Number m
+                ? new BigDecimal(n.toString()).compareTo(new BigDecimal(m.toString())) == 0 : Objects.equals(v, old);
     }
 
     private Object raw(SettingKey key) {

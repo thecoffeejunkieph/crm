@@ -92,6 +92,15 @@ class WinBackRuleIT {
         assertThat(rows().getFirst().get("closed_reason")).isEqualTo(f.tag + "Acme ordered " + f.orderNumber(reorder));
     }
 
+    @Test
+    void winBackIgnoresLapsesOlderThanAYear() {
+        f.delivered(acme, rep, last);
+
+        engine.run(last.plusDays(366));
+
+        assertThat(rows()).isEmpty();
+    }
+
     @Autowired org.springframework.context.ApplicationEventPublisher events;
     @Autowired org.springframework.transaction.PlatformTransactionManager txm;
 }

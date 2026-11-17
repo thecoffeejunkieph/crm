@@ -550,7 +550,7 @@ class OrderService {
         repo.saveAndFlush(o);
         // Every confirm path (staff, portal acceptance, approvals decided) passes here; a revision does not.
         events.publishEvent(new OrderConfirmed(o.id, o.customerId));
-        if (wasQuoted) { // a portal acceptance publishes "accepted" itself
+        if (wasQuoted) { // portal acceptance already published "accepted"; a repeat closes nothing twice
             events.publishEvent(new QuoteClosed(o.id, o.customerAcceptedAt != null ? "accepted" : "confirmed"));
         }
     }

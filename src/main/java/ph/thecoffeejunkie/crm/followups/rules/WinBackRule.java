@@ -33,14 +33,14 @@ class WinBackRule implements AutoRule {
                 + "from delivery_order d join sales_order so on so.id = d.sales_order_id "
                 + "join customer c on c.id = so.customer_id where d.status = 'DELIVERED' and c.archived_at is null "
                 + "order by so.customer_id, d.delivered_at desc) x "
-                + "where dd <= ? and not exists (select 1 from sales_order o where o.customer_id = x.customer_id "
+                + "where dd <= ? and dd >= ? and not exists (select 1 from sales_order o where o.customer_id = x.customer_id "
                 + "and o.status in ('CONFIRMED', 'RELEASED'))", (rs, i) -> {
             long cid = rs.getLong(1);
             long order = rs.getLong(2);
             long n = ChronoUnit.DAYS.between(rs.getObject(5, LocalDate.class), today);
             return new Candidate(cid, null, (Long) rs.getObject(3), "WIN_BACK:customer:" + cid + ":" + order,
                     rs.getString(4) + " hasn't ordered in " + n + " days — check in", null);
-        }, java.sql.Date.valueOf(today.minusDays(s.winBackDays())));
+        }, java.sql.Date.valueOf(today.minusDays(s.winBackDays())), java.sql.Date.valueOf(today.minusDays(365)));
     }
 
     @Override public Map<Long, String> toClose(LocalDate today, RuleSettings s) {

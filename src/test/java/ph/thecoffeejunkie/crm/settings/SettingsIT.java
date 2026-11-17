@@ -120,6 +120,18 @@ class SettingsIT {
     }
 
     @Test
+    void unchangedFallbackAdminWritesNoAudit() throws Exception {
+        String body = "{\"followUps.fallbackAdminId\": " + adminId + "}";
+        mvc.perform(putJson(body)).andExpect(status().isOk());
+        int before = jdbc.queryForObject(
+                "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class);
+        mvc.perform(putJson(body)).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject(
+                "select count(*) from audit_event where action = 'SETTING_CHANGED'", Integer.class))
+                .isEqualTo(before);
+    }
+
+    @Test
     void negativeThresholdRejected() throws Exception {
         mvc.perform(putJson("{\"approval.discountPercentMax\": -1}"))
                 .andExpect(status().isBadRequest())

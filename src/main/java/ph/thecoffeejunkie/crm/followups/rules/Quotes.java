@@ -26,15 +26,21 @@ final class Quotes {
             + "where a.entity_type = 'ORDER' and a.entity_id = o.id and a.action = 'QUOTE_SENT' "
             + "order by a.at desc, a.id desc limit 1";
 
-    /** Open quote rows whose order is no longer QUOTED, or whose key is not the order's latest send. */
+    /**
+     * Open quote rows whose order is no longer QUOTED, whose key is not the order's latest send, or (chase only) whose
+     * quote the customer accepted. The key's send id is compared as text, so a malformed key can never fail the scan.
+     */
     static Map<Long, String> toClose(JdbcTemplate jdbc, FollowUpRule rule) {
+        boolean chase = rule == FollowUpRule.QUOTE_CHASE;
         Map<Long, String> out = new HashMap<>();
-        jdbc.query("select f.id, o.number, o.status = 'QUOTED' from follow_up f join sales_order o on o.id = f.order_id "
-                + "where f.rule = ? and f.done_at is null and (o.status <> 'QUOTED' or split_part(f.auto_key, ':', 5)::bigint "
-                + "is distinct from (select s.id from (" + LATEST_SENT + ") s))",
+        jdbc.query("select f.id, o.number, case when o.status <> 'QUOTED' then ' closed' "
+                + "when ? and o.customer_accepted_at is not null then ' accepted' else ' resent' end "
+                + "from follow_up f join sales_order o on o.id = f.order_id where f.rule = ? and f.done_at is null "
+                + "and (o.status <> 'QUOTED' or (? and o.customer_accepted_at is not null) "
+                + "or split_part(f.auto_key, ':', 5) is distinct from (select s.id::text from (" + LATEST_SENT + ") s))",
                 rs -> {
-                    out.put(rs.getLong(1), "Quote " + rs.getString(2) + (rs.getBoolean(3) ? " resent" : " closed"));
-                }, rule.name());
+                    out.put(rs.getLong(1), "Quote " + rs.getString(2) + rs.getString(3));
+                }, chase, rule.name(), chase);
         return out;
     }
 }

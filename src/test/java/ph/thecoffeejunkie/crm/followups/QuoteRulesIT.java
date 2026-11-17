@@ -219,4 +219,52 @@ class QuoteRulesIT {
 
         assertThat(rows("QUOTE_CHASE").getFirst().get("closed_reason")).isEqualTo("Quote " + f.orderNumber(o) + " closed");
     }
+
+    @Test
+    void expiredQuoteNotChased() {
+        long o = quoted("100", base.plusDays(2));
+        audit("QUOTE_SENT", o, base);
+
+        engine.run(base.plusDays(3));
+
+        assertThat(rows("QUOTE_CHASE")).isEmpty();
+    }
+
+    @Test
+    void acceptedButPendingApprovalNotChased() {
+        long o = quoted("100", null);
+        jdbc.update("update sales_order set customer_accepted_at = now() where id = ?", o);
+        audit("QUOTE_SENT", o, base);
+
+        engine.run(base.plusDays(3));
+
+        assertThat(rows("QUOTE_CHASE")).isEmpty();
+    }
+
+    @Test
+    void safetyNetClosesChaseOnceAccepted() {
+        long o = quoted("100", base.plusDays(20));
+        audit("QUOTE_SENT", o, base);
+        engine.run(base.plusDays(3));
+        jdbc.update("update sales_order set customer_accepted_at = now() where id = ?", o); // no event
+
+        engine.run(base.plusDays(4));
+
+        assertThat(rows("QUOTE_CHASE").getFirst().get("closed_reason")).isEqualTo("Quote " + f.orderNumber(o) + " accepted");
+    }
+
+    @Test
+    void malformedQuoteKeyNeverBreaksTheScan() {
+        long o = quoted("100", null);
+        audit("QUOTE_SENT", o, base);
+        engine.run(base.plusDays(3));
+        long odd = quoted("100", null);
+        jdbc.update("insert into follow_up (customer_id, order_id, assignee_id, title, due_date, rule, auto_key) "
+                + "values (?, ?, ?, 't', current_date, 'QUOTE_CHASE', ?)", acme, odd, rep, "QUOTE_CHASE:order:" + odd + ":bogus");
+        audit("QUOTE_SENT", o, base.plusDays(4));
+
+        engine.run(base.plusDays(5));
+
+        assertThat(rows("QUOTE_CHASE").getFirst().get("closed_reason")).isEqualTo("Quote " + f.orderNumber(o) + " resent");
+    }
 }

@@ -158,6 +158,32 @@ class RestockRuleIT {
         assertThat(rows().getFirst().get("assignee_id")).isEqualTo(other);
     }
 
+    @Test
+    void restockClosedWhenWinBackTakesOver() {
+        f.delivered(acme, rep, last);
+        engine.run(last.plusDays(15));
+        assertThat(rows()).hasSize(1);
+
+        engine.run(last.plusDays(60));
+
+        assertThat(rows().getFirst().get("closed_reason")).isEqualTo("Handed to win-back");
+        assertThat(jdbc.queryForList("select rule from follow_up where customer_id = ? and done_at is null and rule in ('RESTOCK', 'WIN_BACK')",
+                String.class, acme)).containsExactly("WIN_BACK");
+    }
+
+    @Test
+    void cancelledReorderDoesNotCloseRestock() {
+        f.delivered(acme, rep, last);
+        f.salesOrder(acme, rep, "CANCELLED", FollowUpsFixture.at(last.plusDays(5))); // confirmed, then cancelled
+        engine.run(last.plusDays(15));
+        assertThat(rows()).hasSize(1);
+        f.salesOrder(acme, rep, "CANCELLED", java.time.Instant.now());
+
+        engine.run(last.plusDays(16));
+
+        assertThat(rows().getFirst().get("done_at")).isNull();
+    }
+
     @Autowired org.springframework.context.ApplicationEventPublisher events;
     @Autowired org.springframework.transaction.PlatformTransactionManager txm;
 }

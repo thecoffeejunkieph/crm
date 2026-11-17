@@ -40,7 +40,8 @@ class RestockRule implements AutoRule {
                 + "select so.customer_id, so.id order_id, so.rep_id, so.number, c.display_name, "
                 + "(d.delivered_at at time zone 'Asia/Manila')::date dd, "
                 + "exists (select 1 from sales_order o where o.customer_id = so.customer_id "
-                + "and (o.confirmed_at > d.delivered_at or o.status in ('CONFIRMED', 'RELEASED'))) reordered, "
+                + "and ((o.confirmed_at > d.delivered_at and o.status <> 'CANCELLED') "
+                + "or o.status in ('CONFIRMED', 'RELEASED'))) reordered, "
                 + "row_number() over (partition by so.customer_id order by d.delivered_at desc) rn "
                 + "from delivery_order d join sales_order so on so.id = d.sales_order_id "
                 + "join customer c on c.id = so.customer_id where d.status = 'DELIVERED' and c.archived_at is null) x "
@@ -65,7 +66,17 @@ class RestockRule implements AutoRule {
         return out;
     }
 
+    /** Besides a reorder: a lapse that reached the win-back age is WIN_BACK's now, so only one follow-up stays open. */
     @Override public Map<Long, String> toClose(LocalDate today, RuleSettings s) {
-        return Reorders.toClose(jdbc, FollowUpRule.RESTOCK);
+        Map<Long, String> out = Reorders.toClose(jdbc, FollowUpRule.RESTOCK);
+        if (s.enabled().contains(FollowUpRule.WIN_BACK)) {
+            jdbc.query("select f.id from follow_up f where f.rule = 'RESTOCK' and f.done_at is null and ? >= "
+                    + "(select max(d.delivered_at at time zone 'Asia/Manila')::date from delivery_order d "
+                    + "where d.sales_order_id = f.order_id and d.status = 'DELIVERED')",
+                    rs -> {
+                        out.putIfAbsent(rs.getLong(1), "Handed to win-back");
+                    }, java.sql.Date.valueOf(today.minusDays(s.winBackDays())));
+        }
+        return out;
     }
 }
