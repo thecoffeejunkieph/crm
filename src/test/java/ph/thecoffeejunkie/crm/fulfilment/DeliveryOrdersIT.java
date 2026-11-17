@@ -541,4 +541,30 @@ class DeliveryOrdersIT {
         mvc.perform(get("/api/delivery-orders").param("status", "PICKING").with(admin)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[?(@.id == " + theirs + ")]").isNotEmpty());
     }
+
+    private List<Integer> deliveryIds(String sort) throws Exception {
+        String res = mvc.perform(get("/api/delivery-orders").param("sort", sort).param("size", "100").with(admin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");
+    }
+
+    @Test
+    void sortsByCustomerAndStatusAndRejectsUnknownKey() throws Exception {
+        long first = delivery("1");
+        long second = delivery("1");
+        jdbc.update("update delivery_order set customer_name = 'Zed' where id = ?", first);
+        jdbc.update("update delivery_order set customer_name = 'Amy' where id = ?", second);
+        List<Integer> asc = deliveryIds("customer,asc");
+        assertThat(asc.indexOf((int) second)).isLessThan(asc.indexOf((int) first));
+        List<Integer> desc = deliveryIds("customer,desc");
+        assertThat(desc.indexOf((int) first)).isLessThan(desc.indexOf((int) second));
+        jdbc.update("update delivery_order_line set picked_qty = qty where delivery_order_id = ?", second);
+        List<Integer> byProgress = deliveryIds("progress,desc");
+        assertThat(byProgress.indexOf((int) second)).isLessThan(byProgress.indexOf((int) first));
+        for (String key : new String[]{"number", "created", "moved", "receiver", "status"}) {
+            deliveryIds(key + ",asc");
+        }
+        mvc.perform(get("/api/delivery-orders").param("sort", "proof,asc").with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
 }

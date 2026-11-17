@@ -84,4 +84,21 @@ class AuditLogIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].summary").value("visible"));
     }
+
+    @Test
+    void activitySortsByActorAndRejectsUnknownKey() throws Exception {
+        new TransactionTemplate(tm).executeWithoutResult(s -> {
+            audit.recordFor("USER", 1L, "Zed", AuditAction.UPDATED, "T5", 1L, "z");
+            audit.recordFor("USER", 2L, "Amy", AuditAction.CREATED, "T5", 2L, "a");
+            audit.recordFor("USER", 3L, null, AuditAction.ARCHIVED, "T5", 3L, "n");
+        });
+        var admin = authentication(auth(Role.ADMIN));
+        mvc.perform(get("/api/admin/activity").param("entityType", "T5").param("sort", "actorName,asc").with(admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].summary").value("a"))
+                .andExpect(jsonPath("$.content[1].summary").value("z")).andExpect(jsonPath("$.content[2].summary").value("n"));
+        mvc.perform(get("/api/admin/activity").param("entityType", "T5").param("sort", "action,desc").with(admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].summary").value("z"));
+        mvc.perform(get("/api/admin/activity").param("sort", "changes,asc").with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
 }

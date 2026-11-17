@@ -76,7 +76,7 @@ class OrderService {
             "case when ? not in ('CONFIRMED','RELEASED','FULFILLED') then null when ? - ? <= 0 then 3 "
                     + "when ? is not null and ? < current_date then 2 when ? = 0 then 0 else 1 end",
             Integer.class, List.of("status", "total", "settledAmount", "dueDate", "dueDate", "settledAmount"));
-    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+    static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
             "payment", PAYMENT_SORT,
             "balance", new SortRequest.SortExpr("? - ?", BigDecimal.class, List.of("total", "settledAmount")),
             "status", new SortRequest.SortExpr("case ? when 'DRAFT' then 0 when 'QUOTED' then 1 when 'CONFIRMED' then 2 "

@@ -33,6 +33,26 @@ public record SortRequest<T>(Pageable pageable, Specification<T> orderSpec) {
     public record SortExpr(String sqlTemplate, Class<?> type, List<String> attrs) {
     }
 
+    /** Sorts by one root attribute under a different key, for a frontend column key that is not the attribute name. */
+    public static SortExpr alias(String attr, Class<?> type) {
+        return new SortExpr("?", type, List.of(attr));
+    }
+
+    /**
+     * For JDBC lists: {@code " order by <column> <dir> nulls last, <tieBreaker>"} for a validated key, else
+     * {@code " order by <defaultOrder>"}. The key must be in {@code columns} (SQL fragments, fixed literals) and the
+     * direction asc|desc, otherwise 400 like every other list; user input never reaches the SQL text.
+     */
+    public static String sqlOrderBy(PageQuery page, Map<String, String> columns, String defaultOrder, String tieBreaker) {
+        of(page, columns.keySet(), Map.of(), Sort.unsorted()); // validates key and direction
+        if (page.sort() == null || page.sort().isBlank()) {
+            return " order by " + defaultOrder;
+        }
+        String[] parts = page.sort().split(",", 2);
+        boolean desc = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc");
+        return " order by " + columns.get(parts[0].trim()) + (desc ? " desc" : " asc") + " nulls last, " + tieBreaker;
+    }
+
     public static <T> SortRequest<T> of(PageQuery page, Set<String> ownFields, Map<String, SortJoin<T>> joins,
                                         Sort defaultSort) {
         return of(page, ownFields, joins, Map.of(), defaultSort);

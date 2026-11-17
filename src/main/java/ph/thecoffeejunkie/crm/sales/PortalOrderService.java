@@ -23,6 +23,7 @@ import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 
 import java.time.Clock;
@@ -30,6 +31,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -37,7 +39,7 @@ import java.util.Set;
 @Service
 class PortalOrderService {
 
-    private static final Set<String> SORTABLE = Set.of("number", "updatedAt");
+    private static final Set<String> SORTABLE = Set.of("number", "total", "updatedAt");
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "updatedAt");
 
     private final SalesOrderRepository repo;
@@ -91,7 +93,8 @@ class PortalOrderService {
                 (r, q, cb) -> cb.equal(r.get("customerId"), c.customerId()),
                 (r, q, cb) -> cb.and(cb.notEqual(r.get("status"), OrderStatus.DRAFT),
                         cb.or(cb.notEqual(r.get("status"), OrderStatus.CANCELLED), cb.isNotNull(r.get("quotedAt")))));
-        return PageResponse.of(repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT)).map(o ->
+        var sort = SortRequest.<SalesOrder>of(page, SORTABLE, Map.of(), OrderService.SORT_EXPRS, DEFAULT_SORT);
+        return PageResponse.of(repo.findAll(spec.and(sort.orderSpec()), sort.pageable()).map(o ->
                 new PortalOrderSummary(o.id, o.number, o.status, OrderService.paymentStatus(o, today), o.total,
                         o.balance(), o.quoteValidUntil, o.quotedAt)));
     }

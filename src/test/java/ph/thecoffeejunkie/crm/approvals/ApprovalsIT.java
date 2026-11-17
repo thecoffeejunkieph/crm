@@ -354,4 +354,20 @@ class ApprovalsIT {
     private static RequestPostProcessor as(long userId, Role role) {
         return authentication(token(userId, role));
     }
+
+    @Test
+    void sortsByStatusAndSubjectAndRejectsUnknownKey() throws Exception {
+        long first = requestVia(sales, 7, 1);
+        requestVia(otherSales, 8, 1);
+        decide(first, true).andExpect(status().isOk());
+        var asAdmin = as(admin, Role.ADMIN);
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).param("sort", "status,asc").with(asAdmin))
+                .andExpect(jsonPath("$.content[0].subjectId").value(7)).andExpect(jsonPath("$.content[1].subjectId").value(8));
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).param("sort", "subjectId,desc").with(asAdmin))
+                .andExpect(jsonPath("$.content[0].subjectId").value(8));
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).param("sort", "user,asc").with(asAdmin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2));
+        mvc.perform(get("/api/approvals").param("sort", "requestedValue,asc").with(asAdmin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
 }

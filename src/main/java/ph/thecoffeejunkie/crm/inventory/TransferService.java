@@ -18,6 +18,7 @@ import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
@@ -43,6 +44,14 @@ class TransferService {
 
     static final String ENTITY = "TRANSFER";
     private static final Sort NEWEST = Sort.by(Sort.Direction.DESC, "id");
+    private static final Set<String> SORTABLE = Set.of("number", "status");
+    // route = "From -> to" by warehouse names, as the page shows it.
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "route", new SortRequest.SortExpr("(select name from warehouse x where x.id = ?) || ' -> ' "
+                    + "|| (select name from warehouse y where y.id = ?)", String.class,
+                    List.of("fromWarehouseId", "toWarehouseId")),
+            "lines", new SortRequest.SortExpr("(select count(*) from stock_transfer_line x where x.transfer_id = ?)",
+                    Long.class, List.of("id")));
 
     private final StockTransferRepository transfers;
     private final StockLedger ledger;
@@ -238,7 +247,8 @@ class TransferService {
                         : me.warehouseIds().isEmpty() ? cb.disjunction()
                         : cb.or(r.get("fromWarehouseId").in(me.warehouseIds()),
                                 r.get("toWarehouseId").in(me.warehouseIds())));
-        Page<StockTransfer> p = transfers.findAll(spec, page.toPageable(Set.of(), NEWEST));
+        var sort = SortRequest.<StockTransfer>of(page, SORTABLE, Map.of(), SORT_EXPRS, NEWEST);
+        Page<StockTransfer> p = transfers.findAll(spec.and(sort.orderSpec()), sort.pageable());
         return new PageResponse<>(p.getNumber() + 1, p.getSize(), p.getTotalPages(), p.getTotalElements(),
                 toResponses(p.getContent()));
     }

@@ -172,4 +172,35 @@ class CatalogIT {
                 .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith(
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
     }
+
+    private List<String> skus(String sort, long uid, Role role) throws Exception {
+        String res = mvc.perform(get("/api/products").param("q", tag).param("includeArchived", "true").param("sort", sort)
+                        .with(authentication(as(uid, role)))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(res, "$.content[*].sku");
+    }
+
+    @Test
+    void sortsByPriceAndStatus() throws Exception {
+        createdId(tag + "-a", "30.00");
+        createdId(tag + "-b", "10.00");
+        long archived = createdId(tag + "-c", "20.00");
+        jdbc.update("update product set archived_at = now() where id = ?", archived);
+        assertThat(skus("price,asc", admin, Role.ADMIN)).containsExactly(tag + "-b", tag + "-c", tag + "-a");
+        assertThat(skus("price,desc", admin, Role.ADMIN)).containsExactly(tag + "-a", tag + "-c", tag + "-b");
+        mvc.perform(get("/api/products").param("q", tag).param("includeArchived", "true").param("sort", "status,desc")
+                        .with(authentication(as(admin, Role.ADMIN)))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].sku").value(tag + "-c"));
+    }
+
+    @Test
+    void unknownSortKey400AndCostSortIsAdminOnly() throws Exception {
+        mvc.perform(get("/api/products").param("sort", "bogus,asc").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.field").value("sort"));
+        mvc.perform(get("/api/products").param("sort", "cost,asc").with(authentication(as(sales, Role.SALES))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/products").param("sort", "cost,asc").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isOk());
+    }
 }

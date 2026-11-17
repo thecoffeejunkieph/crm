@@ -18,6 +18,7 @@ import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
@@ -48,6 +49,16 @@ class DeliveryService {
     static final String ENTITY = "DELIVERY_ORDER";
     static final int MAX_PROOF_PHOTOS = 10;
     private static final Sort NEWEST = Sort.by(Sort.Direction.DESC, "id");
+    // Keys are the page's column keys. Picked = share of lines fully picked; Dispatched / done = delivered, else dispatched.
+    private static final Set<String> SORTABLE = Set.of("number", "status");
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "customer", SortRequest.alias("customerName", String.class),
+            "receiver", SortRequest.alias("receiverName", String.class),
+            "created", SortRequest.alias("createdAt", Instant.class),
+            "moved", new SortRequest.SortExpr("coalesce(?, ?)", Instant.class, List.of("deliveredAt", "dispatchedAt")),
+            "progress", new SortRequest.SortExpr("(select count(*) filter (where picked_qty >= qty)::numeric "
+                    + "/ nullif(count(*), 0) from delivery_order_line x where x.delivery_order_id = ?)",
+                    BigDecimal.class, List.of("id")));
 
     private final DeliveryOrderRepository orders;
     private final Inventory inventory;
@@ -84,7 +95,8 @@ class DeliveryService {
                     case SALES -> cb.equal(r.get("repUserId"), me.userId());
                     default -> null;
                 });
-        Page<DeliveryOrder> p = orders.findAll(spec, page.toPageable(Set.of(), NEWEST));
+        var sort = SortRequest.<DeliveryOrder>of(page, SORTABLE, Map.of(), SORT_EXPRS, NEWEST);
+        Page<DeliveryOrder> p = orders.findAll(spec.and(sort.orderSpec()), sort.pageable());
         return new PageResponse<>(p.getNumber() + 1, p.getSize(), p.getTotalPages(), p.getTotalElements(),
                 toResponses(p.getContent()));
     }

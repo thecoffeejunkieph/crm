@@ -12,6 +12,7 @@ import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 
@@ -31,7 +32,10 @@ import java.util.Set;
 public class Catalog {
 
     private static final String ENTITY = "PRODUCT";
-    private static final Set<String> SORTABLE = Set.of("sku", "name");
+    private static final Set<String> SORTABLE = Set.of("sku", "name", "unit", "price", "taxClass");
+    private static final Set<String> SORTABLE_ADMIN = Set.of("sku", "name", "unit", "price", "taxClass", "cost");
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of("status",
+            new SortRequest.SortExpr("case when ? is null then 0 else 1 end", Integer.class, List.of("archivedAt")));
     private static final Sort DEFAULT_SORT = Sort.by("name");
 
     private final ProductRepository repo;
@@ -49,7 +53,9 @@ public class Catalog {
         Specification<Product> spec = Specification.allOf(
                 (r, cq, cb) -> includeArchived ? null : cb.isNull(r.get("archivedAt")), matches(q));
         boolean admin = isAdmin();
-        return PageResponse.of(repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT))
+        // cost is only in the JSON for ADMIN, so only ADMIN may order by it
+        var sort = SortRequest.<Product>of(page, admin ? SORTABLE_ADMIN : SORTABLE, Map.of(), SORT_EXPRS, DEFAULT_SORT);
+        return PageResponse.of(repo.findAll(spec.and(sort.orderSpec()), sort.pageable())
                 .map(p -> toResponse(p, admin)));
     }
 

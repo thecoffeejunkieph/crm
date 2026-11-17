@@ -14,6 +14,7 @@ import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
@@ -36,6 +37,16 @@ class UserAdminService {
     private static final String ENTITY = "USER";
     private static final Set<String> SORTABLE = Set.of("email", "firstName", "lastName", "createdAt");
     private static final Sort DEFAULT_SORT = Sort.by("email");
+    // Roles and warehouses sort by their joined text; status is active, then invite pending, then archived.
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "roles", new SortRequest.SortExpr("(select string_agg(role, ',' order by role) from user_role x "
+                    + "where x.user_id = ?)", String.class, List.of("id")),
+            "warehouses", new SortRequest.SortExpr("(select string_agg(w.name, ', ' order by w.name) from user_warehouse x "
+                    + "join warehouse w on w.id = x.warehouse_id where x.user_id = ?)", String.class, List.of("id")),
+            "totp", new SortRequest.SortExpr("case when ? is null then 0 else 1 end", Integer.class,
+                    List.of("totpEnabledAt")),
+            "status", new SortRequest.SortExpr("case when ? is not null then 2 when ? is null then 1 else 0 end",
+                    Integer.class, List.of("archivedAt", "passwordHash")));
 
     private final AppUserRepository users;
     private final OneTimeTokens tokens;
@@ -166,7 +177,8 @@ class UserAdminService {
                 (r, cq, cb) -> includeArchived ? null : cb.isNull(r.get("archivedAt")),
                 (r, cq, cb) -> role == null ? null : cb.isMember(role, r.get("roles")),
                 matches(q));
-        return PageResponse.of(users.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT)).map(UserResponse::of));
+        var sort = SortRequest.<AppUser>of(page, SORTABLE, Map.of(), SORT_EXPRS, DEFAULT_SORT);
+        return PageResponse.of(users.findAll(spec.and(sort.orderSpec()), sort.pageable()).map(UserResponse::of));
     }
 
     private static Specification<AppUser> matches(String q) {

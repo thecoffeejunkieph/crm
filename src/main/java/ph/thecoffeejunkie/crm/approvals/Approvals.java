@@ -18,6 +18,7 @@ import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
@@ -34,6 +35,10 @@ import java.util.Set;
 public class Approvals {
 
     private static final String ENTITY = "APPROVAL";
+    private static final Set<String> SORTABLE = Set.of("id", "requestedAt", "decidedAt", "type", "status", "subjectType",
+            "subjectId");
+    private static final Map<String, SortRequest.SortJoin<ApprovalRequest>> SORT_JOINS = Map.of(
+            "user", new SortRequest.SortJoin<>("app_user", "requestedBy", "first_name || ' ' || last_name"));
 
     private final ApprovalRequestRepository repo;
     private final AuditLog audit;
@@ -198,8 +203,8 @@ public class Approvals {
                 (r, q, cb) -> subjectType == null ? null : cb.equal(r.get("subjectType"), subjectType),
                 (r, q, cb) -> subjectIds == null || subjectIds.isEmpty() ? null : r.get("subjectId").in(subjectIds),
                 (r, q, cb) -> own ? cb.equal(r.get("requestedBy"), scope.userId()) : null);
-        var found = repo.findAll(spec, page.toPageable(Set.of("id", "requestedAt"),
-                Sort.by(Sort.Direction.DESC, "id")));
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, Sort.by(Sort.Direction.DESC, "id"));
+        var found = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         List<Long> ids = new ArrayList<>();
         found.forEach(a -> {
             ids.add(a.requestedBy);

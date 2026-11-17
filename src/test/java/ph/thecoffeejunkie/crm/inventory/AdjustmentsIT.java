@@ -273,4 +273,17 @@ class AdjustmentsIT {
         assertThat(jdbc.queryForObject("select count(*) from stock_adjustment where warehouse_id = ? "
                 + "and status = 'POSTED'", Integer.class, wh1)).isEqualTo(2);
     }
+
+    @Test
+    void sortsByLinkedWarehouseAndProductAndRejectsUnknownKey() throws Exception {
+        f.receive(p, wh1, "10");
+        delta("1", admin).andExpect(status().isCreated());
+        mvc.perform(get("/api/stock/adjustments").param("warehouseId", "" + wh1).param("sort", "warehouse,desc")
+                .with(admin)).andExpect(status().isOk()).andExpect(jsonPath("$.content[0].delta").value(1.0));
+        mvc.perform(get("/api/stock/adjustments").param("warehouseId", "" + wh1).param("sort", "product,asc")
+                .with(admin)).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(get("/api/stock/adjustments").param("sort", "delta,desc").with(admin)).andExpect(status().isOk());
+        mvc.perform(get("/api/stock/adjustments").param("sort", "bogus,asc").with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
 }

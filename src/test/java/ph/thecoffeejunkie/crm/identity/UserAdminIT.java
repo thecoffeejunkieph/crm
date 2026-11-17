@@ -406,4 +406,29 @@ class UserAdminIT {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].archivedAt").isNotEmpty());
     }
+
+    private List<String> emails(String sort, AppUser admin) throws Exception {
+        String res = mvc.perform(get("/api/admin/users").param("q", "@users.it").param("includeArchived", "true").param("size", "50").param("sort", sort)
+                        .with(as(admin))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(res, "$.content[*].email");
+    }
+
+    @Test
+    void sortsByRolesAndStatusColumns() throws Exception {
+        AppUser admin = user("a-admin@users.it", Role.ADMIN);
+        AppUser sales = user("b-sales@users.it", Role.SALES);
+        AppUser archived = user("c-gone@users.it", Role.SALES);
+        jdbc.update("update app_user set archived_at = now() where id = ?", archived.id);
+        assertThat(emails("roles,asc", admin)).containsExactly("a-admin@users.it", "b-sales@users.it", "c-gone@users.it");
+        assertThat(emails("roles,desc", admin)).containsExactly("b-sales@users.it", "c-gone@users.it", "a-admin@users.it");
+        // active first, archived last
+        assertThat(emails("status,asc", admin)).last().isEqualTo("c-gone@users.it");
+        assertThat(emails("status,desc", admin)).first().isEqualTo("c-gone@users.it");
+    }
+
+    @Test
+    void unknownUserSortKey400() throws Exception {
+        mvc.perform(get("/api/admin/users").param("sort", "passwordHash,asc").with(as(user("s400@users.it", Role.ADMIN))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
 }

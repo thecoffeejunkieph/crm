@@ -277,4 +277,26 @@ class TransfersIT {
         assertThat(out.get(0).salesOrderId()).isEqualTo(o.orderId());
         assertThat(out.get(0).lines().get(0).qty()).isEqualByComparingTo("8");
     }
+
+    @Test
+    void sortsByColumnsAndRejectsUnknownKey() throws Exception {
+        f.receive(p, src, "10");
+        long first = create("2", null);
+        long second = create("2", null);
+        act(first, "dispatch", null, srcUser).andExpect(status().isOk());
+        mvc.perform(get("/api/transfers").param("sort", "status,asc").with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + first + ")]").isNotEmpty());
+        String res = mvc.perform(get("/api/transfers").param("sort", "status,asc").param("size", "100").with(admin))
+                .andReturn().getResponse().getContentAsString();
+        java.util.List<Integer> ids = com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");
+        assertThat(ids.indexOf((int) first)).isLessThan(ids.indexOf((int) second));
+        res = mvc.perform(get("/api/transfers").param("sort", "number,desc").param("size", "100").with(admin))
+                .andReturn().getResponse().getContentAsString();
+        ids = com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");
+        assertThat(ids.indexOf((int) second)).isLessThan(ids.indexOf((int) first));
+        mvc.perform(get("/api/transfers").param("sort", "route,asc").with(admin)).andExpect(status().isOk());
+        mvc.perform(get("/api/transfers").param("sort", "lines,desc").with(admin)).andExpect(status().isOk());
+        mvc.perform(get("/api/transfers").param("sort", "pdf,asc").with(admin)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sort"));
+    }
 }

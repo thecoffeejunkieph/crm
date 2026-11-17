@@ -24,6 +24,7 @@ import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.StaffPrincipal;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
@@ -43,6 +44,10 @@ class AdjustmentService {
 
     static final String ENTITY = "STOCK_ADJUSTMENT";
     private static final Sort NEWEST = Sort.by(Sort.Direction.DESC, "id");
+    private static final Set<String> SORTABLE = Set.of("number", "status", "mode", "delta", "reason", "createdAt");
+    private static final Map<String, SortRequest.SortJoin<StockAdjustment>> SORT_JOINS = Map.of(
+            "warehouse", new SortRequest.SortJoin<>("warehouse", "warehouseId", "name"),
+            "product", new SortRequest.SortJoin<>("product", "productId", "name"));
 
     private final StockAdjustmentRepository adjustments;
     private final StockLedger ledger;
@@ -193,7 +198,8 @@ class AdjustmentService {
         Specification<StockAdjustment> spec = Specification.allOf(
                 (r, q, cb) -> warehouseId == null ? null : cb.equal(r.get("warehouseId"), warehouseId),
                 (r, q, cb) -> status == null ? null : cb.equal(r.get("status"), status));
-        Page<StockAdjustment> p = adjustments.findAll(spec, page.toPageable(Set.of(), NEWEST));
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, NEWEST);
+        Page<StockAdjustment> p = adjustments.findAll(spec.and(sort.orderSpec()), sort.pageable());
         return new PageResponse<>(p.getNumber() + 1, p.getSize(), p.getTotalPages(), p.getTotalElements(),
                 toResponses(p.getContent()));
     }

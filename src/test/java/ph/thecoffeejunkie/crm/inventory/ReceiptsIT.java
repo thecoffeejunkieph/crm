@@ -159,4 +159,21 @@ class ReceiptsIT {
         assertThat(receipts()).isEqualTo(1);
         assertThat(f.onHand(p, wh1)).isEqualByComparingTo("2");
     }
+
+    @Test
+    void sortsByLinkedWarehouseAndRejectsUnknownKey() throws Exception {
+        jdbc.update("update warehouse set name = 'Zulu' where id = ?", wh1);
+        jdbc.update("update warehouse set name = 'Alpha' where id = ?", wh2);
+        receive(wh1, "1", admin).andExpect(status().isCreated());
+        receive(wh2, "1", admin).andExpect(status().isCreated());
+        mvc.perform(get("/api/stock/receipts").param("sort", "warehouse,asc").param("size", "100").with(admin))
+                .andExpect(status().isOk());
+        String res = mvc.perform(get("/api/stock/receipts").param("sort", "warehouse,asc").param("size", "100")
+                .with(admin)).andReturn().getResponse().getContentAsString();
+        java.util.List<Integer> whs = com.jayway.jsonpath.JsonPath.read(res, "$.content[?(@.supplierName=='Acme')].warehouseId");
+        assertThat(whs.indexOf((int) wh2)).isLessThan(whs.indexOf((int) wh1));
+        mvc.perform(get("/api/stock/receipts").param("sort", "supplierName,desc").with(admin)).andExpect(status().isOk());
+        mvc.perform(get("/api/stock/receipts").param("sort", "nope,asc").with(admin)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sort"));
+    }
 }

@@ -19,7 +19,7 @@ import java.util.Set;
 @Service
 public class AuditLog {
 
-    private static final Set<String> SORTABLE = Set.of("at", "id");
+    private static final Set<String> SORTABLE = Set.of("at", "id", "actorName", "action", "entityType");
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "at");
 
     private static final java.util.regex.Pattern EMAIL =
