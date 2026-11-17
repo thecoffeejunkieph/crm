@@ -8,11 +8,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import ph.thecoffeejunkie.crm.MailIntegrationTest;
 import ph.thecoffeejunkie.crm.MailSupport;
@@ -25,7 +29,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.sales.SalesFixture.as;
 import static ph.thecoffeejunkie.crm.sales.SalesFixture.line;
@@ -37,6 +43,7 @@ class CustomerStatusMailsIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired JavaMailSender mail;
     @Autowired HtmlMail htmlMail;
+    @Autowired Environment env;
     @Autowired @Qualifier("applicationTaskExecutor") ThreadPoolTaskExecutor executor;
 
     SalesFixture f;
@@ -67,6 +74,10 @@ class CustomerStatusMailsIT {
     @AfterEach
     void cleanUp() {
         MailSupport.awaitIdle(executor);
+        // dispatch and pickup post stock movements, which only the migration owner may delete
+        new JdbcTemplate(new DriverManagerDataSource(env.getProperty("spring.datasource.url"),
+                env.getProperty("spring.flyway.user"), env.getProperty("spring.flyway.password")))
+                .update("delete from stock_movement where product_id = ?", product);
         f.cleanUp();
     }
 
@@ -215,5 +226,91 @@ class CustomerStatusMailsIT {
         reject(pendingPayment(order, "USER", rep), "Typo in amount");
         assertThat(withSubject("Payment for " + number(order) + " was not accepted — " + htmlMail.company())).isEmpty();
         assertThat(MailSupport.sent(mail)).isEmpty();
+    }
+
+    // --- deliveries ---
+
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4};
+
+    /** A released order (credit customer, so unpaid release is allowed); returns its delivery order id. */
+    private long releasedDelivery(long order) throws Exception {
+        jdbc.update("update customer set credit_limit = 10000 where id = ?", customer);
+        f.transition(asRep, order, "confirm", null).andExpect(status().isOk());
+        f.transition(asRep, order, "release", null).andExpect(status().isOk());
+        return jdbc.queryForObject("select id from delivery_order where sales_order_id = ?", Long.class, order);
+    }
+
+    private ResultActions act(long id, String action, String body) throws Exception {
+        return mvc.perform(post("/api/delivery-orders/" + id + "/" + action).contentType("application/json")
+                .content(body == null ? "{}" : body).with(csrf(mvc)).with(asAdmin));
+    }
+
+    private void pickAll(long id) throws Exception {
+        List<Long> lines = jdbc.queryForList("select id from delivery_order_line where delivery_order_id = ? order by id",
+                Long.class, id);
+        StringBuilder b = new StringBuilder("{\"lines\":[");
+        for (int i = 0; i < lines.size(); i++) {
+            String qty = jdbc.queryForObject("select qty::text from delivery_order_line where id = ?", String.class,
+                    lines.get(i));
+            b.append(i == 0 ? "" : ",").append("{\"lineId\":").append(lines.get(i)).append(",\"pickedQty\":")
+                    .append(qty).append('}');
+        }
+        act(id, "pick", b.append("]}").toString()).andExpect(status().isOk());
+    }
+
+    private ResultActions deliver(long id) throws Exception {
+        return mvc.perform(multipart("/api/delivery-orders/" + id + "/deliver")
+                .file(new MockMultipartFile("photo", "proof.png", "image/png", PNG))
+                .param("receiverName", "Juan").with(csrf(mvc)).with(asAdmin));
+    }
+
+    private String doNumber(long id) {
+        return jdbc.queryForObject("select number from delivery_order where id = ?", String.class, id);
+    }
+
+    @Test
+    void dispatchMailsOutForDelivery() throws Exception {
+        long order = f.createdOrder(asRep, customer, line(product, "3"));
+        long d = releasedDelivery(order);
+        pickAll(d);
+        act(d, "dispatch", null).andExpect(status().isOk());
+        List<MimeMessage> sent = withSubject("Order " + number(order) + " is out for delivery — " + htmlMail.company());
+        assertThat(sent).extracting(CustomerStatusMailsIT::to)
+                .containsExactlyInAnyOrder(f.contactEmail("a"), f.contactEmail("b"));
+        String description = jdbc.queryForObject("select description from delivery_order_line where delivery_order_id = ?",
+                String.class, d);
+        assertThat(body(sent.get(0))).contains(doNumber(d)).contains(description);
+    }
+
+    @Test
+    void refusedDispatchMailsNobody() throws Exception {
+        long order = f.createdOrder(asRep, customer, line(product, "3"));
+        long d = releasedDelivery(order);
+        act(d, "dispatch", null).andExpect(status().isUnprocessableContent()); // not picked yet
+        assertThat(withSubject("Order " + number(order) + " is out for delivery — " + htmlMail.company())).isEmpty();
+    }
+
+    @Test
+    void deliverMailsProofPhoto() throws Exception {
+        long order = f.createdOrder(asRep, customer, line(product, "3"));
+        long d = releasedDelivery(order);
+        pickAll(d);
+        act(d, "dispatch", null).andExpect(status().isOk());
+        deliver(d).andExpect(status().isOk());
+        List<MimeMessage> sent = withSubject("Order " + number(order) + " delivered — " + htmlMail.company());
+        assertThat(sent).hasSize(2);
+        assertThat(body(sent.get(0))).contains("Juan");
+        assertThat(attachments(sent.get(0))).containsExactly(doNumber(d) + "-proof-1.png");
+    }
+
+    @Test
+    void pickupMailsPickedUp() throws Exception {
+        long order = f.createdOrder(asRep, customer, line(product, "3"));
+        long d = releasedDelivery(order);
+        jdbc.update("update delivery_order set method = 'PICKUP' where id = ?", d);
+        pickAll(d);
+        deliver(d).andExpect(status().isOk());
+        assertThat(withSubject("Order " + number(order) + " picked up — " + htmlMail.company())).hasSize(2);
+        assertThat(withSubject("Order " + number(order) + " delivered — " + htmlMail.company())).isEmpty();
     }
 }

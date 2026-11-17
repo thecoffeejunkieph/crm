@@ -10,8 +10,16 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 import ph.thecoffeejunkie.crm.customers.Customers;
+import ph.thecoffeejunkie.crm.fulfilment.DeliveryDispatched;
+import ph.thecoffeejunkie.crm.fulfilment.DeliveryMailView;
+import ph.thecoffeejunkie.crm.fulfilment.DeliveryMethod;
+import ph.thecoffeejunkie.crm.fulfilment.Fulfilment;
+import ph.thecoffeejunkie.crm.fulfilment.OrderDelivered;
 import ph.thecoffeejunkie.crm.shared.HtmlMail;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -24,23 +32,27 @@ import java.util.function.Supplier;
 class CustomerStatusMails {
 
     private static final Logger log = LoggerFactory.getLogger(CustomerStatusMails.class);
+    private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
+            .withZone(ZoneId.of("Asia/Manila"));
 
     private final HtmlMail mail;
     private final TaskExecutor executor;
     private final SalesOrderRepository orders;
     private final PaymentRepository payments;
     private final Customers customers;
+    private final Fulfilment fulfilment;
     private final TransactionTemplate read;
     private final String link;
 
     CustomerStatusMails(HtmlMail mail, @Qualifier("applicationTaskExecutor") TaskExecutor executor,
                         SalesOrderRepository orders, PaymentRepository payments, Customers customers,
-                        PlatformTransactionManager tx, @Value("${app.frontend-url}") String frontendUrl) {
+                        Fulfilment fulfilment, PlatformTransactionManager tx, @Value("${app.frontend-url}") String frontendUrl) {
         this.mail = mail;
         this.executor = executor;
         this.orders = orders;
         this.payments = payments;
         this.customers = customers;
+        this.fulfilment = fulfilment;
         this.read = new TransactionTemplate(tx);
         this.read.setReadOnly(true);
         this.link = frontendUrl + "/portal/signin";
@@ -85,6 +97,50 @@ class CustomerStatusMails {
                     "payment-rejected", Map.of("number", o.number, "amount", p.amount().toPlainString(),
                     "reason", p.rejectReason, "link", link), List.of());
         });
+    }
+
+    @TransactionalEventListener
+    public void on(DeliveryDispatched e) {
+        later(() -> {
+            DeliveryMailView v = view(e.deliveryOrderId());
+            if (v == null) {
+                return null;
+            }
+            SalesOrder o = orders.findById(e.salesOrderId()).orElseThrow();
+            return new Mail(recipients(o), "Order " + v.orderNumber() + " is out for delivery — " + mail.company(),
+                    "order-dispatched", Map.of("orderNumber", v.orderNumber(), "number", v.number(),
+                    "shipTo", v.shipTo() == null ? "" : v.shipTo(), "lines", v.lines(), "link", link), List.of());
+        });
+    }
+
+    @TransactionalEventListener
+    public void on(OrderDelivered e) {
+        later(() -> {
+            DeliveryMailView v = view(e.deliveryOrderId());
+            if (v == null) {
+                return null;
+            }
+            SalesOrder o = orders.findById(e.orderId()).orElseThrow();
+            boolean pickup = v.method() == DeliveryMethod.PICKUP;
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("orderNumber", v.orderNumber());
+            vars.put("number", v.number());
+            vars.put("receiverName", v.receiverName());
+            vars.put("deliveredAt", WHEN.format(v.deliveredAt()));
+            vars.put("lines", v.lines());
+            vars.put("pickup", pickup);
+            vars.put("link", link);
+            return new Mail(recipients(o), "Order " + v.orderNumber() + (pickup ? " picked up — " : " delivered — ")
+                    + mail.company(), "order-delivered", vars, v.photos());
+        });
+    }
+
+    private DeliveryMailView view(long deliveryOrderId) {
+        DeliveryMailView v = fulfilment.mailView(deliveryOrderId).orElse(null);
+        if (v == null) {
+            log.warn("Delivery order {} not found for its customer mail", deliveryOrderId);
+        }
+        return v;
     }
 
     private List<String> recipients(SalesOrder o) {
