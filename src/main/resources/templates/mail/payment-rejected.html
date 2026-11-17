@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<p>Hello,</p>
+<p>We could not accept the payment of <b th:text="${amount}">0.00</b> you submitted for order
+  <b th:text="${number}">SO-00000</b>.</p>
+<p>Reason: <span th:text="${reason}">reason</span></p>
+<p>Please upload a corrected proof of payment in the <a th:href="${link}" href="#">customer portal</a>, or reply to
+  this email if you have questions.</p>
+</body>
+</html>

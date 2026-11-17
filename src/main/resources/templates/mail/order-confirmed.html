@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<p>Hello,</p>
+<p>Your order <b th:text="${number}">SO-00000</b> with <span th:text="${company}">The Coffee Junkie</span> is
+  confirmed. Order total: <b th:text="${total}">0.00</b>.</p>
+<p>You can follow it, pay and download your documents in the <a th:href="${link}" href="#">customer portal</a>.</p>
+</body>
+</html>
