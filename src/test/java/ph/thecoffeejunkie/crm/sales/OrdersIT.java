@@ -296,4 +296,30 @@ class OrdersIT {
         f.createdOrder(asAdmin, customer, line(productA, "1"));
         assertThat(searchIds("%")).isEmpty();
     }
+
+    @Test
+    void searchHandlesApostrophe() throws Exception {
+        long c = f.customer("O'Brien Café", null);
+        long mine = f.createdOrder(asAdmin, c, line(productA, "1"));
+        assertThat(searchIds((f.tag + "o'brien").toLowerCase())).containsExactly(mine);
+    }
+
+    @Test
+    void searchTextIsBoundNotInlined() throws Exception {
+        var sqlLog = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("org.hibernate.SQL");
+        var before = sqlLog.getLevel();
+        var captured = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        captured.start();
+        sqlLog.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        sqlLog.addAppender(captured);
+        try {
+            searchIds("zzbound-needle");
+        } finally {
+            sqlLog.detachAppender(captured);
+            sqlLog.setLevel(before);
+        }
+        var sql = captured.list.stream().map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                .filter(m -> m.contains("customer")).toList();
+        assertThat(sql).isNotEmpty().allSatisfy(m -> assertThat(m).doesNotContain("zzbound-needle"));
+    }
 }

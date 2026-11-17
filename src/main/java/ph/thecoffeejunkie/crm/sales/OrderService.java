@@ -159,7 +159,7 @@ class OrderService {
                     // customer is a plain id here (no association): uncorrelated subquery, evaluated once
                     Expression<Boolean> nameMatch = ((HibernateCriteriaBuilder) cb).sql(
                             "? in (select id from customer where lower(display_name) like ? escape '\\')", Boolean.class,
-                            r.get("customerId"), cb.literal(pattern));
+                            r.get("customerId"), ((HibernateCriteriaBuilder) cb).value(pattern));
                     return cb.or(cb.like(cb.lower(r.get("number")), pattern, '\\'), cb.isTrue(nameMatch));
                 },
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
