@@ -115,6 +115,11 @@ class SecurityMatrixTest {
             Map.entry("POST /api/products", A),
             Map.entry("PUT /api/products/{id}", A),
             Map.entry("POST /api/products/{id}/archive", A),
+            Map.entry("GET /api/product-categories", STAFF),
+            Map.entry("POST /api/product-categories", A),
+            Map.entry("PUT /api/product-categories/{id}", A),
+            Map.entry("POST /api/product-categories/{id}/archive", A),
+            Map.entry("POST /api/product-categories/{id}/restore", A),
             Map.entry("GET /api/products/export", STAFF),
             Map.entry("POST /api/products/import", A),
 

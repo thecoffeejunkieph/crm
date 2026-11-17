@@ -22,6 +22,7 @@ class Product {
     String sku;
     String name;
     String description;
+    Long categoryId;
     @Enumerated(EnumType.STRING)
     ProductUnit unit;
     BigDecimal price;

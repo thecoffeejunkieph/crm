@@ -31,8 +31,11 @@ class ProductSheets {
     private final AuditLog audit;
     private final CurrentActor actor;
     private final Validator validator;
+    private final ProductCategories categories;
 
-    ProductSheets(Catalog catalog, ProductRepository repo, AuditLog audit, CurrentActor actor, Validator validator) {
+    ProductSheets(Catalog catalog, ProductRepository repo, AuditLog audit, CurrentActor actor, Validator validator,
+                  ProductCategories categories) {
+        this.categories = categories;
         this.catalog = catalog;
         this.repo = repo;
         this.audit = audit;
@@ -45,8 +48,9 @@ class ProductSheets {
         boolean admin = actor.staff().filter(s -> s.role() == Role.ADMIN).isPresent();
         List<Product> all = repo.findAll((Specification<Product>) (r, q, cb) -> cb.isNull(r.get("archivedAt")),
                 Sort.by("name"));
+        Map<Long, String> names = categories.names(all.stream().map(p -> p.categoryId).toList());
         List<List<?>> rows = all.stream().<List<?>>map(p -> {
-            List<Object> row = new ArrayList<>(Arrays.asList(p.id, p.sku, p.name, p.description, p.unit, p.price));
+            List<Object> row = new ArrayList<>(Arrays.asList(p.id, p.sku, p.name, p.description, names.get(p.categoryId), p.unit, p.price));
             if (admin) {
                 row.add(p.cost);
             }
@@ -54,7 +58,7 @@ class ProductSheets {
             row.add(p.reorderLevel);
             return row;
         }).toList();
-        List<String> header = new ArrayList<>(List.of("id", "sku", "name", "description", "unit", "price"));
+        List<String> header = new ArrayList<>(List.of("id", "sku", "name", "description", "category", "unit", "price"));
         if (admin) {
             header.add("cost");
         }
@@ -68,16 +72,24 @@ class ProductSheets {
     @Transactional
     Sheets.ImportResult importCsv(byte[] file, boolean dryRun) {
         Set<String> taken = repo.activeSkus();
-        return Sheets.importCsv(file, dryRun, validator, ProductSheets::request,
+        return Sheets.importCsv(file, dryRun, validator, this::request,
                 r -> taken.add(r.sku().trim().toLowerCase(Locale.ROOT)) ? null : "sku " + r.sku().trim() + " already exists",
                 catalog::create);
     }
 
-    static ProductRequest request(Map<String, String> r) {
+    private Long categoryId(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        return categories.activeIdByName(name).orElseThrow(
+                () -> new IllegalArgumentException("category " + name.trim() + " doesn't exist or is archived"));
+    }
+
+    ProductRequest request(Map<String, String> r) {
         return new ProductRequest(r.get("sku"), r.get("name"), r.get("description"),
                 enumOf(ProductUnit.class, "unit", r.get("unit")), decimal("price", r.get("price")),
                 decimal("cost", r.get("cost")),
                 enumOf(TaxClass.class, "taxClass", r.getOrDefault("taxclass", "VATABLE")),
-                decimal("reorderLevel", r.get("reorderlevel")), null);
+                decimal("reorderLevel", r.get("reorderlevel")), categoryId(r.get("category")), null);
     }
 }

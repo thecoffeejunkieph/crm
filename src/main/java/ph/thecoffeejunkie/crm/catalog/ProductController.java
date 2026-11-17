@@ -50,9 +50,10 @@ class ProductController {
     @GetMapping
     @PreAuthorize("@catalogPermissions.canRead()")
     PageResponse<ProductResponse> list(@RequestParam(required = false) String q,
+                                       @RequestParam(required = false) Long categoryId,
                                        @RequestParam(defaultValue = "false") boolean includeArchived,
                                        PageQuery page) {
-        return catalog.list(q, includeArchived, page);
+        return catalog.list(q, categoryId, includeArchived, page);
     }
 
     @GetMapping("/{id}")

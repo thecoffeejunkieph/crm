@@ -3255,8 +3255,46 @@
         },
         "type" : "object"
       },
+      "ProductCategoryRequest" : {
+        "properties" : {
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
+      "ProductCategoryResponse" : {
+        "properties" : {
+          "archived" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ProductRequest" : {
         "properties" : {
+          "categoryId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "cost" : {
             "type" : "number"
           },
@@ -3300,6 +3338,13 @@
           "archivedAt" : {
             "format" : "date-time",
             "type" : "string"
+          },
+          "category" : {
+            "type" : "string"
+          },
+          "categoryId" : {
+            "format" : "int64",
+            "type" : "integer"
           },
           "cost" : {
             "type" : "number"
@@ -4725,7 +4770,7 @@
     },
     "/api/admin/users" : {
       "get" : {
-        "operationId" : "list_13",
+        "operationId" : "list_14",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -4837,7 +4882,7 @@
     },
     "/api/admin/users/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_5",
+        "operationId" : "archive_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4972,7 +5017,7 @@
     },
     "/api/approvals" : {
       "get" : {
-        "operationId" : "list_12",
+        "operationId" : "list_13",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -5115,7 +5160,7 @@
     },
     "/api/attachments" : {
       "get" : {
-        "operationId" : "list_11",
+        "operationId" : "list_12",
         "parameters" : [ {
           "in" : "query",
           "name" : "subjectType",
@@ -5223,7 +5268,7 @@
     },
     "/api/attachments/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_4",
+        "operationId" : "archive_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5432,7 +5477,7 @@
     },
     "/api/customers" : {
       "get" : {
-        "operationId" : "list_10",
+        "operationId" : "list_11",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -5659,7 +5704,7 @@
     },
     "/api/customers/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_3",
+        "operationId" : "archive_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5928,7 +5973,7 @@
     },
     "/api/deals" : {
       "get" : {
-        "operationId" : "list_9",
+        "operationId" : "list_10",
         "parameters" : [ {
           "in" : "query",
           "name" : "stage",
@@ -6248,7 +6293,7 @@
     },
     "/api/delivery-orders" : {
       "get" : {
-        "operationId" : "list_18",
+        "operationId" : "list_19",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -6468,7 +6513,7 @@
     },
     "/api/follow-ups" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "query",
           "name" : "bucket",
@@ -6750,7 +6795,7 @@
     },
     "/api/insights/targets" : {
       "get" : {
-        "operationId" : "list_17",
+        "operationId" : "list_18",
         "parameters" : [ {
           "in" : "query",
           "name" : "month",
@@ -6999,7 +7044,7 @@
     },
     "/api/lead-sources" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "query",
           "name" : "includeArchived",
@@ -7027,7 +7072,7 @@
         "tags" : [ "lead-source-controller" ]
       },
       "post" : {
-        "operationId" : "add",
+        "operationId" : "add_1",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -7055,7 +7100,7 @@
     },
     "/api/lead-sources/{id}" : {
       "put" : {
-        "operationId" : "rename",
+        "operationId" : "rename_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7092,7 +7137,7 @@
     },
     "/api/lead-sources/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_2",
+        "operationId" : "archive_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7119,7 +7164,7 @@
     },
     "/api/lead-sources/{id}/restore" : {
       "post" : {
-        "operationId" : "restore",
+        "operationId" : "restore_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7146,7 +7191,7 @@
     },
     "/api/leads" : {
       "get" : {
-        "operationId" : "list_6",
+        "operationId" : "list_7",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -7713,7 +7758,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_16",
+        "operationId" : "list_17",
         "parameters" : [ {
           "in" : "query",
           "name" : "unread",
@@ -7818,7 +7863,7 @@
     },
     "/api/orders" : {
       "get" : {
-        "operationId" : "list_3",
+        "operationId" : "list_4",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -8208,7 +8253,7 @@
     },
     "/api/orders/{id}/invoices" : {
       "get" : {
-        "operationId" : "list_15",
+        "operationId" : "list_16",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -8238,7 +8283,7 @@
     },
     "/api/orders/{id}/payments" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -8347,7 +8392,7 @@
     },
     "/api/orders/{id}/refunds" : {
       "get" : {
-        "operationId" : "list_4",
+        "operationId" : "list_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -8839,7 +8884,7 @@
     },
     "/api/portal/orders" : {
       "get" : {
-        "operationId" : "list_14",
+        "operationId" : "list_15",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -9175,6 +9220,153 @@
         "tags" : [ "portal-order-controller" ]
       }
     },
+    "/api/product-categories" : {
+      "get" : {
+        "operationId" : "list_3",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "includeArchived",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ProductCategoryResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "product-category-controller" ]
+      },
+      "post" : {
+        "operationId" : "add",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProductCategoryRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductCategoryResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "product-category-controller" ]
+      }
+    },
+    "/api/product-categories/{id}" : {
+      "put" : {
+        "operationId" : "rename",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProductCategoryRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductCategoryResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "product-category-controller" ]
+      }
+    },
+    "/api/product-categories/{id}/archive" : {
+      "post" : {
+        "operationId" : "archive_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductCategoryResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "product-category-controller" ]
+      }
+    },
+    "/api/product-categories/{id}/restore" : {
+      "post" : {
+        "operationId" : "restore",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductCategoryResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "product-category-controller" ]
+      }
+    },
     "/api/products" : {
       "get" : {
         "operationId" : "list_2",
@@ -9184,6 +9376,14 @@
           "required" : false,
           "schema" : {
             "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "categoryId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         }, {
           "in" : "query",

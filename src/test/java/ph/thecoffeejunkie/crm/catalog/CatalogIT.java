@@ -54,6 +54,7 @@ class CatalogIT {
     @AfterEach
     void cleanUp() {
         jdbc.update("delete from product where sku like ?", tag + "%");
+        jdbc.update("delete from product_category where name like ?", tag + "%");
         jdbc.update("delete from app_user where email like ?", tag + "%");
     }
 
@@ -93,6 +94,49 @@ class CatalogIT {
         mvc.perform(get("/api/products/" + id).with(authentication(as(admin, Role.ADMIN))))
                 .andExpect(jsonPath("$.cost").value(7.50))
                 .andExpect(jsonPath("$.reorderLevel").value(25));
+    }
+
+    private ResultActions addCategory(String name) throws Exception {
+        return mvc.perform(post("/api/product-categories").with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"));
+    }
+
+    private ResultActions createInCategory(String sku, long categoryId) throws Exception {
+        return mvc.perform(post("/api/products").with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(sku, "10.00", null).replace("}", ",\"categoryId\":" + categoryId + "}")));
+    }
+
+    @Test
+    void categoriesManagedAndProductsFilteredByThem() throws Exception {
+        String cat = tag + " Beans";
+        String res = addCategory("  " + cat + " ").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value(cat)).andReturn().getResponse().getContentAsString();
+        long catId = ((Number) JsonPath.read(res, "$.id")).longValue();
+        addCategory(cat.toUpperCase()).andExpect(status().isConflict());
+        mvc.perform(post("/api/product-categories").with(authentication(as(sales, Role.SALES))).with(csrf(mvc))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + tag + "x\"}"))
+                .andExpect(status().isForbidden());
+
+        createInCategory(tag + "-1", catId).andExpect(jsonPath("$.category").value(cat));
+        createdId(tag + "-2", "10.00");
+        mvc.perform(get("/api/products").param("q", tag).param("categoryId", String.valueOf(catId))
+                        .with(authentication(as(sales, Role.SALES))))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].category").value(cat));
+        mvc.perform(get("/api/products").param("q", tag).param("sort", "category,asc")
+                        .with(authentication(as(sales, Role.SALES))))
+                .andExpect(status().isOk());
+
+        // rename shows through; archived can't be newly picked
+        mvc.perform(put("/api/product-categories/" + catId).with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + cat + " 2\",\"version\":0}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/product-categories/" + catId + "/archive").with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc)))
+                .andExpect(jsonPath("$.archived").value(true));
+        createInCategory(tag + "-3", catId).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/products").param("q", tag + "-1").with(authentication(as(sales, Role.SALES))))
+                .andExpect(jsonPath("$.content[0].category").value(cat + " 2"));
     }
 
     @Test

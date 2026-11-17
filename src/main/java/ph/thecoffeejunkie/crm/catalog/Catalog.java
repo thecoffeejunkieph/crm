@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /** Public facade: other modules read products through {@link #info}; admins manage them via the controller. */
@@ -34,6 +35,8 @@ public class Catalog {
     private static final String ENTITY = "PRODUCT";
     private static final Set<String> SORTABLE = Set.of("sku", "name", "unit", "price", "taxClass");
     private static final Set<String> SORTABLE_ADMIN = Set.of("sku", "name", "unit", "price", "taxClass", "cost");
+    private static final Map<String, SortRequest.SortJoin<Product>> SORT_JOINS = Map.of(
+            "category", new SortRequest.SortJoin<>("product_category", "categoryId", "name"));
     private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of("status",
             new SortRequest.SortExpr("case when ? is null then 0 else 1 end", Integer.class, List.of("archivedAt")));
     private static final Sort DEFAULT_SORT = Sort.by("name");
@@ -41,22 +44,26 @@ public class Catalog {
     private final ProductRepository repo;
     private final AuditLog audit;
     private final CurrentActor actor;
+    private final ProductCategories categories;
 
-    Catalog(ProductRepository repo, AuditLog audit, CurrentActor actor) {
+    Catalog(ProductRepository repo, AuditLog audit, CurrentActor actor, ProductCategories categories) {
+        this.categories = categories;
         this.repo = repo;
         this.audit = audit;
         this.actor = actor;
     }
 
     @Transactional(readOnly = true)
-    PageResponse<ProductResponse> list(String q, boolean includeArchived, PageQuery page) {
+    PageResponse<ProductResponse> list(String q, Long categoryId, boolean includeArchived, PageQuery page) {
         Specification<Product> spec = Specification.allOf(
-                (r, cq, cb) -> includeArchived ? null : cb.isNull(r.get("archivedAt")), matches(q));
+                (r, cq, cb) -> includeArchived ? null : cb.isNull(r.get("archivedAt")), matches(q),
+                (r, cq, cb) -> categoryId == null ? null : cb.equal(r.get("categoryId"), categoryId));
         boolean admin = isAdmin();
         // cost is only in the JSON for ADMIN, so only ADMIN may order by it
-        var sort = SortRequest.<Product>of(page, admin ? SORTABLE_ADMIN : SORTABLE, Map.of(), SORT_EXPRS, DEFAULT_SORT);
-        return PageResponse.of(repo.findAll(spec.and(sort.orderSpec()), sort.pageable())
-                .map(p -> toResponse(p, admin)));
+        var sort = SortRequest.<Product>of(page, admin ? SORTABLE_ADMIN : SORTABLE, SORT_JOINS, SORT_EXPRS, DEFAULT_SORT);
+        var found = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
+        Map<Long, String> names = categories.names(found.map(p -> p.categoryId).toList());
+        return PageResponse.of(found.map(p -> toResponse(p, admin, names.get(p.categoryId))));
     }
 
     @Transactional(readOnly = true)
@@ -66,6 +73,7 @@ public class Catalog {
 
     @Transactional
     ProductResponse create(ProductRequest req) {
+        categories.requireActive(req.categoryId());
         Product p = new Product();
         apply(p, req);
         save(p);
@@ -88,11 +96,15 @@ public class Catalog {
                 .field("sku", p.sku, req.sku().trim())
                 .field("name", p.name, req.name().trim())
                 .field("description", p.description, req.description())
+                .field("categoryId", p.categoryId, req.categoryId())
                 .field("unit", p.unit, req.unit())
                 .field("price", money(p.price), money(req.price()))
                 .field("cost", money(p.cost), money(req.cost()))
                 .field("taxClass", p.taxClass, req.taxClass())
                 .field("reorderLevel", qty(p.reorderLevel), qty(req.reorderLevel()));
+        if (!Objects.equals(p.categoryId, req.categoryId())) {
+            categories.requireActive(req.categoryId()); // an archived category may stay, but not be newly chosen
+        }
         apply(p, req);
         p.updatedAt = Instant.now();
         save(p);
@@ -157,6 +169,7 @@ public class Catalog {
         p.sku = r.sku().trim();
         p.name = r.name().trim();
         p.description = r.description();
+        p.categoryId = r.categoryId();
         p.unit = r.unit();
         p.price = r.price();
         p.cost = r.cost();
@@ -182,8 +195,12 @@ public class Catalog {
                 cb.like(cb.lower(r.get("name")), like, '\\'));
     }
 
-    private static ProductResponse toResponse(Product p, boolean withCost) {
+    private ProductResponse toResponse(Product p, boolean withCost) {
+        return toResponse(p, withCost, p.categoryId == null ? null : categories.names(List.of(p.categoryId)).get(p.categoryId));
+    }
+
+    private static ProductResponse toResponse(Product p, boolean withCost, String categoryName) {
         return new ProductResponse(p.id, p.sku, p.name, p.description, p.unit, p.price, withCost ? p.cost : null,
-                p.taxClass, p.reorderLevel, p.archivedAt, p.version);
+                p.taxClass, p.reorderLevel, p.categoryId, categoryName, p.archivedAt, p.version);
     }
 }
