@@ -230,6 +230,36 @@ class OrdersIT {
     }
 
     @Test
+    void sortByStatusFollowsLifecycle() throws Exception {
+        long c = f.customer("statsort", null);
+        long[] o = new long[4]; // cancelled, confirmed, draft, quoted
+        for (int i = 0; i < 4; i++) {
+            o[i] = f.createdOrder(asAdmin, c, line(productA, "1"));
+        }
+        jdbc.update("update sales_order set status = 'CANCELLED' where id = ?", o[0]);
+        jdbc.update("update sales_order set status = 'CONFIRMED' where id = ?", o[1]);
+        jdbc.update("update sales_order set status = 'QUOTED' where id = ?", o[3]);
+        assertThat(sortedIds(c, "status,asc")).containsExactly(o[2], o[3], o[1], o[0]);
+    }
+
+    @Test
+    void paymentSortUsesManilaDate() throws Exception {
+        // ponytail: the DB clock can't be controlled; due = yesterday in Manila must rank OVERDUE (2) between
+        // PARTIAL (1) and PAID (3). It discriminates from current_date whenever the DB date lags Manila's.
+        long c = f.customer("manilasort", null);
+        long paid = f.createdOrder(asAdmin, c, line(productA, "1"));
+        long overdue = f.createdOrder(asAdmin, c, line(productA, "1"));
+        long partial = f.createdOrder(asAdmin, c, line(productA, "1"));
+        LocalDate yesterday = LocalDate.now(ZoneId.of("Asia/Manila")).minusDays(1);
+        jdbc.update("update sales_order set status = 'CONFIRMED', due_date = ? where id in (?, ?, ?)",
+                yesterday.plusDays(10), paid, overdue, partial);
+        jdbc.update("update sales_order set settled_amount = total where id = ?", paid);
+        jdbc.update("update sales_order set due_date = ? where id = ?", yesterday, overdue);
+        jdbc.update("update sales_order set settled_amount = 1 where id = ?", partial);
+        assertThat(sortedIds(c, "payment,asc")).containsExactly(partial, overdue, paid);
+    }
+
+    @Test
     void sortByBalance() throws Exception {
         long c = f.customer("balsort", null);
         long big = f.createdOrder(asAdmin, c, line(productA, "3"));

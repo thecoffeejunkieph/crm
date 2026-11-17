@@ -36,7 +36,7 @@ class CustomerSalesController {
     private static final SortRequest.SortExpr INVOICE_STATUS = new SortRequest.SortExpr(
             "case when ? = 'VOID' then 9 else (select case when o.status not in ('CONFIRMED','RELEASED','FULFILLED') "
                     + "then null when o.total - o.settled_amount <= 0 then 3 when o.due_date is not null "
-                    + "and o.due_date < current_date then 2 when o.settled_amount = 0 then 0 else 1 end "
+                    + "and o.due_date < (now() at time zone 'Asia/Manila')::date then 2 when o.settled_amount = 0 then 0 else 1 end "
                     + "from sales_order o where o.id = ?) end", Integer.class, List.of("status", "orderId"));
     private static final Map<String, SortRequest.SortExpr> INVOICE_EXPRS = Map.of("status", INVOICE_STATUS,
             "issued", SortRequest.alias("issuedAt", Instant.class), "due", SortRequest.alias("dueDate", LocalDate.class));

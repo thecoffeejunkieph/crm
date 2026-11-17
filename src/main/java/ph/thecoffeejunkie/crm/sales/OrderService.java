@@ -74,7 +74,7 @@ class OrderService {
     // Mirrors Balances.status: null (last) until billable, then UNPAID, PARTIAL, OVERDUE, PAID.
     private static final SortRequest.SortExpr PAYMENT_SORT = new SortRequest.SortExpr(
             "case when ? not in ('CONFIRMED','RELEASED','FULFILLED') then null when ? - ? <= 0 then 3 "
-                    + "when ? is not null and ? < current_date then 2 when ? = 0 then 0 else 1 end",
+                    + "when ? is not null and ? < (now() at time zone 'Asia/Manila')::date then 2 when ? = 0 then 0 else 1 end",
             Integer.class, List.of("status", "total", "settledAmount", "dueDate", "dueDate", "settledAmount"));
     static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
             "payment", PAYMENT_SORT,
@@ -156,11 +156,11 @@ class OrderService {
                         return null;
                     }
                     String pattern = Like.contains(f.q());
-                    // customer is a plain id here (no association): match its name through a correlated scalar subquery
-                    Expression<String> customerName = ((HibernateCriteriaBuilder) cb).sql(
-                            "(select lower(display_name) from customer x where x.id = ?)", String.class, r.get("customerId"));
-                    return cb.or(cb.like(cb.lower(r.get("number")), pattern, '\\'),
-                            cb.like(customerName, pattern, '\\'));
+                    // customer is a plain id here (no association): uncorrelated subquery, evaluated once
+                    Expression<Boolean> nameMatch = ((HibernateCriteriaBuilder) cb).sql(
+                            "? in (select id from customer where lower(display_name) like ? escape '\\')", Boolean.class,
+                            r.get("customerId"), cb.literal(pattern));
+                    return cb.or(cb.like(cb.lower(r.get("number")), pattern, '\\'), cb.isTrue(nameMatch));
                 },
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),

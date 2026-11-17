@@ -60,13 +60,14 @@ class AdjustmentsIT {
 
     @AfterEach
     void cleanUp() {
-        List<Long> adjustments = jdbc.queryForList("select id from stock_adjustment where warehouse_id = ?",
-                Long.class, wh1);
-        jdbc.update("delete from stock_adjustment where warehouse_id = ?", wh1);
+        // the sort test also posts to a second warehouse: collect both before deleting
+        String second = "select id from warehouse where code like ?";
+        List<Long> adjustments = jdbc.queryForList("select id from stock_adjustment where warehouse_id = ? "
+                + "or warehouse_id in (" + second + ")", Long.class, wh1, f.tag + "%");
+        jdbc.update("delete from stock_adjustment where warehouse_id = ? or warehouse_id in (" + second + ")",
+                wh1, f.tag + "%");
         adjustments.forEach(id -> jdbc.update("delete from approval_request where subject_type = 'STOCK_ADJUSTMENT' "
                 + "and subject_id = ?", id));
-        jdbc.update("delete from stock_adjustment where warehouse_id in (select id from warehouse where code like ?)",
-                f.tag + "%"); // the sort test also posts to a second warehouse
         f.cleanUp();
     }
 
@@ -291,15 +292,31 @@ class AdjustmentsIT {
                 .andExpect(status().isCreated());
         adjust("{\"warehouseId\":" + wh2 + ",\"productId\":" + q + ",\"mode\":\"DELTA\",\"delta\":2,\"reason\":\"r\"}", admin)
                 .andExpect(status().isCreated());
+        long id1 = jdbc.queryForObject("select id from stock_adjustment where warehouse_id = ?", Long.class, wh1);
+        long id2 = jdbc.queryForObject("select id from stock_adjustment where warehouse_id = ?", Long.class, wh2);
         for (String key : new String[]{"warehouse", "product"}) {
-            mvc.perform(get("/api/stock/adjustments").param("sort", key + ",asc").with(admin)).andExpect(status().isOk())
-                    .andExpect(jsonPath("$.content[0].delta").value(2.0)).andExpect(jsonPath("$.content[1].delta").value(1.0));
-            mvc.perform(get("/api/stock/adjustments").param("sort", key + ",desc").with(admin)).andExpect(status().isOk())
-                    .andExpect(jsonPath("$.content[0].delta").value(1.0)).andExpect(jsonPath("$.content[1].delta").value(2.0));
+            assertThat(order(key + ",asc", id1, id2)).containsExactly(id2, id1);
+            assertThat(order(key + ",desc", id1, id2)).containsExactly(id1, id2);
         }
-        mvc.perform(get("/api/stock/adjustments").param("sort", "delta,desc").with(admin)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].delta").value(2.0));
+        assertThat(order("delta,desc", id1, id2)).containsExactly(id2, id1);
         mvc.perform(get("/api/stock/adjustments").param("sort", "bogus,asc").with(admin))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
+
+    /** The given ids' relative order across all pages of a sort, ignoring any other rows. */
+    private List<Long> order(String sort, long... ids) throws Exception {
+        List<Long> found = new java.util.ArrayList<>();
+        for (int page = 1; found.size() < ids.length; page++) {
+            String body = mvc.perform(get("/api/stock/adjustments").param("sort", sort).param("size", "100")
+                    .param("page", String.valueOf(page)).with(admin)).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            List<Number> all = com.jayway.jsonpath.JsonPath.read(body, "$.content[*].id");
+            if (all.isEmpty()) {
+                break;
+            }
+            all.stream().map(Number::longValue).filter(i -> java.util.Arrays.stream(ids).anyMatch(x -> x == i))
+                    .forEach(found::add);
+        }
+        return found;
     }
 }
