@@ -336,4 +336,17 @@ class CustomersIT {
                 .with(authentication(as(admin, Role.ADMIN)))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(z)).andExpect(jsonPath("$.content[1].id").value(a));
     }
+
+    @Test
+    void customersSortByStatusActiveFirst() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long gone = createdId(admin, Role.ADMIN, "aa"), live = createdId(admin, Role.ADMIN, "zz");
+        jdbc.update("update customer set archived_at = now() where id = ?", gone);
+        for (var c : List.of(List.of("asc", live, gone), List.of("desc", gone, live))) {
+            mvc.perform(get("/api/customers").param("q", tag).param("includeArchived", "true")
+                    .param("sort", "status," + c.get(0)).with(authentication(as(admin, Role.ADMIN))))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].id").value(c.get(1)))
+                    .andExpect(jsonPath("$.content[1].id").value(c.get(2)));
+        }
+    }
 }

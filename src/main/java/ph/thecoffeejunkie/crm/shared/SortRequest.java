@@ -26,8 +26,20 @@ public record SortRequest<T>(Pageable pageable, Specification<T> orderSpec) {
     public record SortJoin<T>(String table, String idAttrOnRoot, String displayColumn) {
     }
 
+    /**
+     * Sorts by a constant SQL template; each {@code ?} is filled, in order, by the root attribute named in {@code attrs}.
+     * Build only in {@code static final} fields: the template is spliced into SQL, never user input.
+     */
+    public record SortExpr(String sqlTemplate, Class<?> type, List<String> attrs) {
+    }
+
     public static <T> SortRequest<T> of(PageQuery page, Set<String> ownFields, Map<String, SortJoin<T>> joins,
                                         Sort defaultSort) {
+        return of(page, ownFields, joins, Map.of(), defaultSort);
+    }
+
+    public static <T> SortRequest<T> of(PageQuery page, Set<String> ownFields, Map<String, SortJoin<T>> joins,
+                                        Map<String, SortExpr> exprs, Sort defaultSort) {
         int p = page.page() == null ? 1 : Math.max(1, page.page()); // page 0 would make PageRequest throw a 500
         int s = page.size() == null ? 20 : Math.clamp(page.size(), 1, 100);
         String sort = page.sort();
@@ -37,25 +49,29 @@ public record SortRequest<T>(Pageable pageable, Specification<T> orderSpec) {
         String[] parts = sort.split(",", 2);
         String key = parts[0].trim();
         String dir = parts.length > 1 ? parts[1].trim() : "asc";
-        boolean known = ownFields.contains(key) || joins.containsKey(key);
+        boolean known = ownFields.contains(key) || joins.containsKey(key) || exprs.containsKey(key);
         if (!known || !(dir.equalsIgnoreCase("asc") || dir.equalsIgnoreCase("desc"))) {
             throw new DomainException(ErrorCode.VALIDATION_FAILED, "Cannot sort by '" + sort + "'",
                     Map.of("field", "sort"));
         }
         Sort.Direction d = Sort.Direction.fromString(dir);
         SortJoin<T> join = joins.get(key);
-        if (join == null) {
+        SortExpr computed = join != null
+                ? new SortExpr("(select " + join.displayColumn() + " from " + join.table() + " x where x.id = ?)",
+                        String.class, List.of(join.idAttrOnRoot()))
+                : exprs.get(key);
+        if (computed == null) {
             Sort order = Sort.by(new Sort.Order(d, key).nullsLast()).and(Sort.by("id"));
             return new SortRequest<>(PageRequest.of(p - 1, s, order), Specification.unrestricted());
         }
-        String sql = "(select " + join.displayColumn() + " from " + join.table() + " x where x.id = ?)";
         Specification<T> order = (root, query, cb) -> {
             if (query.getResultType() != Long.class) { // Long = the count query
-                Expression<String> name = ((HibernateCriteriaBuilder) cb).sql(sql, String.class, root.get(join.idAttrOnRoot()));
-                Order byName = d == Sort.Direction.ASC ? cb.asc(name) : cb.desc(name);
+                Expression<?>[] args = computed.attrs().stream().map(root::get).toArray(Expression[]::new);
+                Expression<?> value = ((HibernateCriteriaBuilder) cb).sql(computed.sqlTemplate(), computed.type(), args);
+                Order by = d == Sort.Direction.ASC ? cb.asc(value) : cb.desc(value);
                 // Postgres sorts nulls last for ASC already; DESC needs the explicit guard.
-                List<Order> orders = d == Sort.Direction.ASC ? List.of(byName, cb.asc(root.get("id")))
-                        : List.of(cb.asc(cb.selectCase().when(cb.isNull(name), 1).otherwise(0)), byName, cb.asc(root.get("id")));
+                List<Order> orders = d == Sort.Direction.ASC ? List.of(by, cb.asc(root.get("id")))
+                        : List.of(cb.asc(cb.selectCase().when(cb.isNull(value), 1).otherwise(0)), by, cb.asc(root.get("id")));
                 query.orderBy(orders);
             }
             return null;

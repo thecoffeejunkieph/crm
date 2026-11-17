@@ -41,7 +41,10 @@ import java.util.Set;
 public class Customers {
 
     private static final String ENTITY = "CUSTOMER";
-    private static final Set<String> SORTABLE = Set.of("displayName", "type", "phone", "email", "archivedAt", "createdAt");
+    private static final Set<String> SORTABLE = Set.of("displayName", "type", "phone", "email", "createdAt");
+    /** Active (not archived) first on asc. */
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of("status",
+            new SortRequest.SortExpr("case when ? is null then 0 else 1 end", Integer.class, List.of("archivedAt")));
     private static final Map<String, SortRequest.SortJoin<Customer>> SORT_JOINS = Map.of(
             "rep", new SortRequest.SortJoin<>("app_user", "assignedRepId", "first_name || ' ' || last_name"));
     private static final Sort DEFAULT_SORT = Sort.by("displayName");
@@ -72,7 +75,7 @@ public class Customers {
     PageResponse<CustomerSummary> list(Scope s, String q, boolean includeArchived, PageQuery page) {
         Specification<Customer> spec = Specification.allOf(CustomerScopes.visibleTo(s, includeArchived),
                 CustomerScopes.matches(q));
-        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, DEFAULT_SORT);
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, SORT_EXPRS, DEFAULT_SORT);
         var result = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         Map<Long, String> reps = repNames(result.getContent().stream().map(c -> c.assignedRepId).toList());
         return PageResponse.of(result.map(c -> new CustomerSummary(c.id, c.displayName, c.type, c.phone, c.email,

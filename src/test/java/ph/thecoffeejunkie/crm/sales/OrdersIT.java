@@ -193,4 +193,50 @@ class OrdersIT {
                 .andExpect(jsonPath("$.content[0].id").value(z))
                 .andExpect(jsonPath("$.content[1].id").value(a));
     }
+
+    private List<Long> sortedIds(long cust, String sort) throws Exception {
+        String body = SalesFixture.body(mvc.perform(get("/api/orders").param("customerId", String.valueOf(cust))
+                .param("sort", sort).with(asAdmin)).andExpect(status().isOk()));
+        return ((List<Number>) JsonPath.read(body, "$.content[*].id")).stream().map(Number::longValue).toList();
+    }
+
+    @Test
+    void nullRepSortsLastBothWays() throws Exception {
+        long amy = f.user("amy", Role.SALES);
+        long c = f.customer("nullrep", null);
+        long withRep = f.createdOrder(asAdmin, c, line(productA, "1"));
+        long noRep = f.createdOrder(asAdmin, c, line(productA, "1"));
+        jdbc.update("update sales_order set rep_id = ? where id = ?", amy, withRep);
+        jdbc.update("update sales_order set rep_id = null where id = ?", noRep);
+        assertThat(sortedIds(c, "rep,asc")).containsExactly(withRep, noRep);
+        assertThat(sortedIds(c, "rep,desc")).containsExactly(withRep, noRep);
+    }
+
+    @Test
+    void sortByPaymentStatus() throws Exception {
+        long c = f.customer("paysort", null);
+        long draft = f.createdOrder(asAdmin, c, line(productA, "1"));
+        long[] o = new long[4]; // paid, overdue, partial, unpaid
+        for (int i = 0; i < 4; i++) {
+            o[i] = f.createdOrder(asAdmin, c, line(productA, "1"));
+        }
+        jdbc.update("update sales_order set status = 'CONFIRMED', due_date = current_date + 10 where id in (?, ?, ?, ?)",
+                o[0], o[1], o[2], o[3]);
+        jdbc.update("update sales_order set settled_amount = total where id = ?", o[0]);
+        jdbc.update("update sales_order set due_date = current_date - 5 where id = ?", o[1]);
+        jdbc.update("update sales_order set settled_amount = 1 where id = ?", o[2]);
+        assertThat(sortedIds(c, "payment,asc")).containsExactly(o[3], o[2], o[1], o[0], draft);
+        assertThat(sortedIds(c, "payment,desc")).containsExactly(o[0], o[1], o[2], o[3], draft);
+    }
+
+    @Test
+    void sortByBalance() throws Exception {
+        long c = f.customer("balsort", null);
+        long big = f.createdOrder(asAdmin, c, line(productA, "3"));
+        long small = f.createdOrder(asAdmin, c, line(productA, "1"));
+        long paid = f.createdOrder(asAdmin, c, line(productA, "2"));
+        jdbc.update("update sales_order set settled_amount = total where id = ?", paid);
+        assertThat(sortedIds(c, "balance,asc")).containsExactly(paid, small, big);
+        assertThat(sortedIds(c, "balance,desc")).containsExactly(big, small, paid);
+    }
 }

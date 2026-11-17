@@ -69,7 +69,17 @@ import static ph.thecoffeejunkie.crm.sales.OrderAction.RESEND_QUOTE;
 class OrderService {
 
     static final String ENTITY = "ORDER";
-    private static final Set<String> SORTABLE = Set.of("number", "status", "total", "updatedAt", "createdAt", "dueDate");
+    private static final Set<String> SORTABLE = Set.of("number", "total", "updatedAt", "createdAt", "dueDate");
+    // Mirrors Balances.status: null (last) until billable, then UNPAID, PARTIAL, OVERDUE, PAID.
+    private static final SortRequest.SortExpr PAYMENT_SORT = new SortRequest.SortExpr(
+            "case when ? not in ('CONFIRMED','RELEASED','FULFILLED') then null when ? - ? <= 0 then 3 "
+                    + "when ? is not null and ? < current_date then 2 when ? = 0 then 0 else 1 end",
+            Integer.class, List.of("status", "total", "settledAmount", "dueDate", "dueDate", "settledAmount"));
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "payment", PAYMENT_SORT,
+            "balance", new SortRequest.SortExpr("? - ?", BigDecimal.class, List.of("total", "settledAmount")),
+            "status", new SortRequest.SortExpr("case ? when 'DRAFT' then 0 when 'QUOTED' then 1 when 'CONFIRMED' then 2 "
+                    + "when 'RELEASED' then 3 when 'FULFILLED' then 4 else 5 end", Integer.class, List.of("status")));
     private static final Map<String, SortRequest.SortJoin<SalesOrder>> SORT_JOINS = Map.of(
             "customer", new SortRequest.SortJoin<>("customer", "customerId", "display_name"),
             "rep", new SortRequest.SortJoin<>("app_user", "repId", "first_name || ' ' || last_name"));
@@ -145,7 +155,7 @@ class OrderService {
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),
                 paymentStatus(f.paymentStatus(), today));
-        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, DEFAULT_SORT);
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, SORT_EXPRS, DEFAULT_SORT);
         var found = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         Map<Long, String> customerNames = customers.displayNames(
                 found.getContent().stream().map(o -> o.customerId).toList());
