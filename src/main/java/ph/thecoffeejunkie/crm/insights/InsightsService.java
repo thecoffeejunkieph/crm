@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
 /** One read per role, cached 60s in Redis (cache "insights"); target writes invalidate it (TargetService). */
 @Service
 class InsightsService {
+    /** Dashboard lists show 5 at a time; the UI reveals the rest with "See more". */
+    private static final int TOP = 20;
+
 
     private final InsightsQueries q;
     private final TargetService targets;
@@ -44,7 +47,7 @@ class InsightsService {
                 Commission.remaining(net, amount), Commission.hit(net, amount),
                 Commission.of(net, amount, pct), q.invoiced(userId, m), owed.outstanding(), owed.overdue(),
                 q.toVerify(userId), q.collectedByDay(userId, m),
-                q.needsAction(userId, InsightsMonth.today(clock), 5), q.topCustomers(userId, m, 5));
+                q.needsAction(userId, InsightsMonth.today(clock), 5), q.topCustomers(userId, m, TOP));
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +57,7 @@ class InsightsService {
         InsightsQueries.Balance owed = q.outstanding(null, InsightsMonth.today(clock));
         return new AdminInsights(m, collected, q.collected(null, m.minusMonths(1)), q.invoiced(null, m), q.margin(m),
                 owed.outstanding(), owed.overdue(), q.toVerify(null), q.collectedByMonth(m, 12), reps(m),
-                q.topProducts(m, 10), q.topCustomers(null, m, 10), q.operations());
+                q.topProducts(m, TOP), q.topCustomers(null, m, TOP), q.operations());
     }
 
     /** {@code warehouseIds} null for ADMIN (every warehouse). The key sorts the ids so set order never splits it. */
