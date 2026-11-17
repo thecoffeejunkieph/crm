@@ -431,4 +431,21 @@ class UserAdminIT {
         mvc.perform(get("/api/admin/users").param("sort", "passwordHash,asc").with(as(user("s400@users.it", Role.ADMIN))))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
     }
+
+    @Test
+    void warehousesSortTreatsNonWarehouseUsersAsEmpty() throws Exception {
+        AppUser admin = user("a-wh@users.it", Role.ADMIN);
+        AppUser keeper = user("z-keeper@users.it", Role.WAREHOUSE);
+        AppUser sales = user("b-sales@users.it", Role.SALES);
+        long zWh = warehouse();
+        long aWh = warehouse();
+        jdbc.update("update warehouse set name = 'ZZ sort' where id = ?", zWh);
+        jdbc.update("update warehouse set name = 'AA sort' where id = ?", aWh);
+        // sales has a membership row but no WAREHOUSE role, so the column shows "-" and it must sort as empty
+        jdbc.update("insert into user_warehouse (user_id, warehouse_id) values (?, ?), (?, ?)", keeper.id, zWh, sales.id, aWh);
+        for (String dir : new String[]{"asc", "desc"}) {
+            List<String> order = emails("warehouses," + dir, admin);
+            assertThat(order.indexOf("z-keeper@users.it")).isLessThan(order.indexOf("b-sales@users.it"));
+        }
+    }
 }

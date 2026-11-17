@@ -95,7 +95,8 @@ class AuditLogIT {
         var admin = authentication(auth(Role.ADMIN));
         mvc.perform(get("/api/admin/activity").param("entityType", "T5").param("sort", "actorName,asc").with(admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].summary").value("a"))
-                .andExpect(jsonPath("$.content[1].summary").value("z")).andExpect(jsonPath("$.content[2].summary").value("n"));
+                // the nameless row shows its actor type, USER, so it sorts between Amy and Zed
+                .andExpect(jsonPath("$.content[1].summary").value("n")).andExpect(jsonPath("$.content[2].summary").value("z"));
         mvc.perform(get("/api/admin/activity").param("entityType", "T5").param("sort", "action,desc").with(admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].summary").value("z"));
         mvc.perform(get("/api/admin/activity").param("sort", "changes,asc").with(admin))

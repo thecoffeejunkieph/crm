@@ -183,4 +183,24 @@ class ReportsIT {
         mvc.perform(get(url).param("sort", "pdf,asc").with(asRep)).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.field").value("sort"));
     }
+
+    @Test
+    void customerInvoicesSortByWhatTheStatusColumnShows() throws Exception {
+        long paidOrder = confirmedOrder(customer);
+        long voidOrder = confirmedOrder(customer);
+        jdbc.update("update sales_order set settled_amount = total where id = ?", paidOrder);
+        String insert = "insert into invoice (number, order_id, order_revision, status, issued_at, due_date, customer_snapshot, "
+                + "lines_snapshot, vatable_sales, vat, vat_exempt_sales, zero_rated_sales, shipping_fee, total, issued_by) "
+                + "values (?, ?, 0, ?, now(), current_date, '{}', '[]', 0, 0, 0, 0, 0, 100, ?)";
+        jdbc.update(insert, "SI-" + f.tag + "-PAID", paidOrder, "ISSUED", rep);
+        jdbc.update(insert, "SI-" + f.tag + "-UNPAID", order, "ISSUED", rep);
+        jdbc.update(insert, "SI-" + f.tag + "-VOID", voidOrder, "VOID", rep);
+        String url = "/api/customers/" + customer + "/invoices";
+        for (String[] c : new String[][]{{"asc", "UNPAID", "PAID", "VOID"}, {"desc", "VOID", "PAID", "UNPAID"}}) {
+            String body = mvc.perform(get(url).param("sort", "status," + c[0]).with(asRep)).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat((List<String>) com.jayway.jsonpath.JsonPath.read(body, "$.content[*].number"))
+                    .containsExactly("SI-" + f.tag + "-" + c[1], "SI-" + f.tag + "-" + c[2], "SI-" + f.tag + "-" + c[3]);
+        }
+    }
 }

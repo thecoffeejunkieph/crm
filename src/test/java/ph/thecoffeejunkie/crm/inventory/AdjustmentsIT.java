@@ -65,6 +65,8 @@ class AdjustmentsIT {
         jdbc.update("delete from stock_adjustment where warehouse_id = ?", wh1);
         adjustments.forEach(id -> jdbc.update("delete from approval_request where subject_type = 'STOCK_ADJUSTMENT' "
                 + "and subject_id = ?", id));
+        jdbc.update("delete from stock_adjustment where warehouse_id in (select id from warehouse where code like ?)",
+                f.tag + "%"); // the sort test also posts to a second warehouse
         f.cleanUp();
     }
 
@@ -276,13 +278,27 @@ class AdjustmentsIT {
 
     @Test
     void sortsByLinkedWarehouseAndProductAndRejectsUnknownKey() throws Exception {
+        long wh2 = f.warehouse("B");
+        long q = f.product("Q", "KG");
+        jdbc.update("update warehouse set name = 'Zulu' where id = ?", wh1);
+        jdbc.update("update warehouse set name = 'Alpha' where id = ?", wh2);
+        jdbc.update("update product set name = 'Zebra' where id = ?", p);
+        jdbc.update("update product set name = 'Apple' where id = ?", q);
         f.receive(p, wh1, "10");
-        delta("1", admin).andExpect(status().isCreated());
-        mvc.perform(get("/api/stock/adjustments").param("warehouseId", "" + wh1).param("sort", "warehouse,desc")
-                .with(admin)).andExpect(status().isOk()).andExpect(jsonPath("$.content[0].delta").value(1.0));
-        mvc.perform(get("/api/stock/adjustments").param("warehouseId", "" + wh1).param("sort", "product,asc")
-                .with(admin)).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
-        mvc.perform(get("/api/stock/adjustments").param("sort", "delta,desc").with(admin)).andExpect(status().isOk());
+        f.receive(q, wh2, "10");
+        // row 1: Zulu warehouse + Zebra product, delta 1; row 2: Alpha warehouse + Apple product, delta 2
+        adjust("{\"warehouseId\":" + wh1 + ",\"productId\":" + p + ",\"mode\":\"DELTA\",\"delta\":1,\"reason\":\"r\"}", admin)
+                .andExpect(status().isCreated());
+        adjust("{\"warehouseId\":" + wh2 + ",\"productId\":" + q + ",\"mode\":\"DELTA\",\"delta\":2,\"reason\":\"r\"}", admin)
+                .andExpect(status().isCreated());
+        for (String key : new String[]{"warehouse", "product"}) {
+            mvc.perform(get("/api/stock/adjustments").param("sort", key + ",asc").with(admin)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].delta").value(2.0)).andExpect(jsonPath("$.content[1].delta").value(1.0));
+            mvc.perform(get("/api/stock/adjustments").param("sort", key + ",desc").with(admin)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].delta").value(1.0)).andExpect(jsonPath("$.content[1].delta").value(2.0));
+        }
+        mvc.perform(get("/api/stock/adjustments").param("sort", "delta,desc").with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].delta").value(2.0));
         mvc.perform(get("/api/stock/adjustments").param("sort", "bogus,asc").with(admin))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
     }

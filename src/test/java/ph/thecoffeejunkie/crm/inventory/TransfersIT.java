@@ -289,7 +289,7 @@ class TransfersIT {
         String res = mvc.perform(get("/api/transfers").param("sort", "status,asc").param("size", "100").with(admin))
                 .andReturn().getResponse().getContentAsString();
         java.util.List<Integer> ids = com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");
-        assertThat(ids.indexOf((int) first)).isLessThan(ids.indexOf((int) second));
+        assertThat(ids.indexOf((int) second)).isLessThan(ids.indexOf((int) first)); // DRAFT before DISPATCHED
         res = mvc.perform(get("/api/transfers").param("sort", "number,desc").param("size", "100").with(admin))
                 .andReturn().getResponse().getContentAsString();
         ids = com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");

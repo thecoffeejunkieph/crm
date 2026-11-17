@@ -44,9 +44,11 @@ class TransferService {
 
     static final String ENTITY = "TRANSFER";
     private static final Sort NEWEST = Sort.by(Sort.Direction.DESC, "id");
-    private static final Set<String> SORTABLE = Set.of("number", "status");
+    private static final Set<String> SORTABLE = Set.of("number");
     // route = "From -> to" by warehouse names, as the page shows it.
     private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "status", new SortRequest.SortExpr("case ? when 'DRAFT' then 0 when 'DISPATCHED' then 1 when 'RECEIVED' then 2 "
+                    + "else 3 end", Integer.class, List.of("status")),
             "route", new SortRequest.SortExpr("(select name from warehouse x where x.id = ?) || ' -> ' "
                     + "|| (select name from warehouse y where y.id = ?)", String.class,
                     List.of("fromWarehouseId", "toWarehouseId")),

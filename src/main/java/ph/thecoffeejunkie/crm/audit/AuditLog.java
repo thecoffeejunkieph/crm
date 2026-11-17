@@ -10,16 +10,22 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** Writes join the caller's transaction (MANDATORY) so an audit row never outlives a rolled-back change. */
 @Service
 public class AuditLog {
 
-    private static final Set<String> SORTABLE = Set.of("at", "id", "actorName", "action", "entityType");
+    private static final Set<String> SORTABLE = Set.of("at", "id", "action", "entityType");
+    // The Actor column shows the name, else the actor type.
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of("actorName",
+            new SortRequest.SortExpr("coalesce(?, ?)", String.class, List.of("actorName", "actorType")));
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "at");
 
     private static final java.util.regex.Pattern EMAIL =
@@ -84,7 +90,8 @@ public class AuditLog {
                 eq("action", action == null ? null : action.name()), eq("entityId", entityId),
                 (r, q, cb) -> from == null ? null : cb.greaterThanOrEqualTo(r.<Instant>get("at"), from),
                 (r, q, cb) -> to == null ? null : cb.lessThan(r.<Instant>get("at"), to));
-        return PageResponse.of(repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT))
+        var sort = SortRequest.<AuditEvent>of(page, SORTABLE, Map.of(), SORT_EXPRS, DEFAULT_SORT);
+        return PageResponse.of(repo.findAll(spec.and(sort.orderSpec()), sort.pageable())
                 .map(AuditEvent::toResponse));
     }
 
