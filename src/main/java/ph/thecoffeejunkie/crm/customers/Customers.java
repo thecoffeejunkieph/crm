@@ -24,6 +24,7 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.PhoneKey;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -40,7 +41,9 @@ import java.util.Set;
 public class Customers {
 
     private static final String ENTITY = "CUSTOMER";
-    private static final Set<String> SORTABLE = Set.of("displayName", "createdAt");
+    private static final Set<String> SORTABLE = Set.of("displayName", "type", "phone", "email", "archivedAt", "createdAt");
+    private static final Map<String, SortRequest.SortJoin<Customer>> SORT_JOINS = Map.of(
+            "rep", new SortRequest.SortJoin<>("app_user", "assignedRepId", "first_name || ' ' || last_name"));
     private static final Sort DEFAULT_SORT = Sort.by("displayName");
 
     private final CustomerRepository repo;
@@ -69,7 +72,8 @@ public class Customers {
     PageResponse<CustomerSummary> list(Scope s, String q, boolean includeArchived, PageQuery page) {
         Specification<Customer> spec = Specification.allOf(CustomerScopes.visibleTo(s, includeArchived),
                 CustomerScopes.matches(q));
-        var result = repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT));
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, DEFAULT_SORT);
+        var result = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         Map<Long, String> reps = repNames(result.getContent().stream().map(c -> c.assignedRepId).toList());
         return PageResponse.of(result.map(c -> new CustomerSummary(c.id, c.displayName, c.type, c.phone, c.email,
                 c.assignedRepId == null ? null : reps.get(c.assignedRepId), c.archivedAt)));

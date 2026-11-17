@@ -178,4 +178,19 @@ class OrdersIT {
         mvc.perform(get("/api/orders").param("customerId", String.valueOf(customer)).with(asRep))
                 .andExpect(jsonPath("$.content[0].paymentStatus").doesNotExist());
     }
+
+    @Test
+    void sortByRepDesc() throws Exception {
+        long zed = f.user("zed", Role.SALES), amy = f.user("amy", Role.SALES);
+        long c = f.customer("repsort", null);
+        long a = f.createdOrder(asAdmin, c, line(productA, "1"));
+        long z = f.createdOrder(asAdmin, c, line(productA, "1"));
+        jdbc.update("update sales_order set rep_id = ? where id = ?", amy, a);
+        jdbc.update("update sales_order set rep_id = ? where id = ?", zed, z);
+        mvc.perform(get("/api/orders").param("customerId", String.valueOf(c)).param("sort", "rep,desc").with(asAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(z))
+                .andExpect(jsonPath("$.content[1].id").value(a));
+    }
 }

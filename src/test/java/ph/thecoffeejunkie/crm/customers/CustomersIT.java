@@ -323,4 +323,17 @@ class CustomersIT {
         create(rep, Role.SALES, json("sm2", "111", null, null).replace("}", ",\"socialMedia\":\"" + "x".repeat(1001) + "\"}"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void sortByRep() throws Exception {
+        long admin = user("adm", "ADMIN"), amy = user("amy", "SALES"), zed = user("zed", "SALES");
+        jdbc.update("update app_user set first_name = 'Amy' where id = ?", amy);
+        jdbc.update("update app_user set first_name = 'Zed' where id = ?", zed);
+        long a = createdId(admin, Role.ADMIN, "ra"), z = createdId(admin, Role.ADMIN, "rz");
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", amy, a);
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", zed, z);
+        mvc.perform(get("/api/customers").param("q", tag).param("sort", "rep,desc")
+                .with(authentication(as(admin, Role.ADMIN)))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(z)).andExpect(jsonPath("$.content[1].id").value(a));
+    }
 }

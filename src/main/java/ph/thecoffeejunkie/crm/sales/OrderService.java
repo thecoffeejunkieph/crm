@@ -38,6 +38,7 @@ import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Scope;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
 import java.math.BigDecimal;
@@ -68,7 +69,10 @@ import static ph.thecoffeejunkie.crm.sales.OrderAction.RESEND_QUOTE;
 class OrderService {
 
     static final String ENTITY = "ORDER";
-    private static final Set<String> SORTABLE = Set.of("number", "updatedAt", "total");
+    private static final Set<String> SORTABLE = Set.of("number", "status", "total", "updatedAt", "createdAt", "dueDate");
+    private static final Map<String, SortRequest.SortJoin<SalesOrder>> SORT_JOINS = Map.of(
+            "customer", new SortRequest.SortJoin<>("customer", "customerId", "display_name"),
+            "rep", new SortRequest.SortJoin<>("app_user", "repId", "first_name || ' ' || last_name"));
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "updatedAt");
     private static final Set<OrderStatus> BILLABLE =
             EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.RELEASED, OrderStatus.FULFILLED);
@@ -141,7 +145,8 @@ class OrderService {
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),
                 paymentStatus(f.paymentStatus(), today));
-        var found = repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT));
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, DEFAULT_SORT);
+        var found = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         Map<Long, String> customerNames = customers.displayNames(
                 found.getContent().stream().map(o -> o.customerId).toList());
         Map<Long, String> repNames = users.displayNames(
