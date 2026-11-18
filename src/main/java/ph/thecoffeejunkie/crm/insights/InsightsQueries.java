@@ -163,20 +163,19 @@ class InsightsQueries {
      */
     private static final String LINE_NET = "(" + NET + " * " + NET_GOODS + " / nullif(o.total - o.shipping_fee, 0))";
 
-    /** {@code months} entries, oldest first, ending at {@code end}. */
-    List<AdminInsights.MonthAmount> collectedByMonth(YearMonth end, int months) {
-        YearMonth first = end.minusMonths(months - 1L);
-        MapSqlParameterSource p = new MapSqlParameterSource("start", Timestamp.from(InsightsMonth.start(first)))
-                .addValue("end", Timestamp.from(InsightsMonth.end(end)));
-        Map<YearMonth, BigDecimal> byMonth = new HashMap<>();
-        jdbc.query("select to_char(p.at at time zone 'Asia/Manila', 'YYYY-MM') ym, sum(" + PAID + ") amount "
-                + "from money_movement p where p.at >= :start and p.at < :end "
-                + "group by 1", p, rs -> {
-                    byMonth.put(YearMonth.parse(rs.getString("ym")), rs.getBigDecimal("amount"));
+    /** Collected per day (week, month) or per month (year) of the period, empty buckets included, oldest first. */
+    List<DayAmount> collectedTrend(Period p) {
+        boolean monthly = p.unit().equals("year");
+        String bucket = monthly ? "date_trunc('month', p.at at time zone 'Asia/Manila')::date" : MANILA_DATE.formatted("p.at");
+        Map<LocalDate, BigDecimal> by = new HashMap<>();
+        jdbc.query("select " + bucket + " d, sum(" + PAID + ") amount from money_movement p "
+                + "where p.at >= :start and p.at < :end group by 1", p.params(),
+                rs -> {
+                    by.put(rs.getObject("d", LocalDate.class), rs.getBigDecimal("amount"));
                 });
-        List<AdminInsights.MonthAmount> out = new ArrayList<>();
-        for (YearMonth m = first; !m.isAfter(end); m = m.plusMonths(1)) {
-            out.add(new AdminInsights.MonthAmount(m, money(byMonth.get(m))));
+        List<DayAmount> out = new ArrayList<>();
+        for (LocalDate d = p.from(); d.isBefore(p.to()); d = monthly ? d.plusMonths(1) : d.plusDays(1)) {
+            out.add(new DayAmount(d, money(by.get(d))));
         }
         return out;
     }

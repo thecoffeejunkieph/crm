@@ -166,13 +166,16 @@ class AdminInsightsIT {
     }
 
     @Test
-    void collectedByMonthHasTwelveEndingAtMonth() throws Exception {
+    void trendFollowsThePeriod() throws Exception {
         payments();
-        adminView(q).andExpect(jsonPath("$.collectedByMonth.length()").value(12))
-                .andExpect(jsonPath("$.collectedByMonth[11].month").value(q.toString()))
-                .andExpect(jsonPath("$.collectedByMonth[11].amount").value(1500.00))
-                .andExpect(jsonPath("$.collectedByMonth[10].amount").value(300.00))
-                .andExpect(jsonPath("$.collectedByMonth[0].month").value(q.minusMonths(11).toString()));
+        adminView(q).andExpect(jsonPath("$.collectedTrend.length()").value(q.lengthOfMonth()))
+                .andExpect(jsonPath("$.collectedTrend[1].date").value(q.atDay(2).toString()))
+                .andExpect(jsonPath("$.collectedTrend[1].amount").value(1500.00));
+        caches.getCache("insights").invalidate();
+        mvc.perform(get("/api/insights/admin").param("period", "year").param("date", q.atDay(1).toString())
+                        .with(as(admin, Role.ADMIN)))
+                .andExpect(jsonPath("$.collectedTrend.length()").value(12))
+                .andExpect(jsonPath("$.collectedTrend[" + (q.getMonthValue() - 1) + "].amount").value(1500.00));
     }
 
     @Test

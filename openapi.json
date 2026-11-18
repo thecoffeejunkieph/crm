@@ -106,14 +106,14 @@
           "collected" : {
             "type" : "number"
           },
-          "collectedByMonth" : {
-            "items" : {
-              "$ref" : "#/components/schemas/MonthAmount"
-            },
-            "type" : "array"
-          },
           "collectedPrev" : {
             "type" : "number"
+          },
+          "collectedTrend" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DayAmount"
+            },
+            "type" : "array"
           },
           "from" : {
             "format" : "date",
@@ -463,6 +463,9 @@
           },
           "hasOverdue" : {
             "type" : "boolean"
+          },
+          "lifetimeValue" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -1920,17 +1923,6 @@
           },
           "withholdingAmount" : {
             "type" : "number"
-          }
-        },
-        "type" : "object"
-      },
-      "MonthAmount" : {
-        "properties" : {
-          "amount" : {
-            "type" : "number"
-          },
-          "month" : {
-            "type" : "string"
           }
         },
         "type" : "object"

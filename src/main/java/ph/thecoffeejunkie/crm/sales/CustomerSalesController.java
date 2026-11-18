@@ -97,7 +97,7 @@ class CustomerSalesController {
         var profile = customers.salesProfileVisible(actor.scope(), id)
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
         return new CustomerAccount(orderRepo.openBalanceExcluding(id, 0), profile.creditLimit(),
-                orderRepo.hasOverdue(id, SalesTime.today(clock)));
+                orderRepo.hasOverdue(id, SalesTime.today(clock)), orderRepo.lifetimeValue(id));
     }
 
     private Scope requireVisible(long customerId) {

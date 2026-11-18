@@ -129,7 +129,12 @@ class ReportsIT {
         mvc.perform(get("/api/customers/" + customer + "/account").with(asRep)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(1120.00))
                 .andExpect(jsonPath("$.creditLimit").value(5000.00))
-                .andExpect(jsonPath("$.hasOverdue").value(true));
+                .andExpect(jsonPath("$.hasOverdue").value(true))
+                .andExpect(jsonPath("$.lifetimeValue").value(0.00));
+        payment(order, "VERIFIED", "12.00", null);
+        payment(order, "PENDING", "0.00", null); // not collected yet
+        mvc.perform(get("/api/customers/" + customer + "/account").with(asRep))
+                .andExpect(jsonPath("$.lifetimeValue").value(112.00));
         long other = f.user("oth", Role.SALES);
         mvc.perform(get("/api/customers/" + customer + "/account").with(as(other, Role.SALES)))
                 .andExpect(status().isNotFound());

@@ -56,11 +56,9 @@ class InsightsService {
         BigDecimal collected = q.collected(null, p);
         LocalDate today = InsightsMonth.today(clock);
         InsightsQueries.Balance owed = q.outstanding(null, today);
-        // The trend ends at the period's last month, or this month while the period is still running.
-        YearMonth trendEnd = YearMonth.from(p.to().minusDays(1).isAfter(today) ? today : p.to().minusDays(1));
         return new AdminInsights(YearMonth.from(p.from()), p.unit(), p.from(), p.to().minusDays(1), collected,
                 q.collected(null, p.previous()), q.invoiced(null, p), q.margin(p), owed.outstanding(), owed.overdue(),
-                q.toVerify(null), q.collectedByMonth(trendEnd, 12), reps(p),
+                q.toVerify(null), q.collectedTrend(p), reps(p),
                 q.topProducts(p, TOP), q.topCustomers(null, p, TOP), q.operations());
     }
 

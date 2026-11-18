@@ -27,6 +27,11 @@ interface SalesOrderRepository extends JpaRepository<SalesOrder, Long>, JpaSpeci
             + "and id <> :orderId and status in ('CONFIRMED','RELEASED','FULFILLED')", nativeQuery = true)
     BigDecimal openBalanceExcluding(long customerId, long orderId);
 
+    /** Verified payments (cash + withholding) less paid refunds, over all of the customer's orders. */
+    @Query(value = "select coalesce(sum(m.cash_amount + m.withholding_amount), 0) from money_movement m "
+            + "join sales_order o on o.id = m.order_id where o.customer_id = :customerId", nativeQuery = true)
+    BigDecimal lifetimeValue(long customerId);
+
     @Query(value = "select exists (select 1 from sales_order where customer_id = :customerId "
             + "and status in ('CONFIRMED','RELEASED','FULFILLED') and due_date < :today "
             + "and settled_amount < total)", nativeQuery = true)

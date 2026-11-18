@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.insights;
 
 import ph.thecoffeejunkie.crm.insights.SalesInsights.CustomerAmount;
+import ph.thecoffeejunkie.crm.insights.SalesInsights.DayAmount;
 import ph.thecoffeejunkie.crm.insights.SalesInsights.ToVerify;
 
 import java.io.Serializable;
@@ -13,15 +14,12 @@ import java.util.List;
 record AdminInsights(YearMonth month, String period, LocalDate from, LocalDate to, BigDecimal collected,
                      BigDecimal collectedPrev, BigDecimal invoiced,
                      Margin margin, BigDecimal outstanding, BigDecimal overdue, ToVerify toVerify,
-                     List<MonthAmount> collectedByMonth, List<RepRow> reps,
+                     List<DayAmount> collectedTrend, List<RepRow> reps,
                      List<ProductRow> topProducts, List<CustomerAmount> topCustomers, Operations operations)
         implements Serializable {
 
     /** {@code pct} is null when no costed line was invoiced in the month. */
     record Margin(BigDecimal amount, BigDecimal pct, long linesWithoutCost) implements Serializable {
-    }
-
-    record MonthAmount(YearMonth month, BigDecimal amount) implements Serializable {
     }
 
     /** {@code repId} null is the "Unassigned" row: orders whose customer had no rep at confirm. */
