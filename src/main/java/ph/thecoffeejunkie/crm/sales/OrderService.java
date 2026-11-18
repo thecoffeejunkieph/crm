@@ -36,6 +36,7 @@ import ph.thecoffeejunkie.crm.shared.PdfFile;
 import ph.thecoffeejunkie.crm.shared.Like;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Scope;
@@ -185,6 +186,27 @@ class OrderService {
     @Transactional(readOnly = true)
     OrderResponse get(Scope s, long id) {
         return toResponse(access.findVisible(id, s), s);
+    }
+
+    /**
+     * Admin credits a rep to an order that has none (its customer had no rep), so its net sales count toward that
+     * rep's target from then on. A credited order is never re-credited (spec 2026-11-05).
+     */
+    @Transactional
+    OrderResponse assignRep(Scope s, long id, Long repId) {
+        SalesOrder o = access.findVisibleForUpdate(id, s);
+        if (o.repId != null) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "This order is already credited to a rep.");
+        }
+        if (repId == null || !users.isActiveWithRole(repId, Role.SALES)) {
+            throw invalid("repId", "Choose an active sales user.");
+        }
+        o.repId = repId;
+        o.updatedAt = Instant.now();
+        repo.saveAndFlush(o);
+        audit.record(AuditAction.ASSIGNMENT_CHANGED, ENTITY, id, "Credited order " + o.number + " to a rep",
+                AuditChanges.diff().field("repId", null, repId));
+        return toResponse(o, s);
     }
 
     @Transactional
@@ -567,7 +589,9 @@ class OrderService {
     private void markConfirmed(SalesOrder o) {
         boolean wasQuoted = o.status == OrderStatus.QUOTED;
         // Credit is the customer's rep at confirm; never changed afterwards (spec 2026-11-05).
-        o.repId = customers.salesProfile(o.customerId).assignedRepId();
+        // An admin-credited rep (customer had none) is kept when the customer still has none.
+        Long customerRep = customers.salesProfile(o.customerId).assignedRepId();
+        o.repId = customerRep != null ? customerRep : o.repId;
         snapshotCosts(o);
         o.status = OrderStatus.CONFIRMED;
         o.confirmedAt = Instant.now();
@@ -627,7 +651,7 @@ class OrderService {
                 .map(Invoice::toSummary).orElse(null);
         BigDecimal cash = refunds.cashCollected(o.id);
         BigDecimal withholding = Balances.suggestedWithholding(o.totals(), o.withholdingPct, payments.withheld(o), o.balance());
-        return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), o.repId, repName, o.status,
+        return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), c.taxTreatment(), o.repId, repName, o.status,
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),
                 withholding, invoice, o.quotedAt, o.customerAcceptedAt, o.confirmedAt, o.releasedAt, o.fulfilledAt,

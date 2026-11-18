@@ -22,7 +22,7 @@ import java.util.Set;
 
 /**
  * All dashboard SQL (spec 2026-11-05, "Figures"). A null {@code repId} means company-wide; otherwise only orders
- * credited to that rep. Month bounds are Manila midnights.
+ * credited to that rep. Period bounds are Manila midnights.
  */
 @Component
 class InsightsQueries {
@@ -51,34 +51,30 @@ class InsightsQueries {
     record Balance(BigDecimal outstanding, BigDecimal overdue) {
     }
 
-    BigDecimal collected(Long repId, YearMonth m) {
-        return verifiedSum(PAID, repId, m);
+    BigDecimal collected(Long repId, Period m) {
+        return verifiedSum(PAID, repId, m, null);
     }
 
     /** Net sales collected: VAT, shipping and discounts excluded. Targets and commission run on this. */
     BigDecimal netSales(Long repId, YearMonth m) {
-        return verifiedSum(CREDIT, repId, m);
+        return verifiedSum(CREDIT, repId, Period.of(m), null);
     }
 
     /** As {@link #netSales(Long, YearMonth)} without one payment: the figure before that payment was verified. */
     BigDecimal netSales(Long repId, YearMonth m, long excludePaymentId) {
-        return verifiedSum(CREDIT, repId, m, excludePaymentId);
+        return verifiedSum(CREDIT, repId, Period.of(m), excludePaymentId);
     }
 
-    private BigDecimal verifiedSum(String amount, Long repId, YearMonth m) {
-        return verifiedSum(amount, repId, m, null);
-    }
-
-    private BigDecimal verifiedSum(String amount, Long repId, YearMonth m, Long excludePaymentId) {
-        MapSqlParameterSource p = month(m).addValue("exclude", excludePaymentId);
+    private BigDecimal verifiedSum(String amount, Long repId, Period m, Long excludePaymentId) {
+        MapSqlParameterSource p = m.params().addValue("exclude", excludePaymentId);
         return money(jdbc.queryForObject("select sum(" + amount + ") from money_movement p join sales_order o on o.id = p.order_id "
                 + "where p.at >= :start and p.at < :end"
                 + (excludePaymentId == null ? "" : " and p.id <> :exclude") + rep(repId, p),
                 p, BigDecimal.class));
     }
 
-    BigDecimal invoiced(Long repId, YearMonth m) {
-        MapSqlParameterSource p = month(m);
+    BigDecimal invoiced(Long repId, Period m) {
+        MapSqlParameterSource p = m.params();
         return money(jdbc.queryForObject("select sum(i.total) from invoice i join sales_order o on o.id = i.order_id "
                 + "where i.status = 'ISSUED' and i.issued_at >= :start and i.issued_at < :end" + rep(repId, p),
                 p, BigDecimal.class));
@@ -116,8 +112,8 @@ class InsightsQueries {
         return days;
     }
 
-    List<CustomerAmount> topCustomers(Long repId, YearMonth m, int limit) {
-        MapSqlParameterSource p = month(m).addValue("limit", limit);
+    List<CustomerAmount> topCustomers(Long repId, Period m, int limit) {
+        MapSqlParameterSource p = m.params().addValue("limit", limit);
         return jdbc.query("select c.id, c.display_name, sum(" + PAID + ") amount from money_movement p "
                 + "join sales_order o on o.id = p.order_id join customer c on c.id = o.customer_id "
                 + "where p.at >= :start and p.at < :end" + rep(repId, p)
@@ -145,11 +141,11 @@ class InsightsQueries {
     }
 
     /** Lines of billable orders confirmed in the month; revenue = ex-VAT, after the order discount; cost = unit_cost × qty. */
-    AdminInsights.Margin margin(YearMonth m) {
+    AdminInsights.Margin margin(Period m) {
         return jdbc.queryForObject("select sum(" + LINE_NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) amt, "
                 + "sum(" + LINE_NET + ") filter (where l.unit_cost is not null) rev, "
                 + "count(*) filter (where l.unit_cost is null) missing from order_line l " + SOLD_IN_MONTH,
-                month(m), (rs, i) -> {
+                m.params(), (rs, i) -> {
                     BigDecimal amount = money(rs.getBigDecimal("amt"));
                     BigDecimal rev = rs.getBigDecimal("rev");
                     BigDecimal pct = rev == null || rev.signum() == 0 ? null
@@ -189,12 +185,12 @@ class InsightsQueries {
     }
 
     /** Collected and net sales per credited rep; the null key holds orders with no rep. */
-    Map<Long, RepAmounts> collectedByRep(YearMonth m) {
+    Map<Long, RepAmounts> collectedByRep(Period m) {
         Map<Long, RepAmounts> out = new HashMap<>();
         jdbc.query("select o.rep_id, sum(" + PAID + ") amount, sum(" + CREDIT + ") net from money_movement p "
                 + "join sales_order o on o.id = p.order_id "
                 + "where p.at >= :start and p.at < :end group by o.rep_id",
-                month(m), rs -> {
+                m.params(), rs -> {
                     long id = rs.getLong("rep_id");
                     out.put(rs.wasNull() ? null : id,
                             new RepAmounts(money(rs.getBigDecimal("amount")), money(rs.getBigDecimal("net"))));
@@ -206,7 +202,7 @@ class InsightsQueries {
      * By revenue net of goods returned in the month (refund lines paid in the month, ex-VAT like the sales above);
      * margin counts only lines with a cost and is not reduced by returns.
      */
-    List<AdminInsights.ProductRow> topProducts(YearMonth m, int limit) {
+    List<AdminInsights.ProductRow> topProducts(Period m, int limit) {
         return jdbc.query("select pr.id, pr.name, coalesce(s.rev, 0) - coalesce(b.amt, 0) rev, s.margin from product pr "
                 + "left join (select l.product_id pid, sum(" + LINE_NET + ") rev, "
                 + "sum(" + LINE_NET + " - l.unit_cost * l.qty) filter (where l.unit_cost is not null) margin "
@@ -216,7 +212,7 @@ class InsightsQueries {
                 + "and r.paid_at >= :start and r.paid_at < :end join order_line ol on ol.id = rl.order_line_id "
                 + "join sales_order o on o.id = r.order_id group by ol.product_id) b on b.pid = pr.id "
                 + "where s.pid is not null or b.pid is not null order by rev desc, pr.name limit :limit",
-                month(m).addValue("limit", limit),
+                m.params().addValue("limit", limit),
                 (rs, i) -> new AdminInsights.ProductRow(rs.getLong("id"), rs.getString("name"),
                         money(rs.getBigDecimal("rev")), money(rs.getBigDecimal("margin"))));
     }
@@ -267,8 +263,7 @@ class InsightsQueries {
     }
 
     static MapSqlParameterSource month(YearMonth m) {
-        return new MapSqlParameterSource("start", Timestamp.from(InsightsMonth.start(m)))
-                .addValue("end", Timestamp.from(InsightsMonth.end(m)));
+        return Period.of(m).params();
     }
 
     private static String rep(Long repId, MapSqlParameterSource p) {

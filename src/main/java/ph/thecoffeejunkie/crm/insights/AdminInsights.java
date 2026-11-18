@@ -5,11 +5,13 @@ import ph.thecoffeejunkie.crm.insights.SalesInsights.ToVerify;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 
-/** The owner's month, company-wide. The only response with cost-derived figures (margin). */
-record AdminInsights(YearMonth month, BigDecimal collected, BigDecimal collectedPrevMonth, BigDecimal invoiced,
+/** The owner's week, month or year ({@code from}..{@code to} inclusive), company-wide; {@code collectedPrev} is the period before. The only response with cost-derived figures (margin). */
+record AdminInsights(YearMonth month, String period, LocalDate from, LocalDate to, BigDecimal collected,
+                     BigDecimal collectedPrev, BigDecimal invoiced,
                      Margin margin, BigDecimal outstanding, BigDecimal overdue, ToVerify toVerify,
                      List<MonthAmount> collectedByMonth, List<RepRow> reps,
                      List<ProductRow> topProducts, List<CustomerAmount> topCustomers, Operations operations)

@@ -91,7 +91,7 @@ public class Customers {
     CustomerResponse create(Scope s, CustomerRequest req) {
         Customer c = new Customer();
         boolean sales = s.role() == Role.SALES;
-        c.assignedRepId = sales ? s.userId() : null;
+        c.assignedRepId = s.has(Role.SALES) ? s.userId() : null; // an admin who is also a rep owns what they create
         c.creditLimit = sales ? null : req.creditLimit();
         leadSources.requireActive(req.sourceId());
         apply(c, req);

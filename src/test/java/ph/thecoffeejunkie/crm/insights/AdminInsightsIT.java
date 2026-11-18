@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +19,7 @@ import java.time.YearMonth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.insights.InsightsFixture.as;
@@ -82,7 +84,35 @@ class AdminInsightsIT {
         adminView(q).andExpect(status().isOk())
                 .andExpect(jsonPath("$.month").value(q.toString()))
                 .andExpect(jsonPath("$.collected").value(1500.00))
-                .andExpect(jsonPath("$.collectedPrevMonth").value(300.00));
+                .andExpect(jsonPath("$.collectedPrev").value(300.00));
+    }
+
+    @Test
+    void yearViewSumsTheYearWithoutTargets() throws Exception {
+        payments();
+        jdbc.update("insert into sales_target (rep_id, month, target_amount, commission_pct, updated_by) "
+                + "values (?, ?, 1000, 2, ?)", repA, q.atDay(1), admin);
+        caches.getCache("insights").invalidate();
+        double year = q.getYear() == q.minusMonths(1).getYear() ? 1800.0 : 1500.0;
+        mvc.perform(get("/api/insights/admin").param("period", "year").param("date", q.atDay(1).toString())
+                        .with(as(admin, Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.period").value("year"))
+                .andExpect(jsonPath("$.from").value(q.getYear() + "-01-01"))
+                .andExpect(jsonPath("$.collected").value(year))
+                .andExpect(jsonPath(rep(repA) + ".target").value(contains((Object) null)));
+    }
+
+    @Test
+    void adminCreditsUnassignedOrderToRep() throws Exception {
+        long none = f.order(custNone, null, "FULFILLED", "5000.00", "0.00", null);
+        f.payment(none, "VERIFIED", "500.00", "0.00", at(q, 30));
+        mvc.perform(put("/api/orders/" + none + "/rep").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"repId\":" + repA + "}").with(ph.thecoffeejunkie.crm.CsrfSupport.csrf(mvc)).with(as(admin, Role.ADMIN))).andExpect(status().isOk());
+        adminView(q).andExpect(jsonPath(rep(repA) + ".collected").value(contains(500.0)))
+                .andExpect(jsonPath("$.reps[?(@.repId == null)]").isEmpty());
+        mvc.perform(put("/api/orders/" + none + "/rep").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"repId\":" + repB + "}").with(ph.thecoffeejunkie.crm.CsrfSupport.csrf(mvc)).with(as(admin, Role.ADMIN))).andExpect(status().isUnprocessableContent());
     }
 
     @Test

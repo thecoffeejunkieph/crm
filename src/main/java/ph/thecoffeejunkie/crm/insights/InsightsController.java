@@ -33,8 +33,12 @@ class InsightsController {
 
     @GetMapping("/api/insights/admin")
     @PreAuthorize("hasRole('ADMIN')")
-    AdminInsights admin(@RequestParam(required = false) String month) {
-        return insights.admin(InsightsMonth.parse(month, clock));
+    AdminInsights admin(@RequestParam(required = false) String month, @RequestParam(required = false) String period,
+                        @RequestParam(required = false) String date) {
+        if (date == null && month != null) {
+            date = InsightsMonth.parse(month, clock).atDay(1).toString();
+        }
+        return insights.admin(Period.parse(period, date, clock));
     }
 
     /** Scoped to the caller's warehouses; ADMIN sees all. Ignores month: it is today's work. */

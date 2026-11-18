@@ -112,8 +112,12 @@
             },
             "type" : "array"
           },
-          "collectedPrevMonth" : {
+          "collectedPrev" : {
             "type" : "number"
+          },
+          "from" : {
+            "format" : "date",
+            "type" : "string"
           },
           "invoiced" : {
             "type" : "number"
@@ -133,11 +137,18 @@
           "overdue" : {
             "type" : "number"
           },
+          "period" : {
+            "type" : "string"
+          },
           "reps" : {
             "items" : {
               "$ref" : "#/components/schemas/RepRow"
             },
             "type" : "array"
+          },
+          "to" : {
+            "format" : "date",
+            "type" : "string"
           },
           "toVerify" : {
             "$ref" : "#/components/schemas/ToVerify"
@@ -2290,6 +2301,10 @@
           },
           "suggestedWithholding" : {
             "type" : "number"
+          },
+          "taxTreatment" : {
+            "enum" : [ "REGULAR", "ZERO_RATED", "VAT_EXEMPT" ],
+            "type" : "string"
           },
           "terms" : {
             "type" : "string"
@@ -6751,6 +6766,20 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "period",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "date",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -8502,6 +8531,43 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "order-controller" ]
+      }
+    },
+    "/api/orders/{id}/rep" : {
+      "put" : {
+        "operationId" : "assignRep",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AssignmentRequest"
               }
             }
           },

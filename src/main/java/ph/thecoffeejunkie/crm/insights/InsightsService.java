@@ -36,7 +36,7 @@ class InsightsService {
     @Transactional(readOnly = true)
     @Cacheable(cacheNames = "insights", key = "'sales:' + #userId + ':' + #m")
     public SalesInsights sales(long userId, YearMonth m) {
-        BigDecimal collected = q.collected(userId, m);
+        BigDecimal collected = q.collected(userId, Period.of(m));
         BigDecimal net = q.netSales(userId, m);
         SalesInsights.Target target = targets.find(userId, m)
                 .map(t -> new SalesInsights.Target(t.targetAmount, t.commissionPct)).orElse(null);
@@ -45,19 +45,23 @@ class InsightsService {
         InsightsQueries.Balance owed = q.outstanding(userId, InsightsMonth.today(clock));
         return new SalesInsights(m, target, collected, net, Commission.progressPct(net, amount),
                 Commission.remaining(net, amount), Commission.hit(net, amount),
-                Commission.of(net, amount, pct), q.invoiced(userId, m), owed.outstanding(), owed.overdue(),
+                Commission.of(net, amount, pct), q.invoiced(userId, Period.of(m)), owed.outstanding(), owed.overdue(),
                 q.toVerify(userId), q.collectedByDay(userId, m),
-                q.needsAction(userId, InsightsMonth.today(clock), 5), q.topCustomers(userId, m, TOP));
+                q.needsAction(userId, InsightsMonth.today(clock), 5), q.topCustomers(userId, Period.of(m), TOP));
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = "insights", key = "'admin:' + #m")
-    public AdminInsights admin(YearMonth m) {
-        BigDecimal collected = q.collected(null, m);
-        InsightsQueries.Balance owed = q.outstanding(null, InsightsMonth.today(clock));
-        return new AdminInsights(m, collected, q.collected(null, m.minusMonths(1)), q.invoiced(null, m), q.margin(m),
-                owed.outstanding(), owed.overdue(), q.toVerify(null), q.collectedByMonth(m, 12), reps(m),
-                q.topProducts(m, TOP), q.topCustomers(null, m, TOP), q.operations());
+    @Cacheable(cacheNames = "insights", key = "'admin:' + #p")
+    public AdminInsights admin(Period p) {
+        BigDecimal collected = q.collected(null, p);
+        LocalDate today = InsightsMonth.today(clock);
+        InsightsQueries.Balance owed = q.outstanding(null, today);
+        // The trend ends at the period's last month, or this month while the period is still running.
+        YearMonth trendEnd = YearMonth.from(p.to().minusDays(1).isAfter(today) ? today : p.to().minusDays(1));
+        return new AdminInsights(YearMonth.from(p.from()), p.unit(), p.from(), p.to().minusDays(1), collected,
+                q.collected(null, p.previous()), q.invoiced(null, p), q.margin(p), owed.outstanding(), owed.overdue(),
+                q.toVerify(null), q.collectedByMonth(trendEnd, 12), reps(p),
+                q.topProducts(p, TOP), q.topCustomers(null, p, TOP), q.operations());
     }
 
     /** {@code warehouseIds} null for ADMIN (every warehouse). The key sorts the ids so set order never splits it. */
@@ -69,8 +73,11 @@ class InsightsService {
     }
 
     /** Every active SALES user (zeros included), anyone credited or targeted that month, then "Unassigned" when it collected anything; by collected desc. */
-    private List<AdminInsights.RepRow> reps(YearMonth m) {
-        Map<Long, InsightsQueries.RepAmounts> byRep = q.collectedByRep(m);
+    private List<AdminInsights.RepRow> reps(Period p) {
+        Map<Long, InsightsQueries.RepAmounts> byRep = q.collectedByRep(p);
+        // Targets are monthly: a week or year shows reps' sales without a target.
+        boolean monthly = p.unit().equals("month");
+        YearMonth m = YearMonth.from(p.from());
         InsightsQueries.RepAmounts zero = new InsightsQueries.RepAmounts(InsightsQueries.money(null), InsightsQueries.money(null));
         List<Long> credited = byRep.keySet().stream().filter(Objects::nonNull).toList();
         Map<Long, TargetRow> rows = targets.list(m, credited).stream().collect(Collectors.toMap(TargetRow::repId, r -> r));
@@ -78,9 +85,10 @@ class InsightsService {
         for (TargetRow r : rows.values()) {
             InsightsQueries.RepAmounts a = byRep.getOrDefault(r.repId(), zero);
             BigDecimal c = a.netSales();
-            out.add(new AdminInsights.RepRow(r.repId(), r.repName(), r.targetAmount(), r.commissionPct(), a.collected(), c,
-                    Commission.progressPct(c, r.targetAmount()), Commission.hit(c, r.targetAmount()),
-                    Commission.of(c, r.targetAmount(), r.commissionPct())));
+            BigDecimal target = monthly ? r.targetAmount() : null;
+            BigDecimal pct = monthly ? r.commissionPct() : null;
+            out.add(new AdminInsights.RepRow(r.repId(), r.repName(), target, pct, a.collected(), c,
+                    Commission.progressPct(c, target), Commission.hit(c, target), Commission.of(c, target, pct)));
         }
         InsightsQueries.RepAmounts none = byRep.get(null);
         if (none != null && none.collected().signum() > 0) {
