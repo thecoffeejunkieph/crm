@@ -81,6 +81,12 @@ class DealController {
                 .orElseGet(() -> org.springframework.http.ResponseEntity.noContent().build());
     }
 
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void delete(@PathVariable long id) {
+        deals.delete(actor.scope(), id);
+    }
+
     @PostMapping("/{id}/stage")
     DealResponse stage(@PathVariable long id, @Valid @RequestBody DealStageRequest req) {
         return deals.setStage(actor.scope(), id, req);

@@ -596,6 +596,24 @@ class DeliveryOrdersIT {
                 .andExpect(jsonPath("$.content[?(@.id == " + theirs + ")]").isNotEmpty());
     }
 
+    @Test
+    void salesActsOnOwnDeliveriesOnlyWhenAllowed() throws Exception {
+        f.receive(p, wh, "10");
+        long mine = delivery("2");
+        long theirs = deliveryFor(reserved(rep2, Instant.now(), l(p, "2")), DeliveryMethod.DELIVERY);
+        mvc.perform(get("/api/delivery-orders/" + mine).with(sales)).andExpect(jsonPath("$.canAct").value(false));
+        jdbc.update("insert into app_setting (key, value) values ('fulfilment.salesCanDispatch', 'true')");
+        try {
+            mvc.perform(get("/api/delivery-orders/" + mine).with(sales)).andExpect(jsonPath("$.canAct").value(true));
+            pick(mine, sales, "2").andExpect(status().isOk());
+            mvc.perform(post("/api/delivery-orders/" + mine + "/dispatch").with(csrf(mvc)).with(sales))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DISPATCHED"));
+            pick(theirs, sales, "2").andExpect(status().isNotFound());
+        } finally {
+            jdbc.update("delete from app_setting where key = 'fulfilment.salesCanDispatch'");
+        }
+    }
+
     private List<Integer> deliveryIds(String sort) throws Exception {
         String res = mvc.perform(get("/api/delivery-orders").param("sort", sort).param("size", "100").with(admin))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();

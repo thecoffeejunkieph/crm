@@ -18,7 +18,6 @@
     <div class="flex justify-between gap-4"><dt class="text-muted">Date</dt><dd class="text-ink" th:text="${date}">date</dd></div>
     <div class="flex justify-between gap-4"><dt class="text-muted">Order</dt><dd class="text-ink" th:text="${orderNumber}">SO-00</dd></div>
     <div class="flex justify-between gap-4"><dt class="text-muted">From</dt><dd class="text-right text-ink" th:text="${warehouse}">Warehouse</dd></div>
-    <div class="flex justify-between gap-4"><dt class="text-muted">Status</dt><dd class="text-ink" th:text="${status}">PICKING</dd></div>
     <div th:if="${dispatched != ''}" class="flex justify-between gap-4"><dt class="text-muted">Dispatched</dt><dd class="text-ink" th:text="${dispatched}">date</dd></div>
     <div th:if="${delivered != ''}" class="flex justify-between gap-4"><dt class="text-muted" th:text="${pickup != ''} ? 'Picked up' : 'Delivered'">Delivered</dt><dd class="text-ink" th:text="${delivered}">date</dd></div>
   </dl>

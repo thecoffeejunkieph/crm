@@ -73,10 +73,12 @@ class InsightsQueries {
                 p, BigDecimal.class));
     }
 
+    /** A revision's replacement invoice counts on the order's first invoice date, not the day it was revised. */
     BigDecimal invoiced(Long repId, Period m) {
         MapSqlParameterSource p = m.params();
         return money(jdbc.queryForObject("select sum(i.total) from invoice i join sales_order o on o.id = i.order_id "
-                + "where i.status = 'ISSUED' and i.issued_at >= :start and i.issued_at < :end" + rep(repId, p),
+                + "cross join lateral (select min(x.issued_at) at from invoice x where x.order_id = i.order_id) f "
+                + "where i.status = 'ISSUED' and f.at >= :start and f.at < :end" + rep(repId, p),
                 p, BigDecimal.class));
     }
 

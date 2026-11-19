@@ -1,41 +1,41 @@
-# Graph Report - crm  (2026-11-19)
+# Graph Report - crm  (2026-11-20)
 
 ## Corpus Check
-- 646 files · ~295,004 words
+- 647 files · ~295,507 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 17 file(s) not represented in the graph (top: .properties 6, (none) 3, .example 2)
 
 ## Summary
-- 5549 nodes · 19876 edges · 242 communities (156 shown, 86 thin omitted)
-- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 2960 edges (avg confidence: 0.81)
+- 5559 nodes · 19927 edges · 233 communities (151 shown, 82 thin omitted)
+- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 2976 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6097ecc7`
+- Built from commit: `e31b9547`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - .as
-- RequestIdFilterTest
+- AttachmentsIT
 - org.springframework.jdbc.core.JdbcTemplate
-- org.springframework.data.redis.core.StringRedisTemplate
+- UserAdminIT.java
 - AuditAction
 - org.junit.jupiter.api.Test
 - .lead
-- AdjustmentResponse
-- org.springframework.web.bind.annotation.GetMapping
+- .create
+- PageQuery
 - TaxClass
 - UserAdminIT
 - .customer
-- UserAdminService
+- AppUser
 - DealsFixture
 - TwoFactorIT
-- BalancesTest
+- HtmlMail
 - PortalAuthIT
 - Part A — Backend (`crm`)
 - jakarta.persistence.Entity
-- OrderResponse
+- RefundBadge
 - ServiceCallLoggingIT
 - Redesign #3 — Inventory & Fulfilment
 - SettingKey
@@ -43,39 +43,39 @@
 - DealService
 - ProductCategories
 - ReportRange
-- DeliveryOrder
+- DeliveryService
 - SettingsIT
 - OrderStockIT
-- .l
-- java.time.YearMonth
+- .receive
+- AdminInsights
 - MeController
-- org.springframework.http.ResponseEntity
+- ProblemDetailAdvice
 - Sheets
 - RefundsIT
 - .at
 - .createdOrder
 - FollowUpsIT
-- PdfRenderer
-- OrderStock
-- .staff
-- org.springframework.scheduling.annotation.Scheduled
+- org.springframework.stereotype.Component
+- Inventory
+- Catalog
+- OrderService.java
 - org.springframework.data.jpa.repository.JpaRepository
 - DeliveryOrdersIT
-- AttachmentService
-- .update
+- Scope
+- FollowUpService
 - CommissionTest
-- OrderAction
-- org.springframework.context.annotation.Bean
+- OrderStatus
+- TransfersIT
 - TransferService
 - Redesign #4 — POS
-- org.springframework.stereotype.Component
-- LoginThrottle
+- lombok.extern.slf4j.Slf4j
+- org.springframework.transaction.event.TransactionalEventListener
 - ProductUnit
 - .csrf
-- SecurityConfig.java
+- FollowUpEditIT
 - Part A — Backend (`crm`)
 - PaymentsIT
-- OrderService
+- LeadDuplicates
 - V5__inventory_fulfilment.sql
 - UI polish bundle — design (2026-11-17)
 - Deals / opportunities (F-130) — design
@@ -83,21 +83,20 @@
 - Follow-ups (F-141) — design
 - Part A — Backend (`crm`)
 - .update
-- .raw
 - LoginIT
 - .diff
-- AppUser
+- TotpService.java
 - SessionManagementIT
-- .list
-- .receive
+- CustomerSalesController
+- .onHand
 - PaymentService
 - .delivered
 - Automatic follow-ups — design (2026-11-17)
 - NotificationStreams
 - CatalogIT
-- Notifications
+- NotificationType
 - Backend (`crm/crm`)
-- org.springframework.data.jpa.domain.Specification
+- .record
 - jakarta.servlet.http.HttpServletRequest
 - Backend (`crm/crm`)
 - QuoteExpiringRule
@@ -105,38 +104,38 @@
 - .check
 - Frontend (`crm-dashboard-ui`)
 - ServiceCallLogging.java
-- ApprovalsIT
+- Approvals
 - Review Focus
 - CustomerStatusMailsIT
 - CoverShortageTest
 - Design
 - AuditLog
 - .run
-- .product
-- .toUser
+- InventoryFixture
+- NotificationsIT
 - Review Focus
 - ErrorCode
 - Review Focus
 - SettingKey.java
 - IntegrationTest.java
-- org.springframework.transaction.annotation.Transactional
+- org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 - WarehousesIT
-- Scope
+- OrderService
 - RedisTestSupport
 - LogRedactorTest
 - RateLimitFilterIT
-- org.springframework.cache.annotation.Cacheable
+- WarehouseInsights
 - Redesign #1 — Foundation
 - sales_order
-- Approvals
-- .parse
+- DealWonIT
+- java.time.YearMonth
 - Review Focus
-- DistributedLock
-- .issue
+- org.springframework.data.redis.core.StringRedisTemplate
+- OneTimeTokens
 - Leads (F-120) — design
 - PaymentOverdueRule
 - CustomerScopingIT
-- InvoicesIT
+- .json
 - LeadSourcesIT
 - Backend (`crm`)
 - Review Focus
@@ -145,23 +144,22 @@
 - Redesign #2 — Sales lifecycle
 - Customer status emails — design (2026-11-18)
 - Review Focus
-- LeadSourceController
+- RedisSessionAdmin
 - LeadSourceBackfillIT
-- RateLimiter
-- PasswordResetIT
+- DealOrder
 - NotificationStreamsIT
 - Attachments (M-08) — design
-- Who
+- SecurityMatrixTest
 - package.json
 - StockReadsIT
 - CustomerSourceIT
-- IdempotencyFilterIT
+- CustomerContact
 - Review Focus
 - Review Focus
 - lead
 - org.springframework.web.filter.OncePerRequestFilter
-- RetryingListenerContainer
-- Warehouses
+- org.junit.jupiter.params.ParameterizedTest
+- .receive
 - migrate.py
 - Review Focus
 - Review Focus
@@ -175,64 +173,55 @@
 - org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 - ReceiptsIT
 - CrmApplication
-- .identityFlowsLeaveNoSecretsInTheLog
+- MinioHealthIndicator
 - LogLevelIT
-- org.springframework.transaction.support.TransactionTemplate
-- HeaderOrCookieSessionIdResolver
-- .receive
+- PdfText
+- org.springframework.context.annotation.Bean
+- FirstOrderRuleIT
 - Production cutover (P5-2)
 - Candidate
 - follow_up
 - gradlew
-- .decode
+- .encode
 - RestockRule.java
 - Review Focus
 - DocsDisabledTest
 - transform.sql
-- CacheConfigIT.java
+- DocumentController
 - 01-roles.sh
 - V12__follow_up_reminder_run.sql
-- Notification
-- .of
+- LabelService
+- SalesPermissions
 - DealStalledRuleIT
-- SalesOrder
+- org.springframework.transaction.annotation.Transactional
 - CustomerPermissions
 - StaffPrincipal
 - RefundDisposition
 - StorageService
 - .dueAfterDays
 - LeadSources
-- .setup
+- QrCodes
 - AuditLogIT
 - PaymentOverdueRuleIT
-- .set
+- TargetService
 - AutoConfirmIT
-- RefundStatus
+- RefundService
 - AccessLogFilter
 - .version
-- .presignedUrl
-- org.springframework.web.bind.annotation.RestController
-- AutoRule
-- org.springframework.security.access.prepost.PreAuthorize
-- RuleSettings
+- SalesTime
+- org.springframework.web.bind.annotation.ResponseStatus
+- DealStalledRule
+- CurrentActor
+- FakeRule
 - QuoteChaseRule
-- QuoteDeclinedRule
-- AuditEvent
-- .redeem
+- RuleSettings
 - EncryptionSecretsCheckTest
-- .call
 - TestController
-- CacheConfig.java
-- WarehouseController
+- org.springframework.context.annotation.Configuration
 - org.junit.jupiter.api.AfterEach
-- .availability
 - LogLevelController
 - ApprovalPushAfterCommitIT
-- CorsConfig.java
-- LabelKind
-- AdjustmentSource
-- TransferStatus
-- NotificationController
+- org.springframework.http.ResponseEntity
 - V26__product_category.sql
 - attachment
 - user_role
@@ -240,8 +229,8 @@
 ## God Nodes (most connected - your core abstractions)
 1. `Role` - 196 edges
 2. `IntegrationTest` - 173 edges
-3. `Scope` - 150 edges
-4. `AuditAction` - 128 edges
+3. `Scope` - 151 edges
+4. `AuditAction` - 129 edges
 5. `AuditLog` - 126 edges
 6. `CurrentActor` - 124 edges
 7. `ErrorCode` - 114 edges
@@ -264,79 +253,75 @@
 ## Import Cycles
 - None detected.
 
-## Communities (242 total, 86 thin omitted)
+## Communities (233 total, 82 thin omitted)
 
-### Community 0 - ".as"
-Cohesion: 0.07
-Nodes (3): OrderScopingIT, OrdersIT, ReportsIT
+### Community 1 - "AttachmentsIT"
+Cohesion: 0.12
+Nodes (4): AttachmentAccessIT, AttachmentsAllOrNothingIT, AttachmentsFixture, AttachmentsIT
 
 ### Community 2 - "org.springframework.jdbc.core.JdbcTemplate"
-Cohesion: 0.10
-Nodes (27): org.junit.jupiter.api.BeforeEach, org.springframework.cache.CacheManager, org.springframework.jdbc.core.JdbcTemplate, org.springframework.test.web.servlet.MockMvc, org.springframework.test.web.servlet.request.RequestPostProcessor, org.springframework.test.web.servlet.ResultActions, InviteUserRequest, UpdateUserRequest (+19 more)
+Cohesion: 0.09
+Nodes (31): org.junit.jupiter.api.BeforeEach, org.springframework.cache.CacheManager, org.springframework.context.ApplicationContext, org.springframework.jdbc.core.JdbcTemplate, org.springframework.jdbc.datasource.DriverManagerDataSource, org.springframework.test.context.event.ApplicationEvents, org.springframework.test.context.event.RecordApplicationEvents, org.springframework.test.web.servlet.MockMvc (+23 more)
 
-### Community 3 - "org.springframework.data.redis.core.StringRedisTemplate"
-Cohesion: 0.14
-Nodes (12): jakarta.mail.Session, java.lang.annotation.Retention, java.lang.annotation.Target, org.springframework.data.redis.core.StringRedisTemplate, org.springframework.mail.javamail.JavaMailSender, org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor, org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder, org.springframework.test.context.bean.override.mockito.MockitoBean (+4 more)
+### Community 3 - "UserAdminIT.java"
+Cohesion: 0.12
+Nodes (13): jakarta.annotation.PostConstruct, jakarta.mail.Session, java.lang.annotation.Retention, java.lang.annotation.Target, org.springframework.core.env.Environment, org.springframework.mail.javamail.JavaMailSender, org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor, org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder (+5 more)
 
 ### Community 4 - "AuditAction"
 Cohesion: 0.02
-Nodes (83): AuditAction, ACCOUNT_LOCKED, APPROVAL_CANCELLED, APPROVAL_DECIDED, APPROVAL_REQUESTED, ARCHIVED, ASSIGNMENT_CHANGED, ATTACHMENT_ADDED (+75 more)
+Nodes (84): AuditAction, ACCOUNT_LOCKED, APPROVAL_CANCELLED, APPROVAL_DECIDED, APPROVAL_REQUESTED, ARCHIVED, ASSIGNMENT_CHANGED, ATTACHMENT_ADDED (+76 more)
 
 ### Community 5 - "org.junit.jupiter.api.Test"
 Cohesion: 0.03
-Nodes (16): java.util.zip.ZipOutputStream, org.junit.jupiter.api.Test, AuditChangesTest, StorageDetectTest, FollowUpEditIT, PlatformTransactionManager, FollowUpReminderTest, ModularityTest (+8 more)
+Nodes (16): org.junit.jupiter.api.Test, AuditChangesTest, StorageDetectTest, FollowUpDayTest, FollowUpReminderTest, TotpTest, ModularityTest, NoSpringCsrfPostProcessorTest (+8 more)
 
 ### Community 6 - ".lead"
 Cohesion: 0.08
 Nodes (5): LeadConvertIT, LeadDuplicatesIT, LeadEditIT, LeadsFixture, LeadsIT
 
-### Community 7 - "AdjustmentResponse"
-Cohesion: 0.17
-Nodes (9): AdjustmentMode, COUNTED, DELTA, AdjustmentRequest, AdjustmentResponse, AdjustmentStatus, PENDING_APPROVAL, POSTED (+1 more)
+### Community 7 - ".create"
+Cohesion: 0.09
+Nodes (15): AdjustmentMode, COUNTED, DELTA, AdjustmentRequest, AdjustmentResponse, AdjustmentSource, MANUAL, RETURN_DAMAGED (+7 more)
 
-### Community 8 - "org.springframework.web.bind.annotation.GetMapping"
-Cohesion: 0.08
-Nodes (17): org.springframework.web.bind.annotation.GetMapping, AuditEventResponse, CustomerSummary, MovementResponse, StockController, CustomerInvoiceRow, Missing2307Row, OrderFilter (+9 more)
+### Community 8 - "PageQuery"
+Cohesion: 0.07
+Nodes (15): org.springframework.data.domain.Page, org.springframework.data.domain.Pageable, org.springframework.data.domain.Sort, AuditEventResponse, ProductInfo, CustomerSummary, MovementResponse, Missing2307Row (+7 more)
 
 ### Community 9 - "TaxClass"
-Cohesion: 0.12
-Nodes (11): TaxClass, VAT_EXEMPT, VATABLE, ZERO_RATED, TaxTreatment, REGULAR, VAT_EXEMPT, ZERO_RATED (+3 more)
+Cohesion: 0.09
+Nodes (10): TaxClass, VAT_EXEMPT, VATABLE, ZERO_RATED, Balances, Line, OrderTotals, Result (+2 more)
 
-### Community 12 - "UserAdminService"
-Cohesion: 0.06
-Nodes (19): lombok.extern.slf4j.Slf4j, org.slf4j.Logger, org.springframework.core.task.TaskExecutor, org.springframework.security.crypto.password.PasswordEncoder, org.springframework.transaction.PlatformTransactionManager, Fulfilment, OrderDelivered, IdentityMailer (+11 more)
+### Community 12 - "AppUser"
+Cohesion: 0.07
+Nodes (14): org.springframework.security.crypto.password.PasswordEncoder, AppUser, LoginRequest, LoginService, Outcome, LoginThrottle, Result, ALREADY_LOCKED (+6 more)
 
 ### Community 13 - "DealsFixture"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (5): DealEditIT, DealLinkIT, DealReassignIT, DealsFixture, DealsIT
 
 ### Community 14 - "TwoFactorIT"
-Cohesion: 0.23
-Nodes (3): jakarta.servlet.http.Cookie, org.springframework.test.web.servlet.MvcResult, TwoFactorIT
+Cohesion: 0.16
+Nodes (3): org.springframework.test.web.servlet.MvcResult, Totp, TwoFactorIT
 
-### Community 15 - "BalancesTest"
-Cohesion: 0.25
-Nodes (3): Balances, Result, BalancesTest
-
-### Community 16 - "PortalAuthIT"
+### Community 15 - "HtmlMail"
 Cohesion: 0.09
-Nodes (8): org.springframework.session.FindByIndexNameSessionRepository, org.springframework.session.Session, org.springframework.web.bind.annotation.DeleteMapping, Override, RedisSessionAdmin, SessionController, SessionResponse, PortalAuthIT
+Nodes (11): DeliveryDispatched, DeliveryMailView, Line, OrderDelivered, IdentityMailer, InviteIssued, PortalMailer, Mail (+3 more)
 
 ### Community 17 - "Part A — Backend (`crm`)"
 Cohesion: 0.07
 Nodes (27): Explicitly deferred (not in this plan), Global Constraints, Part A — Backend (`crm`), Part B — Frontend (`crm-dashboard-ui`), Redesign #2 Sales Lifecycle — Implementation Plan, Review Focus, Task 10: Payments — record, verify, reject, 2307, Task 11: Release, fulfil, cancel (+19 more)
 
 ### Community 18 - "jakarta.persistence.Entity"
-Cohesion: 0.09
-Nodes (14): jakarta.persistence.Entity, jakarta.persistence.PreUpdate, jakarta.persistence.Table, DeliveryOrderLine, RecoveryCode, StockAdjustment, StockMovement, StockReceipt (+6 more)
+Cohesion: 0.07
+Nodes (17): jakarta.persistence.Entity, jakarta.persistence.PreUpdate, jakarta.persistence.Table, org.hibernate.annotations.Immutable, AuditEvent, DeliveryOrderLine, RecoveryCode, StockMovement (+9 more)
 
-### Community 19 - "OrderResponse"
-Cohesion: 0.06
-Nodes (26): CustomerType, BUSINESS, INDIVIDUAL, PaymentTerms, DUE_ON_RECEIPT, NET_15, NET_30, NET_60 (+18 more)
+### Community 19 - "RefundBadge"
+Cohesion: 0.40
+Nodes (5): of(), RefundBadge, FULL, NONE, PARTIAL
 
 ### Community 20 - "ServiceCallLoggingIT"
-Cohesion: 0.12
-Nodes (11): org.junit.jupiter.api.extension.ExtendWith, org.springframework.boot.test.system.CapturedOutput, org.springframework.boot.test.system.OutputCaptureExtension, org.springframework.context.annotation.Import, ServiceCallLoggingIT.Probes, AuditLogLoggingIT, AccessLogFilterIT, LoggingProbeService (+3 more)
+Cohesion: 0.09
+Nodes (12): org.junit.jupiter.api.extension.ExtendWith, org.springframework.boot.test.system.CapturedOutput, org.springframework.boot.test.system.OutputCaptureExtension, org.springframework.context.annotation.Import, ServiceCallLoggingIT.Probes, JobMdc, AuditLogLoggingIT, AccessLogFilterIT (+4 more)
 
 ### Community 21 - "Redesign #3 — Inventory & Fulfilment"
 Cohesion: 0.07
@@ -344,11 +329,11 @@ Nodes (27): 1. Modules, 2. Data (Flyway, Postgres), 3. Stock rules, 4. Flows, 5.
 
 ### Community 22 - "SettingKey"
 Cohesion: 0.07
-Nodes (28): SettingKey, APPROVAL_DISCOUNT_PERCENT_MAX, APPROVAL_WRITE_OFF_VALUE_MAX, COMPANY_ADDRESS, COMPANY_NAME, COMPANY_TIN, FOLLOW_UPS_AUTO_DEAL_STALLED_ENABLED, FOLLOW_UPS_AUTO_FIRST_ORDER_ENABLED (+20 more)
+Nodes (30): of(), SettingKey, APPROVAL_DISCOUNT_PERCENT_MAX, APPROVAL_WRITE_OFF_VALUE_MAX, COMPANY_ADDRESS, COMPANY_NAME, COMPANY_TIN, FOLLOW_UPS_AUTO_DEAL_STALLED_ENABLED (+22 more)
 
 ### Community 24 - "DealService"
 Cohesion: 0.05
-Nodes (26): DealOrder.Key, jakarta.persistence.IdClass, Deal, DealController, ResponseEntity, DealOrder, Key, DealOrderRepository (+18 more)
+Nodes (24): org.springframework.data.jpa.domain.Specification, Deal, DealDeleted, DealRef, DealRequest, DealResponse, DealScopes, DealService (+16 more)
 
 ### Community 25 - "ProductCategories"
 Cohesion: 0.13
@@ -358,105 +343,97 @@ Nodes (7): CatalogPermissions, ProductCategories, ProductCategory, ProductCatego
 Cohesion: 0.10
 Nodes (18): parse(), ReportBy, CUSTOMER, MONTH, PRODUCT, REP, Named, ProductSum (+10 more)
 
-### Community 27 - "DeliveryOrder"
-Cohesion: 0.10
-Nodes (12): DeliveryDispatched, DeliveryOrder, DeliveryOrderController, DeliveryLineResponse, DeliveryOrderResponse, DeliveryStatus, CANCELLED, DELIVERED (+4 more)
+### Community 27 - "DeliveryService"
+Cohesion: 0.13
+Nodes (12): DeliveryOrder, DeliveryOrderController, DeliveryLineResponse, DeliveryOrderResponse, DeliveryService, DeliveryStatus, CANCELLED, DELIVERED (+4 more)
 
-### Community 30 - ".l"
-Cohesion: 0.16
-Nodes (4): LineStock, AllocatorIT, Line, ReservationsIT
-
-### Community 31 - "java.time.YearMonth"
+### Community 30 - ".receive"
 Cohesion: 0.18
-Nodes (14): java.time.YearMonth, AdminInsights, Margin, MonthAmount, Operations, ProductRow, RepRow, CustomerAmount (+6 more)
+Nodes (4): OrderStock, ReserveLine, AllocatorIT, ReservationsIT
+
+### Community 31 - "AdminInsights"
+Cohesion: 0.25
+Nodes (11): AdminInsights, Margin, Operations, ProductRow, CustomerAmount, DayAmount, NeedsAction, OrderRef (+3 more)
 
 ### Community 32 - "MeController"
-Cohesion: 0.36
+Cohesion: 0.32
 Nodes (4): ChangePasswordRequest, MeController, UpdateMeRequest, MeResponse
 
-### Community 33 - "org.springframework.http.ResponseEntity"
-Cohesion: 0.12
-Nodes (17): jakarta.validation.ConstraintViolationException, org.springframework.dao.OptimisticLockingFailureException, org.springframework.http.HttpHeaders, org.springframework.http.HttpStatusCode, org.springframework.http.ProblemDetail, org.springframework.http.ResponseEntity, org.springframework.security.access.AccessDeniedException, org.springframework.web.bind.annotation.ExceptionHandler (+9 more)
+### Community 33 - "ProblemDetailAdvice"
+Cohesion: 0.19
+Nodes (13): jakarta.validation.ConstraintViolationException, org.springframework.dao.OptimisticLockingFailureException, org.springframework.http.HttpHeaders, org.springframework.http.HttpStatusCode, org.springframework.http.ProblemDetail, org.springframework.security.access.AccessDeniedException, org.springframework.web.bind.annotation.ExceptionHandler, org.springframework.web.bind.annotation.RestControllerAdvice (+5 more)
 
 ### Community 34 - "Sheets"
-Cohesion: 0.13
-Nodes (5): ImportResult, RowError, Sheets, Req, SheetsTest
+Cohesion: 0.11
+Nodes (7): jakarta.validation.Validator, java.util.zip.ZipOutputStream, ImportResult, RowError, Sheets, Req, SheetsTest
 
 ### Community 36 - ".at"
 Cohesion: 0.05
 Nodes (6): AdminInsightsIT, ReportsIT, SalesInsightsIT, TargetMilestonesIT, TargetsIT, WarehouseInsightsIT
 
-### Community 39 - "PdfRenderer"
+### Community 37 - ".createdOrder"
+Cohesion: 0.07
+Nodes (4): ConfirmIT, OrdersIT, ResultActions, SendQuoteIT
+
+### Community 39 - "org.springframework.stereotype.Component"
+Cohesion: 0.08
+Nodes (18): com.microsoft.playwright.Browser, com.microsoft.playwright.Playwright, jakarta.annotation.PreDestroy, org.springframework.boot.autoconfigure.condition.ConditionalOnProperty, org.springframework.scheduling.annotation.Scheduled, org.springframework.stereotype.Component, org.thymeleaf.TemplateEngine, AutoFollowUpsSchedule (+10 more)
+
+### Community 40 - "Inventory"
 Cohesion: 0.12
-Nodes (8): com.microsoft.playwright.Browser, com.microsoft.playwright.Playwright, jakarta.annotation.PreDestroy, org.thymeleaf.TemplateEngine, DocumentController, InvoiceDocument, PdfFile, PdfRenderer
+Nodes (10): Allocator, Inventory, Override, Key, StockLedger, StockLevel, StockLevelRepository, StockMovementRepository (+2 more)
 
-### Community 40 - "OrderStock"
-Cohesion: 0.11
-Nodes (8): Override, Key, OrderStock, ReserveLine, ReturnLine, StockLevel, StockReservation, StockReservationRepository
+### Community 41 - "Catalog"
+Cohesion: 0.14
+Nodes (6): Catalog, Product, ProductController, ProductRequest, ProductResponse, ProductSheets
 
-### Community 41 - ".staff"
+### Community 42 - "OrderService.java"
 Cohesion: 0.13
-Nodes (4): Product, ProductController, ProductRequest, ProductResponse
-
-### Community 42 - "org.springframework.scheduling.annotation.Scheduled"
-Cohesion: 0.15
-Nodes (6): org.springframework.boot.autoconfigure.condition.ConditionalOnProperty, org.springframework.scheduling.annotation.Scheduled, AutoFollowUpsSchedule, FollowUpCounts, FollowUpReminderSchedule, FollowUpDayTest
+Nodes (16): LineStock, OrderAction, ACCEPT, CANCEL, CONFIRM, COVER_SHORTAGE, DECLINE, EDIT (+8 more)
 
 ### Community 43 - "org.springframework.data.jpa.repository.JpaRepository"
-Cohesion: 0.07
-Nodes (19): org.springframework.data.jpa.repository.JpaRepository, org.springframework.data.jpa.repository.JpaSpecificationExecutor, org.springframework.data.jpa.repository.Lock, org.springframework.data.jpa.repository.Modifying, org.springframework.data.jpa.repository.Query, AuditEventRepository, ProductRepository, CustomerRepository (+11 more)
+Cohesion: 0.05
+Nodes (24): org.springframework.data.jpa.repository.JpaRepository, org.springframework.data.jpa.repository.JpaSpecificationExecutor, org.springframework.data.jpa.repository.Lock, org.springframework.data.jpa.repository.Modifying, org.springframework.data.jpa.repository.Query, AuditEventRepository, ProductRepository, CustomerRepository (+16 more)
 
-### Community 44 - "DeliveryOrdersIT"
-Cohesion: 0.15
-Nodes (3): DeliveryMailView, Line, DeliveryOrdersIT
-
-### Community 45 - "AttachmentService"
-Cohesion: 0.06
-Nodes (16): Attachment, AttachmentAccess, InvoiceRef, InvoiceRow, OrderRow, AttachmentRepository, AttachmentResponse, AttachmentService (+8 more)
-
-### Community 46 - ".update"
+### Community 45 - "Scope"
 Cohesion: 0.09
-Nodes (8): Candidate, ContactMatches, Match, FollowUp, FollowUpResponse, LeadCounts, LeadDuplicates, LeadDuplicatesResponse
+Nodes (15): Attachment, AttachmentAccess, InvoiceRef, InvoiceRow, OrderRow, AttachmentRepository, AttachmentResponse, AttachmentService (+7 more)
 
-### Community 48 - "OrderAction"
-Cohesion: 0.08
-Nodes (26): org.junit.jupiter.params.provider.Arguments, org.junit.jupiter.params.provider.MethodSource, OrderAction, ACCEPT, CANCEL, CONFIRM, COVER_SHORTAGE, DECLINE (+18 more)
+### Community 46 - "FollowUpService"
+Cohesion: 0.09
+Nodes (17): FollowUp, FollowUpCounts, Bucket, DONE, OVERDUE, TODAY, UPCOMING, FollowUpDay (+9 more)
 
-### Community 49 - "org.springframework.context.annotation.Bean"
-Cohesion: 0.21
-Nodes (9): org.springframework.boot.web.servlet.FilterRegistrationBean, org.springframework.context.annotation.Bean, org.springframework.context.annotation.Configuration, org.springframework.session.web.http.CookieSerializer, org.springframework.session.web.http.HttpSessionIdResolver, SessionConfig, PortalSessionGuard, Registration (+1 more)
+### Community 48 - "OrderStatus"
+Cohesion: 0.15
+Nodes (11): org.junit.jupiter.params.provider.Arguments, org.junit.jupiter.params.provider.MethodSource, OrderStateMachine, OrderStatus, CANCELLED, CONFIRMED, DRAFT, FULFILLED (+3 more)
 
 ### Community 50 - "TransferService"
-Cohesion: 0.16
-Nodes (9): ReceiveLineRequest, ReceiveRequest, StockTransfer, TransferController, TransferLineRequest, TransferRequest, TransferLineResponse, TransferResponse (+1 more)
+Cohesion: 0.12
+Nodes (14): ReceiveLineRequest, ReceiveRequest, StockTransfer, TransferController, TransferLineRequest, TransferRequest, TransferLineResponse, TransferResponse (+6 more)
 
 ### Community 51 - "Redesign #4 — POS"
 Cohesion: 0.12
 Nodes (15): Backend (`crm`), Decisions, Elsewhere, Endpoints — `PosController`, `ADMIN` and `SALES`, Frontend (`crm-dashboard-ui`), Goal, Other backend changes, Out of scope (+7 more)
 
-### Community 52 - "org.springframework.stereotype.Component"
-Cohesion: 0.06
-Nodes (23): org.springframework.boot.context.event.ApplicationReadyEvent, org.springframework.context.event.EventListener, org.springframework.stereotype.Component, org.springframework.transaction.event.TransactionalEventListener, ApprovalDecided, ApprovalStatus, APPROVED, CANCELLED (+15 more)
+### Community 52 - "lombok.extern.slf4j.Slf4j"
+Cohesion: 0.16
+Nodes (7): lombok.extern.slf4j.Slf4j, org.springframework.boot.context.event.ApplicationReadyEvent, org.springframework.context.event.EventListener, CustomerReassigned, DealReassignmentListener, ReassignmentListener, BootstrapAdmin
 
-### Community 53 - "LoginThrottle"
-Cohesion: 0.21
-Nodes (7): LoginService, Outcome, LoginThrottle, Result, ALREADY_LOCKED, COUNTED, LOCKED
+### Community 53 - "org.springframework.transaction.event.TransactionalEventListener"
+Cohesion: 0.19
+Nodes (9): org.springframework.transaction.event.TransactionalEventListener, ApprovalDecided, ApprovalStatus, APPROVED, CANCELLED, PENDING, REJECTED, AdjustmentApprovalListener (+1 more)
 
 ### Community 54 - "ProductUnit"
 Cohesion: 0.09
-Nodes (20): com.fasterxml.jackson.annotation.JsonInclude, ProductUnit, BOX, G, KG, L, M, ML (+12 more)
-
-### Community 56 - "SecurityConfig.java"
-Cohesion: 0.17
-Nodes (8): org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity, org.springframework.security.config.annotation.web.builders.HttpSecurity, org.springframework.security.config.annotation.web.configuration.EnableWebSecurity, org.springframework.security.web.SecurityFilterChain, AbsoluteSessionTimeoutFilter, Override, SecurityConfig, ProblemResponses
+Nodes (21): com.fasterxml.jackson.annotation.JsonInclude, ProductUnit, BOX, G, KG, L, M, ML (+13 more)
 
 ### Community 57 - "Part A — Backend (`crm`)"
 Cohesion: 0.09
 Nodes (21): Explicitly deferred (not in this plan), Global Constraints, Part A — Backend (`crm`), Part B — Frontend (`crm-dashboard-ui`), Redesign #3 Inventory & Fulfilment — Implementation Plan, Review Focus, Task 10: Stock page, ledger, stock in and adjust, Task 11: Transfers (+13 more)
 
-### Community 59 - "OrderService"
-Cohesion: 0.11
-Nodes (8): DiscountType, AMOUNT, PERCENT, LineRequest, OrderRequest, OrderService, OrderStockMapper, QuoteClosed
+### Community 59 - "LeadDuplicates"
+Cohesion: 0.23
+Nodes (6): Candidate, ContactMatches, Match, LeadDuplicates, LeadDuplicatesResponse, PhoneKey
 
 ### Community 60 - "V5__inventory_fulfilment.sql"
 Cohesion: 0.12
@@ -471,8 +448,8 @@ Cohesion: 0.18
 Nodes (10): API, Approach, Data — Flyway `V15__deals.sql`, Deals / opportunities (F-130) — design, Decisions (from the user), Goal, Out of scope, Rules (+2 more)
 
 ### Community 63 - "InsightsQueries"
-Cohesion: 0.20
-Nodes (4): Balance, InsightsQueries, RepAmounts, InsightsService
+Cohesion: 0.19
+Nodes (6): org.springframework.cache.annotation.Cacheable, RepRow, Balance, InsightsQueries, RepAmounts, InsightsService
 
 ### Community 64 - "Follow-ups (F-141) — design"
 Cohesion: 0.20
@@ -487,24 +464,24 @@ Cohesion: 0.21
 Nodes (3): javax.sql.DataSource, org.springframework.session.data.redis.RedisIndexedSessionRepository, LoginIT
 
 ### Community 69 - ".diff"
-Cohesion: 0.08
-Nodes (18): com.fasterxml.jackson.annotation.JsonIgnore, jakarta.validation.constraints.AssertTrue, CustomerRequest, Lead, LeadAssignRequest, LeadConvertRequest, LeadRepository, LeadRequest (+10 more)
+Cohesion: 0.11
+Nodes (13): Lead, LeadAssignRequest, LeadRequest, LeadResponse, LeadScopes, LeadService, LeadStatus, CONTACTED (+5 more)
 
-### Community 70 - "AppUser"
-Cohesion: 0.12
-Nodes (6): java.security.SecureRandom, javax.crypto.SecretKey, AppUser, TotpService, TrustedDevices, EncryptionService
+### Community 70 - "TotpService.java"
+Cohesion: 0.36
+Nodes (3): java.security.SecureRandom, javax.crypto.SecretKey, EncryptionService
 
-### Community 72 - ".list"
-Cohesion: 0.17
-Nodes (11): Bucket, DONE, OVERDUE, TODAY, UPCOMING, FollowUpDay, parse(), Source (+3 more)
+### Community 72 - "CustomerSalesController"
+Cohesion: 0.15
+Nodes (9): CustomerInvoiceRow, CustomerSalesController, OrderFilter, OrderSummary, PaymentStatus, OVERDUE, PAID, PARTIAL (+1 more)
 
 ### Community 74 - "PaymentService"
-Cohesion: 0.06
-Nodes (25): Mail, Payment, PaymentMethod, BANK_TRANSFER, CARD, CASH, CHECK, GCASH (+17 more)
+Cohesion: 0.08
+Nodes (15): OrderStockMapper, Payment, PaymentRequest, PaymentResponse, Attachment, FORM_2307, PROOF, key() (+7 more)
 
 ### Community 75 - ".delivered"
-Cohesion: 0.14
-Nodes (7): FirstOrderRuleIT, ApplicationEventPublisher, PlatformTransactionManager, RestockRuleIT, ApplicationEventPublisher, PlatformTransactionManager, WinBackRuleIT
+Cohesion: 0.19
+Nodes (6): ApplicationEventPublisher, PlatformTransactionManager, RestockRuleIT, ApplicationEventPublisher, PlatformTransactionManager, WinBackRuleIT
 
 ### Community 76 - "Automatic follow-ups — design (2026-11-17)"
 Cohesion: 0.13
@@ -514,21 +491,21 @@ Nodes (14): 1. Data — `V24__auto_follow_ups.sql`, 2. Settings (`SettingKey`, a
 Cohesion: 0.14
 Nodes (10): org.springframework.data.redis.connection.Message, org.springframework.data.redis.connection.MessageListener, org.springframework.web.servlet.mvc.method.annotation.SseEmitter, NotificationResponse, Override, NotificationStreams, StreamController, OpenApiSnapshotTest (+2 more)
 
-### Community 79 - "Notifications"
-Cohesion: 0.07
-Nodes (26): FollowUpReminder, Notifications, NotificationType, APPROVAL_DECIDED, APPROVAL_REQUESTED, DELIVERY_CREATED, FOLLOW_UP_OVERDUE, FOLLOW_UPS_DUE (+18 more)
+### Community 79 - "NotificationType"
+Cohesion: 0.08
+Nodes (24): NotificationType, APPROVAL_DECIDED, APPROVAL_REQUESTED, DELIVERY_CREATED, FOLLOW_UP_OVERDUE, FOLLOW_UPS_DUE, LOW_STOCK, ORDER_CONFIRMED (+16 more)
 
 ### Community 80 - "Backend (`crm/crm`)"
 Cohesion: 0.12
 Nodes (15): Backend (`crm/crm`), Dashboards (#4) Implementation Plan, Frontend (`crm-dashboard-ui`), Global Constraints, Review Focus, Task 10: End-to-end smoke, Task 1: Snapshots at confirm and the V10 migration, Task 2: Insights module, month parsing and sales targets (+7 more)
 
-### Community 81 - "org.springframework.data.jpa.domain.Specification"
-Cohesion: 0.09
-Nodes (9): org.springframework.data.jpa.domain.Specification, ContactRequest, ContactResponse, Customer, CustomerContact, CustomerContactRepository, CustomerResponse, CustomerScopes (+1 more)
+### Community 81 - ".record"
+Cohesion: 0.04
+Nodes (25): com.fasterxml.jackson.annotation.JsonIgnore, jakarta.validation.constraints.AssertTrue, ContactRequest, ContactResponse, Customer, CustomerRequest, CustomerResponse, CustomerScopes (+17 more)
 
 ### Community 82 - "jakarta.servlet.http.HttpServletRequest"
-Cohesion: 0.16
-Nodes (10): jakarta.servlet.http.HttpServletRequest, jakarta.servlet.http.HttpServletResponse, org.springframework.security.core.Authentication, org.springframework.security.web.context.HttpSessionSecurityContextRepository, LoginRequest, LoginResponse, Principals, RecoveryCodesResponse (+2 more)
+Cohesion: 0.11
+Nodes (13): jakarta.servlet.http.HttpServletRequest, jakarta.servlet.http.HttpServletResponse, org.springframework.core.annotation.Order, org.springframework.security.core.Authentication, LoginResponse, Principals, TotpCodeRequest, TotpController (+5 more)
 
 ### Community 83 - "Backend (`crm/crm`)"
 Cohesion: 0.11
@@ -546,69 +523,73 @@ Nodes (14): Backend (`crm/crm`), Frontend (`crm-dashboard-ui`), Global Constrain
 Cohesion: 0.19
 Nodes (8): java.lang.reflect.Method, org.aopalliance.intercept.MethodInvocation, org.springframework.aop.Advisor, org.springframework.aop.Pointcut, org.springframework.beans.factory.config.BeanPostProcessor, org.springframework.context.annotation.Role, org.springframework.core.ParameterNameDiscoverer, ServiceCallLogging
 
-### Community 89 - "ApprovalsIT"
-Cohesion: 0.11
-Nodes (5): RequiredApproval, ApprovalsIT, Guarded, ApplicationEvents, SuppressWarnings
+### Community 89 - "Approvals"
+Cohesion: 0.07
+Nodes (18): ApprovalRequest, ApprovalRequestRepository, ApprovalResponse, Approvals, Link, ApprovalType, BELOW_COST, CREDIT_LIMIT (+10 more)
 
 ### Community 90 - "Review Focus"
 Cohesion: 0.17
 Nodes (11): Automatic Follow-ups Implementation Plan, Global Constraints, Review Focus, Task 1: Schema, settings keys and FollowUp fields, Task 2: Engine (`AutoFollowUps`, `AutoRule`, `RestockRhythm`), Task 3: Customer rules (RESTOCK, WIN_BACK, FIRST_ORDER) and the order-confirmed close, Task 4: Order rules (QUOTE_CHASE, QUOTE_EXPIRING, QUOTE_DECLINED, PAYMENT_OVERDUE) and their closes, Task 5: DEAL_STALLED and the deal-stage close (+3 more)
 
 ### Community 91 - "CustomerStatusMailsIT"
-Cohesion: 0.15
-Nodes (3): jakarta.mail.internet.MimeMessage, jakarta.mail.Multipart, CustomerStatusMailsIT
+Cohesion: 0.14
+Nodes (4): jakarta.mail.internet.MimeMessage, jakarta.mail.Multipart, PasswordResetIT, CustomerStatusMailsIT
 
 ### Community 93 - "Design"
 Cohesion: 0.12
 Nodes (16): 1. Request line — `shared/AccessLogFilter`, 2. Business step line — `AuditLog.record`, 3. Service calls — `shared/ServiceCallLogging`, 4. Redaction — `shared/LogRedactor`, 5. Background work, 6. Changing detail at runtime, 7. Files — `logback-spring.xml`, 8. UI (crm-dashboard-ui) (+8 more)
 
 ### Community 94 - "AuditLog"
-Cohesion: 0.06
-Nodes (35): jakarta.validation.Validator, AuditLog, Logger, Pattern, Catalog, ProductSheets, CustomerSheets, AutoFollowUps (+27 more)
+Cohesion: 0.07
+Nodes (32): org.slf4j.Logger, org.springframework.context.ApplicationEventPublisher, org.springframework.core.task.TaskExecutor, org.springframework.stereotype.Service, org.springframework.transaction.PlatformTransactionManager, AuditLog, Logger, Pattern (+24 more)
+
+### Community 96 - "InventoryFixture"
+Cohesion: 0.14
+Nodes (6): DeliveryLine, DeliveryRequest, InventoryFixture, ApplicationContext, Line, InventoryOverviewIT
 
 ### Community 98 - "Review Focus"
 Cohesion: 0.17
 Nodes (11): Global Constraints, Redis Phase Implementation Plan, Review Focus, Task 0: Commit the MinIO work, Task 1: Redis wiring and token revocation (R-01, R-02, R-09 part), Task 2: Rate limiting (R-03), Task 3: Single-flight locks on customer links and staff accept (R-04), Task 4: Run the quotation expiry job on one instance (R-05) (+3 more)
 
 ### Community 99 - "ErrorCode"
-Cohesion: 0.06
-Nodes (50): org.springframework.context.ApplicationEventPublisher, org.springframework.data.domain.Sort, org.springframework.stereotype.Service, AuditChanges, ProductInfo, DomainException, ErrorCode, ACCOUNT_LOCKED (+42 more)
+Cohesion: 0.05
+Nodes (56): java.util.regex.Pattern, org.springframework.http.HttpStatus, org.springframework.security.web.csrf.CsrfToken, org.springframework.web.bind.annotation.RequestMapping, org.springframework.web.bind.annotation.RestController, ActivityController, AuditChanges, ScanController (+48 more)
 
 ### Community 100 - "Review Focus"
 Cohesion: 0.15
 Nodes (12): Deals (F-130) Implementation Plan, Global Constraints, Review Focus, Task 1: Table, create, list, get, summary, Task 2: Edit and stages (except Won), Task 3: Linking orders, Task 4: Won — automatic and by hand, Task 5: Follow the customer on reassignment (+4 more)
 
 ### Community 101 - "SettingKey.java"
-Cohesion: 0.25
-Nodes (12): bankAccounts(), bool(), field(), invalid(), number(), of(), positiveIdOrNull(), text() (+4 more)
+Cohesion: 0.28
+Nodes (11): bankAccounts(), bool(), field(), invalid(), number(), positiveIdOrNull(), text(), validate() (+3 more)
 
 ### Community 102 - "IntegrationTest.java"
-Cohesion: 0.08
-Nodes (20): org.junit.jupiter.api.BeforeAll, org.springframework.boot.test.context.SpringBootTest, org.springframework.boot.test.context.TestConfiguration, org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc, org.springframework.context.ApplicationContextInitializer, org.springframework.context.ConfigurableApplicationContext, org.springframework.test.context.ActiveProfiles, org.springframework.test.context.ContextConfiguration (+12 more)
+Cohesion: 0.16
+Nodes (15): org.springframework.boot.test.context.SpringBootTest, org.springframework.boot.test.context.TestConfiguration, org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc, org.springframework.context.ApplicationContextInitializer, org.springframework.context.ConfigurableApplicationContext, org.springframework.test.context.ActiveProfiles, org.springframework.test.context.ContextConfiguration, org.testcontainers.containers.PostgreSQLContainer (+7 more)
 
-### Community 103 - "org.springframework.transaction.annotation.Transactional"
-Cohesion: 0.07
-Nodes (13): java.sql.ResultSet, org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate, org.springframework.transaction.annotation.Transactional, Customers, CustomerSalesProfile, Due, FollowUpQueries, Overdue (+5 more)
+### Community 103 - "org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate"
+Cohesion: 0.12
+Nodes (7): java.sql.ResultSet, org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate, Due, FollowUpQueries, Overdue, Raw, SalesReports
 
-### Community 105 - "Scope"
+### Community 105 - "OrderService"
 Cohesion: 0.05
-Nodes (18): Invoice, SuppressWarnings, InvoiceResponse, InvoiceStatus, ISSUED, VOID, RefundKind, GOODS_RETURN (+10 more)
+Nodes (24): RequiredApproval, CustomerSalesProfile, DiscountType, AMOUNT, PERCENT, Invoice, InvoiceResponse, InvoiceService (+16 more)
 
 ### Community 106 - "RedisTestSupport"
-Cohesion: 0.27
-Nodes (4): AssertTrue, org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory, org.testcontainers.containers.GenericContainer, RedisTestSupport
+Cohesion: 0.13
+Nodes (7): org.springframework.context.annotation.AnnotationConfigApplicationContext, org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory, org.testcontainers.containers.GenericContainer, RedisListenerConfigIT, RedisTestSupport, CacheConfigIT, SummarySource
 
 ### Community 107 - "LogRedactorTest"
 Cohesion: 0.13
 Nodes (7): LogRedactor, Render, Create, Customer, Login, LogRedactorTest, Node
 
 ### Community 108 - "RateLimitFilterIT"
-Cohesion: 0.20
-Nodes (7): org.junit.jupiter.params.ParameterizedTest, org.junit.jupiter.params.provider.CsvSource, org.junit.jupiter.params.provider.ValueSource, org.springframework.mock.web.MockFilterChain, org.springframework.mock.web.MockHttpServletResponse, IdempotencyFilterPathsTest, RateLimitFilterIT
+Cohesion: 0.31
+Nodes (4): org.junit.jupiter.params.provider.CsvSource, org.springframework.mock.web.MockFilterChain, org.springframework.mock.web.MockHttpServletResponse, RateLimitFilterIT
 
-### Community 109 - "org.springframework.cache.annotation.Cacheable"
-Cohesion: 0.21
-Nodes (6): org.springframework.cache.annotation.Cacheable, DeliveryRef, Today, Transfers, WarehouseInsights, SummarySource
+### Community 109 - "WarehouseInsights"
+Cohesion: 0.48
+Nodes (4): DeliveryRef, Today, Transfers, WarehouseInsights
 
 ### Community 110 - "Redesign #1 — Foundation"
 Cohesion: 0.07
@@ -618,21 +599,21 @@ Nodes (28): 10. Testing, 11. Deployment changes, 1. Backend module layout, 2. Da
 Cohesion: 0.15
 Nodes (20): order_revision, payment_status_verified_idx, sales_order_rep_idx, sales_target, money_movement, refund, refund_line, refund_line_refund_idx (+12 more)
 
-### Community 112 - "Approvals"
-Cohesion: 0.13
-Nodes (13): ApprovalRequest, ApprovalRequestRepository, ApprovalResponse, Approvals, Link, ApprovalType, BELOW_COST, CREDIT_LIMIT (+5 more)
+### Community 113 - "java.time.YearMonth"
+Cohesion: 0.19
+Nodes (3): java.time.YearMonth, InsightsMonth, InsightsMonthTest
 
 ### Community 114 - "Review Focus"
 Cohesion: 0.14
 Nodes (13): Global Constraints, Leads (F-120) Implementation Plan, Review Focus, Task 10: e2e, Task 1: Migration, lead sources on customers, Task 2: Lead sources API, Task 3: Leads module — create, list, get, counts, Task 4: Edit, status, assign (+5 more)
 
-### Community 115 - "DistributedLock"
-Cohesion: 0.31
-Nodes (4): lombok.RequiredArgsConstructor, org.springframework.data.redis.core.script.RedisScript, DistributedLock, DistributedLockIT
+### Community 115 - "org.springframework.data.redis.core.StringRedisTemplate"
+Cohesion: 0.17
+Nodes (7): lombok.RequiredArgsConstructor, org.springframework.data.redis.core.script.RedisScript, org.springframework.data.redis.core.StringRedisTemplate, DistributedLock, RateLimiter, Override, DistributedLockIT
 
-### Community 116 - ".issue"
-Cohesion: 0.13
-Nodes (10): jakarta.persistence.EntityManager, Subject, TokenPurpose, INVITE, PASSWORD_RESET, PAYMENT_PROOF, PORTAL_LOGIN, QUOTE_RESPONSE (+2 more)
+### Community 116 - "OneTimeTokens"
+Cohesion: 0.11
+Nodes (11): jakarta.persistence.EntityManager, OneTimeTokens, Subject, TokenPurpose, INVITE, PASSWORD_RESET, PAYMENT_PROOF, PORTAL_LOGIN (+3 more)
 
 ### Community 117 - "Leads (F-120) — design"
 Cohesion: 0.18
@@ -670,25 +651,25 @@ Nodes (9): 1. Emails, 2. Events, 3. Components, 4. Error handling, 5. Testing, C
 Cohesion: 0.22
 Nodes (8): Global Constraints, Reports (F-172) Implementation Plan, Review Focus, Task 1: Range parsing and error code, Task 2: Month, rep and customer reports plus endpoint, Task 3: Product report with pro-rata split, Task 4: Reports page, Task 5: End-to-end smoke
 
-### Community 129 - "LeadSourceController"
-Cohesion: 0.31
-Nodes (3): LeadSourceController, LeadSourceRequest, LeadSourceResponse
+### Community 129 - "RedisSessionAdmin"
+Cohesion: 0.36
+Nodes (4): org.springframework.session.FindByIndexNameSessionRepository, org.springframework.session.Session, Override, RedisSessionAdmin
 
-### Community 131 - "RateLimiter"
-Cohesion: 0.40
-Nodes (4): RateLimiter, Override, RateLimitFilter, Rule
+### Community 132 - "DealOrder"
+Cohesion: 0.31
+Nodes (5): DealOrder.Key, jakarta.persistence.IdClass, DealOrder, Key, DealOrderRepository
 
 ### Community 133 - "NotificationStreamsIT"
-Cohesion: 0.24
-Nodes (3): org.springframework.data.redis.listener.RedisMessageListenerContainer, RedisListenerConfig, NotificationStreamsIT
+Cohesion: 0.16
+Nodes (6): org.springframework.data.redis.connection.RedisConnectionFactory, org.springframework.data.redis.listener.RedisMessageListenerContainer, Override, RedisListenerConfig, RetryingListenerContainer, NotificationStreamsIT
 
 ### Community 134 - "Attachments (M-08) — design"
 Cohesion: 0.20
 Nodes (9): API — `/api/attachments`, Attachments (M-08) — design, Data — Flyway `V13__attachments.sql`, Decisions (from the user), Goal, Out of scope, Rules, Screens (crm-dashboard-ui) (+1 more)
 
-### Community 135 - "Who"
-Cohesion: 0.33
-Nodes (6): Who, ADMIN, ANON, CUSTOMER, SALES, WAREHOUSE
+### Community 135 - "SecurityMatrixTest"
+Cohesion: 0.17
+Nodes (8): org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping, SecurityMatrixTest, Who, ADMIN, ANON, CUSTOMER, SALES, WAREHOUSE
 
 ### Community 136 - "package.json"
 Cohesion: 0.22
@@ -707,16 +688,16 @@ Cohesion: 0.42
 Nodes (8): lead, lead_customer_idx, lead_email_idx, lead_phone_idx, lead_rep_status_idx, lead_source, lead_source_name_uq, lead_status_idx
 
 ### Community 143 - "org.springframework.web.filter.OncePerRequestFilter"
-Cohesion: 0.14
-Nodes (12): jakarta.servlet.FilterChain, java.util.regex.Pattern, org.springframework.beans.factory.annotation.Autowired, org.springframework.core.annotation.Order, org.springframework.util.AntPathMatcher, org.springframework.web.filter.OncePerRequestFilter, org.springframework.web.util.ContentCachingResponseWrapper, IdempotencyFilter (+4 more)
+Cohesion: 0.11
+Nodes (14): jakarta.servlet.FilterChain, org.springframework.beans.factory.annotation.Autowired, org.springframework.boot.web.servlet.FilterRegistrationBean, org.springframework.util.AntPathMatcher, org.springframework.web.filter.OncePerRequestFilter, org.springframework.web.util.ContentCachingResponseWrapper, AbsoluteSessionTimeoutFilter, Override (+6 more)
 
-### Community 144 - "RetryingListenerContainer"
-Cohesion: 0.33
-Nodes (3): Override, RetryingListenerContainer, RedisListenerConfigIT
+### Community 144 - "org.junit.jupiter.params.ParameterizedTest"
+Cohesion: 0.36
+Nodes (4): org.junit.jupiter.params.ParameterizedTest, org.junit.jupiter.params.provider.ValueSource, Override, IdempotencyFilterPathsTest
 
-### Community 145 - "Warehouses"
-Cohesion: 0.13
-Nodes (8): Label, LabelService, ScanController, ScanResult, Warehouse, WarehouseRepository, WarehouseResponse, Warehouses
+### Community 145 - ".receive"
+Cohesion: 0.11
+Nodes (6): AvailabilityResponse, ReceiptLineRequest, ReceiptRequest, WarehouseController, WarehouseRequest, WarehouseResponse
 
 ### Community 146 - "migrate.py"
 Cohesion: 0.43
@@ -762,17 +743,13 @@ Nodes (12): FollowUpRule, DEAL_STALLED, FIRST_ORDER, PAYMENT_OVERDUE, QUOTE_CHAS
 Cohesion: 0.53
 Nodes (4): org.springframework.boot.autoconfigure.SpringBootApplication, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.scheduling.annotation.EnableScheduling, CrmApplication
 
-### Community 161 - "org.springframework.transaction.support.TransactionTemplate"
+### Community 159 - "MinioHealthIndicator"
+Cohesion: 0.32
+Nodes (4): org.springframework.boot.health.contributor.Health, org.springframework.boot.health.contributor.HealthIndicator, Override, MinioHealthIndicator
+
+### Community 162 - "org.springframework.context.annotation.Bean"
 Cohesion: 0.13
-Nodes (15): jakarta.annotation.PostConstruct, org.springframework.context.ApplicationContext, org.springframework.core.env.Environment, org.springframework.jdbc.datasource.DriverManagerDataSource, org.springframework.test.context.event.ApplicationEvents, org.springframework.test.context.event.RecordApplicationEvents, org.springframework.transaction.support.TransactionTemplate, EncryptionSecretsCheck (+7 more)
-
-### Community 162 - "HeaderOrCookieSessionIdResolver"
-Cohesion: 0.39
-Nodes (3): org.springframework.session.web.http.CookieHttpSessionIdResolver, HeaderOrCookieSessionIdResolver, Override
-
-### Community 163 - ".receive"
-Cohesion: 0.29
-Nodes (4): ReceiptLineRequest, ReceiptRequest, ReceiptLineResponse, ReceiptResponse
+Nodes (13): org.springframework.context.annotation.Bean, org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity, org.springframework.security.config.annotation.web.builders.HttpSecurity, org.springframework.security.config.annotation.web.configuration.EnableWebSecurity, org.springframework.security.web.SecurityFilterChain, org.springframework.session.web.http.CookieHttpSessionIdResolver, org.springframework.session.web.http.CookieSerializer, org.springframework.session.web.http.HttpSessionIdResolver (+5 more)
 
 ### Community 164 - "Production cutover (P5-2)"
 Cohesion: 0.33
@@ -802,113 +779,105 @@ Nodes (7): Customer Status Emails Implementation Plan, Global Constraints, Revie
 Cohesion: 0.22
 Nodes (4): l, o, pg_temp.sys(), pg_temp.uid()
 
-### Community 173 - "CacheConfigIT.java"
-Cohesion: 0.46
-Nodes (3): org.springframework.context.annotation.AnnotationConfigApplicationContext, org.springframework.data.redis.connection.RedisConnectionFactory, CacheConfigIT
+### Community 190 - "LabelService"
+Cohesion: 0.40
+Nodes (3): LabelController, Label, LabelService
 
-### Community 190 - "Notification"
-Cohesion: 0.31
-Nodes (4): org.springframework.data.domain.Page, org.springframework.data.domain.Pageable, Notification, NotificationRepository
-
-### Community 191 - ".of"
-Cohesion: 0.19
-Nodes (3): OrderFingerprint, OrderLine, OrderFingerprintTest
-
-### Community 193 - "SalesOrder"
-Cohesion: 0.07
-Nodes (9): DeclineRequest, PortalOrderController, PortalOrderService, PortalPaymentResponse, PortalRefundResponse, SalesOrder, SalesTime, ContactPrincipal (+1 more)
+### Community 193 - "org.springframework.transaction.annotation.Transactional"
+Cohesion: 0.06
+Nodes (18): org.springframework.transaction.annotation.Transactional, DeliverySummary, LabelKind, DO, PR, TR, WH, DeclineRequest (+10 more)
 
 ### Community 195 - "StaffPrincipal"
-Cohesion: 0.13
-Nodes (10): org.springframework.http.MediaType, org.springframework.security.authentication.UsernamePasswordAuthenticationToken, org.springframework.security.core.AuthenticatedPrincipal, org.springframework.security.core.authority.SimpleGrantedAuthority, org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder, org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping, Override, StaffPrincipal (+2 more)
+Cohesion: 0.10
+Nodes (13): AssertTrue, org.springframework.http.MediaType, org.springframework.security.authentication.UsernamePasswordAuthenticationToken, org.springframework.security.core.AuthenticatedPrincipal, org.springframework.security.core.authority.SimpleGrantedAuthority, org.springframework.security.web.context.HttpSessionSecurityContextRepository, org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder, ContactPrincipal (+5 more)
 
 ### Community 203 - "RefundDisposition"
 Cohesion: 0.29
 Nodes (5): RefundDisposition, DAMAGED, RESTOCK, RefundLineRequest, Line
 
 ### Community 204 - "StorageService"
-Cohesion: 0.14
-Nodes (8): io.minio.MinioClient, org.springframework.boot.health.contributor.Health, org.springframework.boot.health.contributor.HealthIndicator, Override, MinioHealthIndicator, Detected, Pattern, StorageService
+Cohesion: 0.11
+Nodes (8): io.minio.MinioClient, org.junit.jupiter.api.BeforeAll, org.testcontainers.containers.MinIOContainer, org.testcontainers.junit.jupiter.Testcontainers, Detected, Pattern, StorageService, StorageServiceIT
 
 ### Community 207 - "LeadSources"
-Cohesion: 0.20
-Nodes (3): LeadSource, LeadSourceRepository, LeadSources
-
-### Community 211 - ".set"
-Cohesion: 0.19
-Nodes (5): SalesTarget, SalesTargetRepository, TargetController, TargetRequest, TargetRow
-
-### Community 213 - "RefundStatus"
-Cohesion: 0.29
-Nodes (6): RefundStatus, APPROVED, CANCELLED, PAID, REJECTED, REQUESTED
-
-### Community 217 - "org.springframework.web.bind.annotation.RestController"
-Cohesion: 0.06
-Nodes (24): org.springframework.http.HttpStatus, org.springframework.security.web.csrf.CsrfToken, org.springframework.validation.annotation.Validated, org.springframework.web.bind.annotation.PutMapping, org.springframework.web.bind.annotation.RequestMapping, org.springframework.web.bind.annotation.ResponseStatus, org.springframework.web.bind.annotation.RestController, ActivityController (+16 more)
-
-### Community 218 - "AutoRule"
 Cohesion: 0.22
-Nodes (3): AutoRule, DealStalledRule, Override
+Nodes (5): LeadSource, LeadSourceRepository, LeadSourceRequest, LeadSourceResponse, LeadSources
 
-### Community 219 - "org.springframework.security.access.prepost.PreAuthorize"
-Cohesion: 0.06
-Nodes (16): org.springframework.security.access.prepost.PreAuthorize, org.springframework.web.bind.annotation.PostMapping, org.springframework.web.multipart.MultipartFile, DecisionRequest, AttachmentController, AssignmentRequest, CustomerController, InsightsController (+8 more)
+### Community 211 - "TargetService"
+Cohesion: 0.15
+Nodes (7): SalesTarget, SalesTargetRepository, TargetController, TargetMilestones, TargetRequest, TargetRow, TargetService
 
-### Community 220 - "RuleSettings"
+### Community 213 - "RefundService"
+Cohesion: 0.07
+Nodes (25): PaymentMethod, BANK_TRANSFER, CARD, CASH, CHECK, GCASH, OTHER, Refund (+17 more)
+
+### Community 214 - "AccessLogFilter"
 Cohesion: 0.29
-Nodes (4): RuleSettings, FakeRule, Fakes, Override
+Nodes (3): AccessLogFilter, Override, Registration
 
-### Community 228 - "CacheConfig.java"
-Cohesion: 0.43
-Nodes (5): org.springframework.cache.annotation.CachingConfigurer, org.springframework.cache.annotation.EnableCaching, org.springframework.cache.interceptor.CacheErrorHandler, CacheConfig, Override
+### Community 215 - ".version"
+Cohesion: 0.12
+Nodes (4): CreditMemoIT, Environment, PdfRendererTest, PortalOrdersIT
+
+### Community 217 - "org.springframework.web.bind.annotation.ResponseStatus"
+Cohesion: 0.09
+Nodes (10): org.springframework.web.bind.annotation.DeleteMapping, org.springframework.web.bind.annotation.ResponseStatus, AcceptInviteRequest, ResetPasswordRequest, SessionController, SessionResponse, UserAdminController, UserResponse (+2 more)
+
+### Community 219 - "CurrentActor"
+Cohesion: 0.05
+Nodes (24): org.springframework.security.access.prepost.PreAuthorize, org.springframework.validation.annotation.Validated, org.springframework.web.bind.annotation.GetMapping, org.springframework.web.bind.annotation.PostMapping, org.springframework.web.bind.annotation.PutMapping, org.springframework.web.multipart.MultipartFile, AttachmentController, AssignmentRequest (+16 more)
+
+### Community 220 - "FakeRule"
+Cohesion: 0.36
+Nodes (3): FakeRule, Fakes, Override
+
+### Community 222 - "RuleSettings"
+Cohesion: 0.20
+Nodes (4): AutoRule, Override, QuoteDeclinedRule, RuleSettings
+
+### Community 227 - "TestController"
+Cohesion: 0.19
+Nodes (3): ScanResult, Body, TestController
+
+### Community 228 - "org.springframework.context.annotation.Configuration"
+Cohesion: 0.22
+Nodes (10): org.springframework.cache.annotation.CachingConfigurer, org.springframework.cache.annotation.EnableCaching, org.springframework.cache.interceptor.CacheErrorHandler, org.springframework.context.annotation.Configuration, org.springframework.web.servlet.config.annotation.CorsRegistry, org.springframework.web.servlet.config.annotation.WebMvcConfigurer, CacheConfig, Override (+2 more)
 
 ### Community 230 - "org.junit.jupiter.api.AfterEach"
 Cohesion: 0.05
-Nodes (4): org.junit.jupiter.api.AfterEach, SessionTransportIT, ReleaseCancelIT, CurrentActorTest
+Nodes (4): org.junit.jupiter.api.AfterEach, SessionTransportIT, ReleaseCancelIT, SortRequestIT
 
 ### Community 232 - "LogLevelController"
 Cohesion: 0.60
 Nodes (3): org.springframework.boot.logging.LoggingSystem, LogLevelBody, LogLevelController
 
-### Community 234 - "CorsConfig.java"
-Cohesion: 0.47
-Nodes (4): org.springframework.web.servlet.config.annotation.CorsRegistry, org.springframework.web.servlet.config.annotation.WebMvcConfigurer, CorsConfig, Override
-
-### Community 235 - "LabelKind"
-Cohesion: 0.33
-Nodes (5): LabelKind, DO, PR, TR, WH
-
-### Community 236 - "AdjustmentSource"
-Cohesion: 0.33
-Nodes (5): AdjustmentSource, MANUAL, RETURN_DAMAGED, SHORT_PICK, TRANSIT_LOSS
-
-### Community 237 - "TransferStatus"
-Cohesion: 0.33
-Nodes (5): TransferStatus, CANCELLED, DISPATCHED, DRAFT, RECEIVED
+### Community 238 - "org.springframework.http.ResponseEntity"
+Cohesion: 0.09
+Nodes (7): org.springframework.http.ResponseEntity, ApprovalController, FileController, NotificationController, PortalOrderController, FileControllerTest, CountingController
 
 ### Community 239 - "V26__product_category.sql"
 Cohesion: 0.67
 Nodes (3): product_category, product_category_id_idx, product_category_name_uq
 
 ## Knowledge Gaps
-- **773 isolated node(s):** `o`, `l`, `01-roles.sh script`, `PENDING`, `APPROVED` (+768 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1049 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **86 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **775 isolated node(s):** `o`, `l`, `01-roles.sh script`, `PENDING`, `APPROVED` (+770 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1052 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **82 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Scope` connect `Scope` to `org.springframework.jdbc.core.JdbcTemplate`, `org.springframework.web.bind.annotation.GetMapping`, `DealService`, `ReportRange`, `Sheets`, `PdfRenderer`, `org.springframework.scheduling.annotation.Scheduled`, `AttachmentService`, `.update`, `.csrf`, `OrderService`, `SalesOrder`, `StaffPrincipal`, `.diff`, `.list`, `PaymentService`, `org.springframework.data.jpa.domain.Specification`, `.version`, `org.springframework.security.access.prepost.PreAuthorize`, `AuditLog`, `ErrorCode`, `org.springframework.transaction.annotation.Transactional`, `Approvals`?**
-  _High betweenness centrality (0.040) - this node is a cross-community bridge._
-- **Why does `DeliveryMailView` connect `DeliveryOrdersIT` to `attachment`, `OrderResponse`, `UserAdminService`?**
-  _High betweenness centrality (0.036) - this node is a cross-community bridge._
-- **Why does `attachment` connect `attachment` to `DeliveryOrdersIT`, `app_user`?**
+- **Why does `DeliveryMailView` connect `HtmlMail` to `attachment`, `.record`, `AuditLog`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
+- **Why does `attachment` connect `attachment` to `app_user`, `HtmlMail`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
+- **Why does `app_user` connect `app_user` to `follow_up`, `transform.sql`, `lead`, `sales_order`, `attachment`, `user_role`, `deal`, `V5__inventory_fulfilment.sql`?**
   _High betweenness centrality (0.035) - this node is a cross-community bridge._
 - **What connects `o`, `l`, `01-roles.sh script` to the rest of the system?**
-  _773 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _775 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `.as` be split into smaller, more focused modules?**
-  _Cohesion score 0.07075873827791987 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.12790697674418605 - nodes in this community are weakly interconnected._
+- **Should `AttachmentsIT` be split into smaller, more focused modules?**
+  _Cohesion score 0.1241565452091768 - nodes in this community are weakly interconnected._
 - **Should `org.springframework.jdbc.core.JdbcTemplate` be split into smaller, more focused modules?**
-  _Cohesion score 0.09861386138613862 - nodes in this community are weakly interconnected._
-- **Should `org.springframework.data.redis.core.StringRedisTemplate` be split into smaller, more focused modules?**
-  _Cohesion score 0.1425287356321839 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09185971685971686 - nodes in this community are weakly interconnected._

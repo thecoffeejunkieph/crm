@@ -85,7 +85,7 @@ class OrderService {
     private static final Map<String, SortRequest.SortJoin<SalesOrder>> SORT_JOINS = Map.of(
             "customer", new SortRequest.SortJoin<>("customer", "customerId", "display_name"),
             "rep", new SortRequest.SortJoin<>("app_user", "repId", "first_name || ' ' || last_name"));
-    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "updatedAt");
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "number");
     private static final Set<OrderStatus> BILLABLE =
             EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.RELEASED, OrderStatus.FULFILLED);
 

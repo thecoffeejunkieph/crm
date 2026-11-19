@@ -89,7 +89,7 @@ class SecurityConfig {
                             .requestMatchers("/api/stock/receipts/**", "/api/stock/adjustments/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.POST, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.PUT, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
-                            .requestMatchers(HttpMethod.POST, "/api/delivery-orders/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.POST, "/api/delivery-orders/**").hasAnyRole("ADMIN", "WAREHOUSE", "SALES") // sales: DeliveryService.canAct
                             .requestMatchers("/api/labels", "/api/labels/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.GET, "/api/products/*/availability").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers(HttpMethod.POST, "/api/payments/*/verify", "/api/payments/*/reject").hasRole("ADMIN")

@@ -262,8 +262,9 @@ class DealService {
     }
 
     /**
-     * Links a DRAFT/QUOTED order of the deal's customer that is on no other deal. Anything else, including an
-     * order that does not exist, is the same 422 so order ids and numbers cannot be probed through a deal.
+     * Links a non-cancelled order of the deal's customer that is on no other deal. A confirmed one (the rep forgot to
+     * link it before it was paid) wins the deal at once. Anything else, including an order that does not exist, is
+     * the same 422 so order ids and numbers cannot be probed through a deal.
      */
     @Transactional
     DealResponse link(Scope s, long id, long orderId) {
@@ -278,7 +279,7 @@ class DealService {
         }
         OrderBrief o = orders.brief(orderId).orElse(null);
         if (existing.isPresent() || o == null || o.customerId() != d.customerId
-                || (o.status() != OrderStatus.DRAFT && o.status() != OrderStatus.QUOTED)) {
+                || o.status() == OrderStatus.CANCELLED) {
             throw mismatch();
         }
         DealOrder l = new DealOrder();
@@ -292,7 +293,22 @@ class DealService {
         }
         audit.record(AuditAction.DEAL_ORDER_LINKED, ENTITY, d.id, "Linked order " + o.number() + " to deal \""
                 + d.title + "\"", null);
+        if (o.confirmedAt() != null) {
+            markWon(d, orderId);
+        }
         return toResponse(d);
+    }
+
+    /** Hard delete, links first. Any stage: a deal entered by mistake has no history worth keeping. */
+    @Transactional
+    void delete(Scope s, long id) {
+        Deal d = findVisible(s, id);
+        links.deleteAll(links.findByDealIdOrderByLinkedAtAscOrderIdAsc(d.id));
+        links.flush();
+        repo.delete(d);
+        repo.flush();
+        audit.record(AuditAction.DEAL_DELETED, ENTITY, id, "Deleted deal \"" + d.title + "\"", null);
+        events.publishEvent(new DealDeleted(id));
     }
 
     @Transactional
@@ -319,7 +335,7 @@ class DealService {
 
     private static DomainException mismatch() {
         return new DomainException(ErrorCode.DEAL_ORDER_MISMATCH,
-                "Only a draft or quoted order of this customer that is on no other deal can be linked.");
+                "Only an order of this customer that is not cancelled and is on no other deal can be linked.");
     }
 
     DealResponse toResponse(Deal d) {

@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import ph.thecoffeejunkie.crm.deals.DealDeleted;
 import ph.thecoffeejunkie.crm.deals.DealStageChanged;
 import ph.thecoffeejunkie.crm.sales.OrderConfirmed;
 import ph.thecoffeejunkie.crm.sales.PaymentVerified;
@@ -59,6 +60,14 @@ class AutoCloseListeners {
         jdbc.update("update follow_up f set done_at = now(), done_by = null, updated_at = now(), version = f.version + 1, "
                 + "closed_reason = 'Deal moved to ' || initcap(?::text) where f.done_at is null "
                 + "and starts_with(f.auto_key, 'DEAL_STALLED:deal:' || ?::text || ':')", e.stage().name(), e.dealId());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    void onDealDeleted(DealDeleted e) {
+        jdbc.update("update follow_up f set done_at = now(), done_by = null, updated_at = now(), version = f.version + 1, "
+                + "closed_reason = 'Deal deleted' where f.done_at is null "
+                + "and starts_with(f.auto_key, 'DEAL_STALLED:deal:' || ?::text || ':')", e.dealId());
     }
 
     private void closePayment(long orderId, String reason, boolean onlyIfSettled) {

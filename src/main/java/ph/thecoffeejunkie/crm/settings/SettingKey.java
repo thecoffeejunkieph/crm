@@ -24,6 +24,8 @@ public enum SettingKey {
     INVOICE_FOOTER_TEXT("invoice.footerText", text(1000)),
     INVOICE_BANK_ACCOUNTS("invoice.bankAccounts", bankAccounts(10, 400_000)),
     INVOICE_TERMS("invoice.terms", text(5000)),
+    /** Lets a rep pick, dispatch and deliver their own orders' delivery orders when no warehouse staff is around. */
+    FULFILMENT_SALES_CAN_DISPATCH("fulfilment.salesCanDispatch", bool(), false),
     FOLLOW_UPS_AUTO_RESTOCK_ENABLED("followUps.auto.RESTOCK.enabled", bool(), true),
     FOLLOW_UPS_AUTO_WIN_BACK_ENABLED("followUps.auto.WIN_BACK.enabled", bool(), true),
     FOLLOW_UPS_AUTO_QUOTE_CHASE_ENABLED("followUps.auto.QUOTE_CHASE.enabled", bool(), true),

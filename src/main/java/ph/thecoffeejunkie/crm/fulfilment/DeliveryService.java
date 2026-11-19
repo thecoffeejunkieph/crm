@@ -13,6 +13,8 @@ import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.files.StorageService;
 import ph.thecoffeejunkie.crm.inventory.Inventory;
+import ph.thecoffeejunkie.crm.settings.SettingKey;
+import ph.thecoffeejunkie.crm.settings.Settings;
 import ph.thecoffeejunkie.crm.shared.Like;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
@@ -67,9 +69,11 @@ class DeliveryService {
     private final AuditLog audit;
     private final CurrentActor actor;
     private final ApplicationEventPublisher events;
+    private final Settings settings;
 
     DeliveryService(DeliveryOrderRepository orders, Inventory inventory, StorageService storage, Catalog catalog,
-                    AuditLog audit, CurrentActor actor, ApplicationEventPublisher events) {
+                    AuditLog audit, CurrentActor actor, ApplicationEventPublisher events, Settings settings) {
+        this.settings = settings;
         this.orders = orders;
         this.inventory = inventory;
         this.storage = storage;
@@ -197,7 +201,11 @@ class DeliveryService {
     }
 
     private DeliveryOrder lock(long id) {
-        return orders.findByIdForUpdate(id).filter(this::canAct).orElseThrow(DeliveryService::notFound);
+        DeliveryOrder d = orders.findByIdForUpdate(id).filter(this::canRead).orElseThrow(DeliveryService::notFound);
+        if (!canAct(d)) {
+            throw new DomainException(ErrorCode.FORBIDDEN, "Only warehouse staff can do this.");
+        }
+        return d;
     }
 
     private boolean canRead(DeliveryOrder d) {
@@ -210,9 +218,15 @@ class DeliveryService {
         };
     }
 
+    /** Sales acts only on its own orders' delivery orders, and only while an admin allows it. */
     private boolean canAct(DeliveryOrder d) {
         Scope me = actor.scope();
-        return me.role() == Role.ADMIN || me.role() == Role.WAREHOUSE && me.warehouseIds().contains(d.warehouseId);
+        return switch (me.role()) {
+            case ADMIN -> true;
+            case WAREHOUSE -> me.warehouseIds().contains(d.warehouseId);
+            case SALES -> d.repUserId == me.userId() && settings.bool(SettingKey.FULFILMENT_SALES_CAN_DISPATCH);
+            default -> false;
+        };
     }
 
     private static DomainException notFound() {
@@ -237,7 +251,7 @@ class DeliveryService {
                 .map(l -> l.productId).toList());
         return ds.stream().map(d -> new DeliveryOrderResponse(d.id, d.number, d.status, d.method, d.salesOrderId,
                 d.orderNumber, d.warehouseId, d.customerName, d.shipTo, d.createdAt, d.dispatchedAt, d.deliveredAt,
-                d.receiverName, proofUrls(d), d.lines.stream().map(l ->
+                d.receiverName, proofUrls(d), canAct(d), d.lines.stream().map(l ->
                         new DeliveryOrderResponse.DeliveryLineResponse(l.id, l.orderLineId, l.productId,
                                 products.get(l.productId).sku(), l.description, l.unit,
                                 l.qty.setScale(3, RoundingMode.UNNECESSARY),
