@@ -63,6 +63,23 @@ class InsightsFixture {
                 + "values ('BUSINESS', ?, '111-222-333', 'Makati', 'NET_30', ?) returning id", Long.class, tag + name, repId);
     }
 
+    /** A customer with a source, optionally converted from {@code leadId}, created at {@code createdAt}. */
+    long customer(String name, Long sourceId, Long leadId, Instant createdAt) {
+        return jdbc.queryForObject("insert into customer (type, display_name, tin, address, payment_terms, source_id, "
+                + "converted_from_lead_id, created_at) values ('BUSINESS', ?, '111-222-333', 'Makati', 'NET_30', ?, ?, ?) "
+                + "returning id", Long.class, tag + name, sourceId, leadId, Timestamp.from(createdAt));
+    }
+
+    long source(String name) {
+        return jdbc.queryForObject("insert into lead_source (name) values (?) returning id", Long.class, tag + name);
+    }
+
+    long lead(String name, long sourceId, Instant createdAt) {
+        return jdbc.queryForObject("insert into lead (contact_name, email, source_id, created_by, created_at) "
+                + "values (?, 'lead@if.it', ?, ?, ?) returning id", Long.class, tag + name, sourceId, creator(),
+                Timestamp.from(createdAt));
+    }
+
     long product(String name, String cost) {
         return jdbc.queryForObject("insert into product (sku, name, unit, price, cost, tax_class) "
                 + "values (?, ?, 'PC', 100, ?::numeric, 'VATABLE') returning id", Long.class, tag + name, tag + name, cost);
@@ -174,7 +191,12 @@ class InsightsFixture {
         jdbc.update("delete from order_line where order_id in (" + orders + ")");
         jdbc.update("delete from sales_order where customer_id in (select id from customer where display_name like ?)",
                 tag + "%");
+        String sources = "select id from lead_source where name like '" + tag + "%'";
+        jdbc.update("delete from ad_spend where source_id in (" + sources + ")");
+        jdbc.update("update customer set converted_from_lead_id = null where display_name like ?", tag + "%");
+        jdbc.update("delete from lead where contact_name like ?", tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
+        jdbc.update("delete from lead_source where name like ?", tag + "%");
         jdbc.update("delete from product where sku like ?", tag + "%");
         jdbc.update("delete from user_warehouse where warehouse_id in (select id from warehouse where code like ?)",
                 tag + "%");
