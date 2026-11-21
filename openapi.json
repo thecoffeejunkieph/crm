@@ -15,6 +15,44 @@
         "required" : [ "password", "token" ],
         "type" : "object"
       },
+      "AdPerformance" : {
+        "properties" : {
+          "months" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Month"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "AdSpendRequest" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "amount" ],
+        "type" : "object"
+      },
+      "AdSpendRow" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "archived" : {
+            "type" : "boolean"
+          },
+          "sourceId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sourceName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AdjustmentRequest" : {
         "properties" : {
           "countedQty" : {
@@ -1926,6 +1964,23 @@
           },
           "withholdingAmount" : {
             "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "Month" : {
+        "properties" : {
+          "month" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Row"
+            },
+            "type" : "array"
+          },
+          "total" : {
+            "$ref" : "#/components/schemas/Row"
           }
         },
         "type" : "object"
@@ -3904,6 +3959,41 @@
         },
         "type" : "object"
       },
+      "Row" : {
+        "properties" : {
+          "cohortValue" : {
+            "type" : "number"
+          },
+          "costPerCustomer" : {
+            "type" : "number"
+          },
+          "leads" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "newCustomers" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "roas" : {
+            "type" : "number"
+          },
+          "sourceId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sourceName" : {
+            "type" : "string"
+          },
+          "spend" : {
+            "type" : "number"
+          },
+          "valuePerCustomer" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "RowError" : {
         "properties" : {
           "message" : {
@@ -4643,7 +4733,7 @@
           "name" : "action",
           "required" : true,
           "schema" : {
-            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "INVOICE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE", "FOLLOW_UP_CREATED", "FOLLOW_UP_UPDATED", "FOLLOW_UP_DONE", "FOLLOW_UP_REOPENED", "FOLLOW_UP_REASSIGNED", "ATTACHMENT_ADDED", "ATTACHMENT_REMOVED", "REFUND_REQUESTED", "REFUND_PAID", "REFUND_CANCELLED", "LEAD_CREATED", "LEAD_UPDATED", "LEAD_STATUS_CHANGED", "LEAD_ASSIGNED", "LEAD_CONVERTED", "LEAD_SOURCE_ADDED", "LEAD_SOURCE_RENAMED", "LEAD_SOURCE_ARCHIVED", "LEAD_SOURCE_RESTORED", "DEAL_CREATED", "DEAL_UPDATED", "DEAL_STAGE_CHANGED", "DEAL_WON", "DEAL_ORDER_LINKED", "DEAL_ORDER_UNLINKED", "DEAL_REASSIGNED", "DEAL_DELETED" ],
+            "enum" : [ "CREATED", "UPDATED", "ARCHIVED", "LOGIN_SUCCEEDED", "LOGIN_FAILED", "ACCOUNT_LOCKED", "TOTP_ENROLLED", "TOTP_RESET", "TOTP_DISABLED", "RECOVERY_CODE_USED", "SESSION_REVOKED", "PASSWORD_CHANGED", "PASSWORD_RESET", "INVITE_SENT", "INVITE_ACCEPTED", "ROLE_CHANGED", "ASSIGNMENT_CHANGED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "APPROVAL_CANCELLED", "SELF_APPROVED", "SETTING_CHANGED", "PORTAL_LOGIN", "QUOTE_SENT", "INVOICE_SENT", "CONFIRMED", "INVOICE_ISSUED", "INVOICE_VOIDED", "PAYMENT_RECORDED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "FORM_2307_ATTACHED", "PAYMENT_PROOF_ATTACHED", "RELEASED", "FULFILLED", "CANCELLED", "REVISED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "EXPORTED", "SALES_TARGET_SET", "AD_SPEND_SET", "STOCK_RECEIVED", "STOCK_ADJUSTED", "TRANSFER_CREATED", "TRANSFER_DISPATCHED", "TRANSFER_RECEIVED", "TRANSFER_CANCELLED", "DELIVERY_CREATED", "PICKED", "DISPATCHED", "DELIVERED", "DELIVERY_CANCELLED", "SHIP_FROM_CHANGED", "SHORTAGE_COVERED", "POS_SALE", "FOLLOW_UP_CREATED", "FOLLOW_UP_UPDATED", "FOLLOW_UP_DONE", "FOLLOW_UP_REOPENED", "FOLLOW_UP_REASSIGNED", "ATTACHMENT_ADDED", "ATTACHMENT_REMOVED", "REFUND_REQUESTED", "REFUND_PAID", "REFUND_CANCELLED", "LEAD_CREATED", "LEAD_UPDATED", "LEAD_STATUS_CHANGED", "LEAD_ASSIGNED", "LEAD_CONVERTED", "LEAD_SOURCE_ADDED", "LEAD_SOURCE_RENAMED", "LEAD_SOURCE_ARCHIVED", "LEAD_SOURCE_RESTORED", "DEAL_CREATED", "DEAL_UPDATED", "DEAL_STAGE_CHANGED", "DEAL_WON", "DEAL_ORDER_LINKED", "DEAL_ORDER_UNLINKED", "DEAL_REASSIGNED", "DEAL_DELETED" ],
             "type" : "string"
           }
         }, {
@@ -4703,7 +4793,7 @@
         "tags" : [ "log-level-controller" ]
       },
       "put" : {
-        "operationId" : "set_1",
+        "operationId" : "set_2",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -6321,7 +6411,7 @@
     },
     "/api/delivery-orders" : {
       "get" : {
-        "operationId" : "list_19",
+        "operationId" : "list_20",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -6767,6 +6857,137 @@
           }
         },
         "tags" : [ "follow-up-controller" ]
+      }
+    },
+    "/api/insights/ad-performance" : {
+      "get" : {
+        "operationId" : "performance",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdPerformance"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "ad-spend-controller" ]
+      }
+    },
+    "/api/insights/ad-spend" : {
+      "get" : {
+        "operationId" : "list_19",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdSpendRow"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "ad-spend-controller" ]
+      }
+    },
+    "/api/insights/ad-spend/{sourceId}/{month}" : {
+      "delete" : {
+        "operationId" : "clear",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "sourceId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "month",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "ad-spend-controller" ]
+      },
+      "put" : {
+        "operationId" : "set_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "sourceId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "month",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdSpendRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdSpendRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "ad-spend-controller" ]
       }
     },
     "/api/insights/admin" : {

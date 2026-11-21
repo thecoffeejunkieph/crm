@@ -275,6 +275,39 @@ class InsightsQueries {
         return " and o.rep_id = :rep";
     }
 
+    /** One (month, source) cell of the ad performance report before ratios; {@code spend} is null when none was entered. */
+    record AdCohortRow(LocalDate month, long sourceId, String sourceName, BigDecimal spend, long leads, long newCustomers,
+                       BigDecimal cohortValue) {
+    }
+
+    /**
+     * Cohorts by acquisition month (spec 2026-11-22): a customer's month is their lead's creation month, else their own,
+     * under their current source; value is lifetime money movement. Rows exist where there is spend, leads or customers.
+     */
+    List<AdCohortRow> adCohorts(YearMonth from, YearMonth to) {
+        String month = "date_trunc('month', %s at time zone 'Asia/Manila')::date";
+        String sql = "with cust as (select c.id, c.source_id, " + month.formatted("coalesce(l.created_at, c.created_at)")
+                + " as month from customer c left join lead l on l.id = c.converted_from_lead_id where c.source_id is not null), "
+                + "cv as (select cu.month, cu.source_id, count(*) as new_customers, coalesce(sum(v.value), 0) as cohort_value "
+                + "  from cust cu left join lateral (select coalesce(sum(m.cash_amount + m.withholding_amount), 0) as value "
+                + "    from money_movement m join sales_order o on o.id = m.order_id where o.customer_id = cu.id) v on true "
+                + "  where cu.month between :from and :to group by cu.month, cu.source_id), "
+                + "ld as (select " + month.formatted("created_at") + " as month, source_id, count(*) as leads from lead "
+                + "  where source_id is not null and created_at >= :fromTs and created_at < :toTs group by 1, 2), "
+                + "k as (select month, source_id from ad_spend where month between :from and :to "
+                + "  union select month, source_id from cv union select month, source_id from ld) "
+                + "select k.month, k.source_id, s.name, a.amount, coalesce(ld.leads, 0), coalesce(cv.new_customers, 0), "
+                + "coalesce(cv.cohort_value, 0) from k join lead_source s on s.id = k.source_id "
+                + "left join ad_spend a on a.source_id = k.source_id and a.month = k.month "
+                + "left join cv on cv.source_id = k.source_id and cv.month = k.month "
+                + "left join ld on ld.source_id = k.source_id and ld.month = k.month order by k.month, lower(s.name)";
+        MapSqlParameterSource p = new MapSqlParameterSource().addValue("from", from.atDay(1)).addValue("to", to.atDay(1))
+                .addValue("fromTs", Timestamp.from(InsightsMonth.start(from)))
+                .addValue("toTs", Timestamp.from(InsightsMonth.end(to)));
+        return jdbc.query(sql, p, (rs, i) -> new AdCohortRow(rs.getObject(1, LocalDate.class), rs.getLong(2),
+                rs.getString(3), rs.getBigDecimal(4), rs.getLong(5), rs.getLong(6), rs.getBigDecimal(7)));
+    }
+
     static BigDecimal money(BigDecimal v) {
         return (v == null ? BigDecimal.ZERO : v).setScale(2, RoundingMode.HALF_UP);
     }

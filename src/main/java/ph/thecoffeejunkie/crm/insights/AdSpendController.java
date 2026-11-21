@@ -20,11 +20,18 @@ import java.util.List;
 class AdSpendController {
 
     private final AdSpendService spend;
+    private final AdPerformanceService performance;
     private final Clock clock;
 
-    AdSpendController(AdSpendService spend, Clock clock) {
+    AdSpendController(AdSpendService spend, AdPerformanceService performance, Clock clock) {
         this.spend = spend;
+        this.performance = performance;
         this.clock = clock;
+    }
+
+    @GetMapping("/api/insights/ad-performance")
+    AdPerformance performance(@RequestParam(required = false) String from, @RequestParam(required = false) String to) {
+        return performance.report(from, to);
     }
 
     @GetMapping("/api/insights/ad-spend")
