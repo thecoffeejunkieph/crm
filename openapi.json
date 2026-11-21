@@ -15,13 +15,65 @@
         "required" : [ "password", "token" ],
         "type" : "object"
       },
+      "AdMonth" : {
+        "properties" : {
+          "month" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AdRow"
+            },
+            "type" : "array"
+          },
+          "total" : {
+            "$ref" : "#/components/schemas/AdRow"
+          }
+        },
+        "type" : "object"
+      },
       "AdPerformance" : {
         "properties" : {
           "months" : {
             "items" : {
-              "$ref" : "#/components/schemas/Month"
+              "$ref" : "#/components/schemas/AdMonth"
             },
             "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "AdRow" : {
+        "properties" : {
+          "cohortValue" : {
+            "type" : "number"
+          },
+          "costPerCustomer" : {
+            "type" : "number"
+          },
+          "leads" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "newCustomers" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "roas" : {
+            "type" : "number"
+          },
+          "sourceId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sourceName" : {
+            "type" : "string"
+          },
+          "spend" : {
+            "type" : "number"
+          },
+          "valuePerCustomer" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -1964,23 +2016,6 @@
           },
           "withholdingAmount" : {
             "type" : "number"
-          }
-        },
-        "type" : "object"
-      },
-      "Month" : {
-        "properties" : {
-          "month" : {
-            "type" : "string"
-          },
-          "rows" : {
-            "items" : {
-              "$ref" : "#/components/schemas/Row"
-            },
-            "type" : "array"
-          },
-          "total" : {
-            "$ref" : "#/components/schemas/Row"
           }
         },
         "type" : "object"
@@ -3955,41 +3990,6 @@
           "snapshot" : {
             "additionalProperties" : { },
             "type" : "object"
-          }
-        },
-        "type" : "object"
-      },
-      "Row" : {
-        "properties" : {
-          "cohortValue" : {
-            "type" : "number"
-          },
-          "costPerCustomer" : {
-            "type" : "number"
-          },
-          "leads" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "newCustomers" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "roas" : {
-            "type" : "number"
-          },
-          "sourceId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "sourceName" : {
-            "type" : "string"
-          },
-          "spend" : {
-            "type" : "number"
-          },
-          "valuePerCustomer" : {
-            "type" : "number"
           }
         },
         "type" : "object"

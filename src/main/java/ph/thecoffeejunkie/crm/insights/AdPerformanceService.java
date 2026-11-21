@@ -2,7 +2,7 @@ package ph.thecoffeejunkie.crm.insights;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ph.thecoffeejunkie.crm.insights.AdPerformance.Row;
+import ph.thecoffeejunkie.crm.insights.AdPerformance.AdRow;
 import ph.thecoffeejunkie.crm.insights.InsightsQueries.AdCohortRow;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
@@ -43,12 +43,12 @@ class AdPerformanceService {
         if (from.isAfter(to) || ChronoUnit.MONTHS.between(from, to) >= MAX_MONTHS) {
             throw new DomainException(ErrorCode.INSIGHTS_BAD_MONTH, "Pick a range of 1 to " + MAX_MONTHS + " months.");
         }
-        Map<YearMonth, List<Row>> byMonth = queries.adCohorts(from, to).stream().collect(Collectors.groupingBy(
+        Map<YearMonth, List<AdRow>> byMonth = queries.adCohorts(from, to).stream().collect(Collectors.groupingBy(
                 r -> YearMonth.from(r.month()), Collectors.mapping(AdPerformanceService::row, Collectors.toList())));
-        List<AdPerformance.Month> months = new ArrayList<>();
+        List<AdPerformance.AdMonth> months = new ArrayList<>();
         for (YearMonth m = from; !m.isAfter(to); m = m.plusMonths(1)) {
-            List<Row> rows = byMonth.getOrDefault(m, List.of());
-            months.add(new AdPerformance.Month(m.toString(), total(rows), rows));
+            List<AdRow> rows = byMonth.getOrDefault(m, List.of());
+            months.add(new AdPerformance.AdMonth(m.toString(), total(rows), rows));
         }
         return new AdPerformance(months);
     }
@@ -64,22 +64,22 @@ class AdPerformanceService {
         throw new DomainException(ErrorCode.INSIGHTS_BAD_MONTH, "Pick months as YYYY-MM.");
     }
 
-    private static Row row(AdCohortRow r) {
+    private static AdRow row(AdCohortRow r) {
         return row(r.sourceId(), r.sourceName(), r.spend(), r.leads(), r.newCustomers(), r.cohortValue());
     }
 
-    private static Row total(List<Row> rows) {
+    private static AdRow total(List<AdRow> rows) {
         boolean anySpend = rows.stream().anyMatch(r -> r.spend() != null);
-        BigDecimal spend = anySpend ? rows.stream().map(Row::spend).filter(s -> s != null)
+        BigDecimal spend = anySpend ? rows.stream().map(AdRow::spend).filter(s -> s != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add) : null;
-        return row(null, null, spend, rows.stream().mapToLong(Row::leads).sum(),
-                rows.stream().mapToLong(Row::newCustomers).sum(),
-                rows.stream().map(Row::cohortValue).reduce(BigDecimal.ZERO, BigDecimal::add));
+        return row(null, null, spend, rows.stream().mapToLong(AdRow::leads).sum(),
+                rows.stream().mapToLong(AdRow::newCustomers).sum(),
+                rows.stream().map(AdRow::cohortValue).reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
-    private static Row row(Long sourceId, String name, BigDecimal spend, long leads, long customers, BigDecimal value) {
+    private static AdRow row(Long sourceId, String name, BigDecimal spend, long leads, long customers, BigDecimal value) {
         BigDecimal n = BigDecimal.valueOf(customers);
-        return new Row(sourceId, name, spend == null ? null : money(spend), leads, customers, money(value),
+        return new AdRow(sourceId, name, spend == null ? null : money(spend), leads, customers, money(value),
                 spend == null || customers == 0 ? null : spend.divide(n, 2, RoundingMode.HALF_UP),
                 customers == 0 ? null : value.divide(n, 2, RoundingMode.HALF_UP),
                 spend == null || spend.signum() == 0 ? null : value.divide(spend, 2, RoundingMode.HALF_UP));
