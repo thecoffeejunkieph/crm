@@ -72,7 +72,8 @@ class SecurityConfig {
                     // Coarse role gates ahead of @PreAuthorize: argument validation runs before method security,
                     // so without these a forbidden caller would get a 400 instead of a 403.
                     a.requestMatchers("/api/admin/**", "/api/approvals/*/decision", "/api/insights/targets",
-                                    "/api/insights/targets/**", "/api/insights/admin").hasRole("ADMIN")
+                                    "/api/insights/targets/**", "/api/insights/admin", "/api/insights/ad-spend",
+                                    "/api/insights/ad-spend/**", "/api/insights/ad-performance").hasRole("ADMIN")
                             .requestMatchers("/api/follow-ups", "/api/follow-ups/**").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers(HttpMethod.POST, "/api/lead-sources", "/api/lead-sources/**").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/lead-sources/**").hasRole("ADMIN")

@@ -115,4 +115,11 @@ class AdSpendIT {
         putSpend(asSales, src, "2026-11", "{\"amount\": 1}").andExpect(status().isForbidden());
         clear(asSales, src, "2026-11").andExpect(status().isForbidden());
     }
+
+    /** The URL gate answers before validation, so a forbidden caller never sees a 400. */
+    @Test
+    void salesForbiddenEvenWithBadInput() throws Exception {
+        putSpend(asSales, src, "2026-11", "{\"amount\": -1}").andExpect(status().isForbidden());
+        mvc.perform(get("/api/insights/ad-performance?from=bad").with(asSales)).andExpect(status().isForbidden());
+    }
 }
