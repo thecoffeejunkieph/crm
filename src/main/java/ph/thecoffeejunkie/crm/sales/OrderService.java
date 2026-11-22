@@ -19,6 +19,7 @@ import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.catalog.TaxClass;
 import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.CustomerType;
+import ph.thecoffeejunkie.crm.customers.CustomerAddresses;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.customers.TaxTreatment;
 import ph.thecoffeejunkie.crm.fulfilment.DeliveryRequest;
@@ -91,6 +92,7 @@ class OrderService {
 
     private final SalesOrderRepository repo;
     private final Customers customers;
+    private final CustomerAddresses addresses;
     private final Catalog catalog;
     private final Users users;
     private final Settings settings;
@@ -118,7 +120,9 @@ class OrderService {
                  Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
                  PaymentService payments, OrderRevisionRepository revisions, Inventory inventory,
                  Fulfilment fulfilment, Warehouses warehouses, ApplicationEventPublisher events,
-                 Notifications notifications, RefundRepository refunds, SalesPermissions permissions) {
+                 Notifications notifications, RefundRepository refunds, SalesPermissions permissions,
+                 CustomerAddresses addresses) {
+        this.addresses = addresses;
         this.refunds = refunds;
         this.permissions = permissions;
         this.notifications = notifications;
@@ -221,9 +225,13 @@ class OrderService {
 
     /** A customer's portal request: a DRAFT at catalog prices for staff to price and send (spec 2026-11-22). */
     @Transactional
-    SalesOrder requestFromPortal(long customerId, long createdBy, List<LineRequest> lines, String notes) {
-        return createDraft(customers.salesProfile(customerId), createdBy, new OrderRequest(customerId, null, null,
-                notes, null, lines, null, null, null, null, null, null, null));
+    SalesOrder requestFromPortal(long customerId, long createdBy, List<LineRequest> lines, String notes,
+                                 Long addressId) {
+        String shipTo = addressId == null ? null : addresses.address(customerId, addressId);
+        SalesOrder o = createDraft(customers.salesProfile(customerId), createdBy, new OrderRequest(customerId, null,
+                null, notes, null, lines, null, null, null, null, null, null, null));
+        o.shipTo = shipTo;
+        return o;
     }
 
     private SalesOrder createDraft(CustomerSalesProfile c, long createdBy, OrderRequest req) {
@@ -488,7 +496,8 @@ class OrderService {
         o.releasedAt = Instant.now();
         save(o, o.releasedAt);
         fulfilment.create(new DeliveryRequest(o.id, o.number, OrderStockMapper.rep(o), o.shipFromWarehouseId,
-                o.deliveryMethod, c.displayName(), c.address(), o.lines.stream().map(l ->
+                o.deliveryMethod, c.displayName(), o.shipTo != null ? o.shipTo
+                        : addresses.defaultAddress(o.customerId).orElse(c.address()), o.lines.stream().map(l ->
                         new DeliveryRequest.DeliveryLine(l.id, l.productId, l.description, l.unit, l.qty)).toList()));
         audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number, null);
         notifications.toUser(OrderStockMapper.rep(o), NotificationType.ORDER_RELEASED, ENTITY, id,
@@ -672,7 +681,7 @@ class OrderService {
                 warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
                 fulfilment.forOrder(o.id).orElse(null), o.discountType, o.discountValue, o.discountAmount, o.withholdingPct,
                 o.withholdingAmount(), o.total.subtract(o.withholdingAmount()), o.refundedAmount,
-                RefundBadge.of(o.refundedAmount, cash));
+                RefundBadge.of(o.refundedAmount, cash), o.shipTo);
     }
 
     /** REFUND is offered to writers while money can still go back (same figure RefundService enforces). */

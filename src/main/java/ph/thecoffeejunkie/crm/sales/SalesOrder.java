@@ -67,6 +67,8 @@ class SalesOrder {
     Long shipFromWarehouseId;
     @Enumerated(EnumType.STRING)
     DeliveryMethod deliveryMethod = DeliveryMethod.DELIVERY;
+    /** Snapshot of the chosen delivery address; null = the customer's default at release. */
+    String shipTo;
     Long createdBy;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();

@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /** A customer asks for a quote from the portal: products and quantities only; staff set the prices. */
-record PortalQuoteRequest(@NotEmpty @Size(max = 50) @Valid List<Line> lines, @Size(max = 1000) String notes) {
+record PortalQuoteRequest(@NotEmpty @Size(max = 50) @Valid List<Line> lines, @Size(max = 1000) String notes, Long addressId) {
 
     record Line(@NotNull Long productId, @NotNull @Positive @Digits(integer = 9, fraction = 3) BigDecimal qty) {
     }

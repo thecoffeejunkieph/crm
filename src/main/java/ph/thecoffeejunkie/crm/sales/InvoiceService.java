@@ -120,7 +120,7 @@ class InvoiceService {
 
     /** Mails the customer's portal contacts after commit; the PDF is rendered off-thread, outside the order lock. */
     List<String> send(Invoice i) {
-        List<String> to = customers.portalContactEmails(orderRepo.findById(i.orderId).orElseThrow().customerId);
+        List<String> to = customers.billingContactEmails(orderRepo.findById(i.orderId).orElseThrow().customerId);
         if (!to.isEmpty()) {
             long id = i.id;
             audit.record(AuditAction.INVOICE_SENT, OrderService.ENTITY, i.orderId, "Sent invoice " + i.number, null);

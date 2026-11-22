@@ -51,9 +51,10 @@ final class SalesFixture {
     }
 
     long contact(long customerId, String name, boolean portalEnabled) {
-        return jdbc.queryForObject("insert into customer_contact (customer_id, name, email, portal_enabled) "
-                + "values (?, ?, ?, ?) returning id", Long.class, customerId, name,
-                (tag + name + "@contact.ph").toLowerCase(), portalEnabled);
+        // receives_invoices mirrors portal access, as V28 set it for existing contacts
+        return jdbc.queryForObject("insert into customer_contact (customer_id, name, email, portal_enabled, "
+                + "receives_invoices) values (?, ?, ?, ?, ?) returning id", Long.class, customerId, name,
+                (tag + name + "@contact.ph").toLowerCase(), portalEnabled, portalEnabled);
     }
 
     String contactEmail(String name) {
@@ -188,6 +189,8 @@ final class SalesFixture {
         jdbc.update("delete from sales_order where customer_id in (select id from customer where display_name like ?)",
                 tag + "%");
         jdbc.update("delete from customer_contact where customer_id in (select id from customer where display_name like ?)",
+                tag + "%");
+        jdbc.update("delete from customer_address where customer_id in (select id from customer where display_name like ?)",
                 tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
         jdbc.update("delete from product where sku like ?", tag + "%");

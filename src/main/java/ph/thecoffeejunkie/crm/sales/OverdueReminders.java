@@ -69,7 +69,7 @@ class OverdueReminders {
     }
 
     private boolean send(long customerId, List<Statements.OpenItem> items, LocalDate today) {
-        List<String> to = customers.portalContactEmails(customerId);
+        List<String> to = customers.billingContactEmails(customerId);
         if (to.isEmpty()) {
             return false;
         }

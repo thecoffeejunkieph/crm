@@ -21,6 +21,7 @@ class CustomerContact {
     String email;
     String phone;
     boolean portalEnabled;
+    boolean receivesInvoices = true;
     Instant archivedAt;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();

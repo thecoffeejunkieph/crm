@@ -105,6 +105,51 @@
         },
         "type" : "object"
       },
+      "AddressRequest" : {
+        "properties" : {
+          "address" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "defaultAddress" : {
+            "type" : "boolean"
+          },
+          "label" : {
+            "maxLength" : 60,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "address", "label" ],
+        "type" : "object"
+      },
+      "AddressResponse" : {
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "defaultAddress" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "AdjustmentRequest" : {
         "properties" : {
           "countedQty" : {
@@ -504,6 +549,9 @@
           "portalEnabled" : {
             "type" : "boolean"
           },
+          "receivesInvoices" : {
+            "type" : "boolean"
+          },
           "version" : {
             "format" : "int64",
             "type" : "integer"
@@ -528,6 +576,9 @@
             "type" : "string"
           },
           "portalEnabled" : {
+            "type" : "boolean"
+          },
+          "receivesInvoices" : {
             "type" : "boolean"
           },
           "version" : {
@@ -2415,6 +2466,9 @@
           "shipFromWarehouseName" : {
             "type" : "string"
           },
+          "shipTo" : {
+            "type" : "string"
+          },
           "shippingFee" : {
             "type" : "number"
           },
@@ -3415,6 +3469,10 @@
       },
       "PortalQuoteRequest" : {
         "properties" : {
+          "addressId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "lines" : {
             "items" : {
               "$ref" : "#/components/schemas/Line"
@@ -5916,6 +5974,36 @@
         "tags" : [ "customer-sales-controller" ]
       }
     },
+    "/api/customers/{id}/addresses" : {
+      "get" : {
+        "operationId" : "addresses_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AddressResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "customer-controller" ]
+      }
+    },
     "/api/customers/{id}/archive" : {
       "post" : {
         "operationId" : "archive_4",
@@ -5975,7 +6063,7 @@
     },
     "/api/customers/{id}/contacts" : {
       "post" : {
-        "operationId" : "addContact",
+        "operationId" : "addContact_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6012,7 +6100,7 @@
     },
     "/api/customers/{id}/contacts/{contactId}" : {
       "put" : {
-        "operationId" : "updateContact",
+        "operationId" : "updateContact_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6057,7 +6145,7 @@
     },
     "/api/customers/{id}/contacts/{contactId}/archive" : {
       "post" : {
-        "operationId" : "archiveContact",
+        "operationId" : "archiveContact_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -9218,6 +9306,110 @@
         "tags" : [ "payment-controller" ]
       }
     },
+    "/api/portal/addresses" : {
+      "get" : {
+        "operationId" : "addresses",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AddressResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
+      },
+      "post" : {
+        "operationId" : "addAddress",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AddressRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AddressResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
+      }
+    },
+    "/api/portal/addresses/{id}" : {
+      "put" : {
+        "operationId" : "updateAddress",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AddressRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AddressResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
+      }
+    },
+    "/api/portal/addresses/{id}/archive" : {
+      "post" : {
+        "operationId" : "archiveAddress",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
+      }
+    },
     "/api/portal/auth/logout" : {
       "post" : {
         "operationId" : "logout",
@@ -9276,6 +9468,110 @@
           }
         },
         "tags" : [ "portal-auth-controller" ]
+      }
+    },
+    "/api/portal/contacts" : {
+      "get" : {
+        "operationId" : "contacts",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ContactResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
+      },
+      "post" : {
+        "operationId" : "addContact",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ContactRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContactResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
+      }
+    },
+    "/api/portal/contacts/{id}" : {
+      "put" : {
+        "operationId" : "updateContact",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ContactRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContactResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
+      }
+    },
+    "/api/portal/contacts/{id}/archive" : {
+      "post" : {
+        "operationId" : "archiveContact",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "portal-profile-controller" ]
       }
     },
     "/api/portal/invoices/{id}.pdf" : {

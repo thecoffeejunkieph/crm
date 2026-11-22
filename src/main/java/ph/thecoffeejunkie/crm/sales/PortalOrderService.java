@@ -235,7 +235,7 @@ class PortalOrderService {
         String note = "Requested via portal by " + c.displayName() + "."
                 + (req.notes() == null || req.notes().isBlank() ? "" : "\n" + req.notes().trim());
         SalesOrder o = orders.requestFromPortal(c.customerId(), createdBy, req.lines().stream()
-                .map(l -> new LineRequest(null, l.productId(), l.qty(), null, null, null)).toList(), note);
+                .map(l -> new LineRequest(null, l.productId(), l.qty(), null, null, null)).toList(), note, req.addressId());
         notifications.toUsers(rep != null ? List.of(rep) : admins, NotificationType.QUOTE_REQUESTED,
                 OrderService.ENTITY, o.id, "Quote requested: " + o.number,
                 c.displayName() + " asked for a quote. Price it and send.");

@@ -167,28 +167,89 @@ public class Customers {
 
     @Transactional
     ContactResponse addContact(Scope s, long customerId, ContactRequest req) {
-        Customer c = findVisible(customerId, s, false);
-        CustomerContact k = new CustomerContact();
-        k.customerId = customerId;
-        String email = normalise(req.email());
-        requireEmailFree(email, null);
-        fill(k, req, email);
-        saveContact(k);
-        audit.record(AuditAction.CREATED, ENTITY, customerId,
-                "Added contact " + k.name + " to " + c.displayName, null);
-        return toResponse(k);
+        return addContact(findVisible(customerId, s, false), req);
     }
 
     @Transactional
     ContactResponse updateContact(Scope s, long customerId, long contactId, ContactRequest req) {
-        Customer c = findVisible(customerId, s, false);
+        return updateContact(findVisible(customerId, s, false), contactId, req);
+    }
+
+    @Transactional
+    void archiveContact(Scope s, long customerId, long contactId) {
+        archiveContact(findVisible(customerId, s, false), contactId);
+    }
+
+    // --- portal: the signed-in contact manages their own company's contacts ---
+
+    @Transactional(readOnly = true)
+    List<ContactResponse> portalContacts(ContactPrincipal me) {
+        return contacts.findByCustomerIdAndArchivedAtIsNullOrderById(me.customerId()).stream()
+                .map(Customers::toResponse).toList();
+    }
+
+    @Transactional
+    ContactResponse portalAddContact(ContactPrincipal me, ContactRequest req) {
+        return addContact(portalCustomer(me), req);
+    }
+
+    /** Not your own email or portal access: that would sign you out for good. */
+    @Transactional
+    ContactResponse portalUpdateContact(ContactPrincipal me, long contactId, ContactRequest req) {
+        if (contactId == me.contactId()) {
+            if (!req.portalEnabled()) {
+                throw invalid("portalEnabled", "You can't turn off your own portal access.");
+            }
+            if (!normalise(req.email()).equals(contact(me.customerId(), contactId).email)) {
+                throw invalid("email", "Ask a colleague or your rep to change your own email.");
+            }
+        }
+        return updateContact(portalCustomer(me), contactId, req);
+    }
+
+    @Transactional
+    void portalArchiveContact(ContactPrincipal me, long contactId) {
+        if (contactId == me.contactId()) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "You can't remove yourself.");
+        }
+        archiveContact(portalCustomer(me), contactId);
+    }
+
+    /** Billing mails (invoice sent, overdue reminder): active contacts who receive invoices, portal access or not. */
+    @Transactional(readOnly = true)
+    public List<String> billingContactEmails(long customerId) {
+        return contacts.findByCustomerIdAndArchivedAtIsNullOrderById(customerId).stream()
+                .filter(k -> k.receivesInvoices).map(k -> k.email).toList();
+    }
+
+    private Customer portalCustomer(ContactPrincipal me) {
+        return repo.findById(me.customerId()).filter(c -> c.archivedAt == null)
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+    }
+
+    private ContactResponse addContact(Customer c, ContactRequest req) {
+        CustomerContact k = new CustomerContact();
+        k.customerId = c.id;
+        String email = normalise(req.email());
+        requireEmailFree(email, null);
+        fill(k, req, email);
+        saveContact(k);
+        audit.record(AuditAction.CREATED, ENTITY, c.id,
+                "Added contact " + k.name + " to " + c.displayName, null);
+        return toResponse(k);
+    }
+
+    private ContactResponse updateContact(Customer c, long contactId, ContactRequest req) {
+        long customerId = c.id;
         CustomerContact k = contact(customerId, contactId);
         requireVersion(k.version, req.version());
         String email = normalise(req.email());
         requireEmailFree(email, contactId);
         AuditChanges changes = AuditChanges.diff().field("contact.name", k.name, req.name().trim())
                 .field("contact.email", k.email, email).field("contact.phone", k.phone, req.phone())
-                .field("contact.portalEnabled", k.portalEnabled, req.portalEnabled());
+                .field("contact.portalEnabled", k.portalEnabled, req.portalEnabled())
+                .field("contact.receivesInvoices", k.receivesInvoices,
+                        req.receivesInvoices() == null ? k.receivesInvoices : req.receivesInvoices());
         // A live portal principal carries the old email, so email change or portal disable ends its sessions.
         boolean portalRevoked = (k.portalEnabled && !req.portalEnabled()) || !k.email.equals(email);
         fill(k, req, email);
@@ -202,9 +263,8 @@ public class Customers {
         return toResponse(k);
     }
 
-    @Transactional
-    void archiveContact(Scope s, long customerId, long contactId) {
-        Customer c = findVisible(customerId, s, false);
+    private void archiveContact(Customer c, long contactId) {
+        long customerId = c.id;
         CustomerContact k = contact(customerId, contactId);
         k.archivedAt = Instant.now();
         k.updatedAt = k.archivedAt;
@@ -440,6 +500,9 @@ public class Customers {
         k.email = email;
         k.phone = r.phone();
         k.portalEnabled = r.portalEnabled();
+        if (r.receivesInvoices() != null) {
+            k.receivesInvoices = r.receivesInvoices();
+        }
     }
 
     private static String normaliseOrNull(String email) {
@@ -468,7 +531,7 @@ public class Customers {
     }
 
     private static ContactResponse toResponse(CustomerContact k) {
-        return new ContactResponse(k.id, k.name, k.email, k.phone, k.portalEnabled, k.version);
+        return new ContactResponse(k.id, k.name, k.email, k.phone, k.portalEnabled, k.version, k.receivesInvoices);
     }
 
     /** After commit: a portal login between an in-transaction revoke and the commit would otherwise survive it. */

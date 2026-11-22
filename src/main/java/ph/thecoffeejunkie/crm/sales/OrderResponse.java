@@ -28,5 +28,6 @@ record OrderResponse(long id, String number, long customerId, String customerNam
                      long shipFromWarehouseId, String shipFromWarehouseName, DeliveryMethod deliveryMethod,
                      BigDecimal totalShort, DeliverySummary deliveryOrder, DiscountType discountType,
                      BigDecimal discountValue, BigDecimal discountAmount, BigDecimal withholdingPct,
-                     BigDecimal withholdingAmount, BigDecimal netPayable, BigDecimal refundedAmount, RefundBadge refundBadge) {
+                     BigDecimal withholdingAmount, BigDecimal netPayable, BigDecimal refundedAmount, RefundBadge refundBadge,
+                     String shipTo) {
 }
