@@ -36,7 +36,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             new Rule("portal-request-link", "/api/portal/auth/request-link", 5, MINUTE, false),
             new Rule("invite-accept", "/api/auth/invites/accept", 20, MINUTE, false),
             new Rule("password-reset", "/api/auth/password/reset", 20, MINUTE, false),
-            new Rule("portal-redeem", "/api/portal/auth/redeem", 20, MINUTE, false));
+            new Rule("portal-redeem", "/api/portal/auth/redeem", 20, MINUTE, false),
+            new Rule("portal-quote-request", "/api/portal/quote-requests", 10, MINUTE, false));
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 

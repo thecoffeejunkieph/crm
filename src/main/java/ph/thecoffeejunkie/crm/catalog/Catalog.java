@@ -132,6 +132,14 @@ public class Catalog {
         return out;
     }
 
+    /** Active products by name, for the customer portal's picker. Carries cost: map it before it leaves sales. */
+    @Transactional(readOnly = true)
+    public PageResponse<ProductInfo> active(String q, PageQuery page) {
+        Specification<Product> spec = Specification.allOf((r, cq, cb) -> cb.isNull(r.get("archivedAt")), matches(q));
+        var sort = SortRequest.<Product>of(page, Set.of("sku", "name"), Map.of(), Map.of(), DEFAULT_SORT);
+        return PageResponse.of(repo.findAll(spec.and(sort.orderSpec()), sort.pageable()).map(Catalog::toInfo));
+    }
+
     /** Products with a reorder level; the rest are absent. */
     @Transactional(readOnly = true)
     public Map<Long, BigDecimal> reorderLevels(Collection<Long> ids) {

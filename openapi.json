@@ -2106,7 +2106,7 @@
             "type" : "string"
           },
           "type" : {
-            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND", "FOLLOW_UPS_DUE", "FOLLOW_UP_OVERDUE", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "LOW_STOCK", "OUT_OF_STOCK", "ORDER_SHORT", "ORDER_RELEASED", "ORDER_DELIVERED", "RELEASED_ORDER_CHANGED", "TARGET_MILESTONE", "REFUND_PAID" ],
+            "enum" : [ "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "QUOTE_ACCEPTED", "QUOTE_DECLINED", "QUOTE_REQUESTED", "PAYMENT_SUBMITTED", "ORDER_CONFIRMED", "ORDER_RESERVED", "SHORT_PICK", "RESERVATION_TAKEN", "DELIVERY_CREATED", "TRANSFER_INBOUND", "FOLLOW_UPS_DUE", "FOLLOW_UP_OVERDUE", "PAYMENT_VERIFIED", "PAYMENT_REJECTED", "LOW_STOCK", "OUT_OF_STOCK", "ORDER_SHORT", "ORDER_RELEASED", "ORDER_DELIVERED", "RELEASED_ORDER_CHANGED", "TARGET_MILESTONE", "REFUND_PAID" ],
             "type" : "string"
           }
         },
@@ -2861,6 +2861,33 @@
         },
         "type" : "object"
       },
+      "PageResponsePortalProduct" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PortalProduct"
+            },
+            "type" : "array"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "PageResponseProductResponse" : {
         "properties" : {
           "content" : {
@@ -3322,6 +3349,55 @@
           },
           "withholdingAmount" : {
             "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "PortalProduct" : {
+        "properties" : {
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PortalQuoteRequest" : {
+        "properties" : {
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Line"
+            },
+            "maxItems" : 50,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "notes" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "lines" ],
+        "type" : "object"
+      },
+      "PortalQuoteRequestResponse" : {
+        "properties" : {
+          "number" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -9441,6 +9517,36 @@
         "tags" : [ "portal-order-controller" ]
       }
     },
+    "/api/portal/orders/{id}/reorder" : {
+      "get" : {
+        "operationId" : "reorderLines",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PortalProduct"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
     "/api/portal/orders/{orderId}/refunds/{id}/credit-memo.pdf" : {
       "get" : {
         "operationId" : "creditMemoPdf",
@@ -9515,6 +9621,75 @@
               }
             },
             "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/products" : {
+      "get" : {
+        "operationId" : "products",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/PageQuery"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponsePortalProduct"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
+    "/api/portal/quote-requests" : {
+      "post" : {
+        "operationId" : "requestQuote",
+        "parameters" : [ {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortalQuoteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortalQuoteRequestResponse"
+                }
+              }
+            },
+            "description" : "Created"
           }
         },
         "tags" : [ "portal-order-controller" ]

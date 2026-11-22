@@ -11,6 +11,9 @@ import ph.thecoffeejunkie.crm.approvals.CreateApprovalRequest;
 import ph.thecoffeejunkie.crm.approvals.RequiredApproval;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
+import ph.thecoffeejunkie.crm.catalog.Catalog;
+import ph.thecoffeejunkie.crm.catalog.ProductInfo;
+import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.fulfilment.DeliverySummary;
 import ph.thecoffeejunkie.crm.fulfilment.Fulfilment;
 import ph.thecoffeejunkie.crm.identity.Users;
@@ -26,6 +29,7 @@ import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -59,13 +63,17 @@ class PortalOrderService {
     private final RefundRepository refunds;
     private final CreditMemoDocument creditMemo;
     private final ApplicationEventPublisher events;
+    private final Catalog catalog;
+    private final Customers customers;
 
     PortalOrderService(SalesOrderRepository repo, OrderService orders, PaymentService payments,
                        PaymentRepository paymentRepo, InvoiceRepository invoices, InvoiceDocument invoiceDocument,
                        QuoteDocument quoteDocument, Approvals approvals, Notifications notifications, AuditLog audit,
                        CurrentActor actor, Clock clock, Fulfilment fulfilment, Users users,
                        RefundRepository refunds, CreditMemoDocument creditMemo,
-                       ApplicationEventPublisher events) {
+                       ApplicationEventPublisher events, Catalog catalog, Customers customers) {
+        this.catalog = catalog;
+        this.customers = customers;
         this.events = events;
         this.refunds = refunds;
         this.creditMemo = creditMemo;
@@ -192,6 +200,43 @@ class PortalOrderService {
         SalesOrder o = visible(contact(), id);
         return refunds.findByOrderIdOrderByIdDesc(o.id).stream().filter(r -> r.status == RefundStatus.PAID)
                 .map(r -> new PortalRefundResponse(r.id, r.amount, r.paidOn, r.creditMemoNo)).toList();
+    }
+
+    @Transactional(readOnly = true)
+    PageResponse<PortalProduct> products(String q, PageQuery page) {
+        contact();
+        PageResponse<ProductInfo> p = catalog.active(q, page);
+        return new PageResponse<>(p.pageNumber(), p.pageSize(), p.totalPages(), p.totalElements(),
+                p.content().stream().map(x -> PortalProduct.of(x, null)).toList());
+    }
+
+    /** "Order again": the order's lines whose products are still active, with their quantities. */
+    @Transactional(readOnly = true)
+    List<PortalProduct> reorderLines(long id) {
+        SalesOrder o = visible(contact(), id);
+        Map<Long, ProductInfo> info = catalog.info(o.lines.stream().map(l -> l.productId).toList());
+        return o.lines.stream().map(l -> info.get(l.productId)).filter(p -> p != null && !p.archived())
+                .map(p -> PortalProduct.of(p, o.lines.stream().filter(l -> l.productId.equals(p.id()))
+                        .map(l -> l.qty).reduce(BigDecimal.ZERO, BigDecimal::add)))
+                .distinct().toList();
+    }
+
+    /** A DRAFT for staff to price; the customer sees it once the quote is sent (spec 2026-11-22). */
+    @Transactional
+    PortalQuoteRequestResponse requestQuote(PortalQuoteRequest req) {
+        ContactPrincipal c = contact();
+        Long rep = customers.salesProfile(c.customerId()).assignedRepId();
+        List<Long> admins = users.activeIdsWithRole(Role.ADMIN);
+        long createdBy = rep != null ? rep : admins.stream().findFirst()
+                .orElseThrow(() -> new DomainException(ErrorCode.INVALID_STATE, "No one can take this request yet."));
+        String note = "Requested via portal by " + c.displayName() + "."
+                + (req.notes() == null || req.notes().isBlank() ? "" : "\n" + req.notes().trim());
+        SalesOrder o = orders.requestFromPortal(c.customerId(), createdBy, req.lines().stream()
+                .map(l -> new LineRequest(null, l.productId(), l.qty(), null, null, null)).toList(), note);
+        notifications.toUsers(rep != null ? List.of(rep) : admins, NotificationType.QUOTE_REQUESTED,
+                OrderService.ENTITY, o.id, "Quote requested: " + o.number,
+                c.displayName() + " asked for a quote. Price it and send.");
+        return new PortalQuoteRequestResponse(o.number);
     }
 
     @Transactional(readOnly = true)

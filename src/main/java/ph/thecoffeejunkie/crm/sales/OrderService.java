@@ -216,13 +216,24 @@ class OrderService {
         }
         CustomerSalesProfile c = customers.salesProfileVisible(s, req.customerId())
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+        return toResponse(createDraft(c, s.userId(), req), s);
+    }
+
+    /** A customer's portal request: a DRAFT at catalog prices for staff to price and send (spec 2026-11-22). */
+    @Transactional
+    SalesOrder requestFromPortal(long customerId, long createdBy, List<LineRequest> lines, String notes) {
+        return createDraft(customers.salesProfile(customerId), createdBy, new OrderRequest(customerId, null, null,
+                notes, null, lines, null, null, null, null, null, null, null));
+    }
+
+    private SalesOrder createDraft(CustomerSalesProfile c, long createdBy, OrderRequest req) {
         if (c.archived()) {
             throw invalid("customerId", "This customer is archived.");
         }
         SalesOrder o = new SalesOrder();
         o.customerId = c.id();
         o.repId = c.assignedRepId();
-        o.createdBy = s.userId();
+        o.createdBy = createdBy;
         o.number = "SO-%02d-%05d".formatted(SalesTime.today(clock).getYear() % 100, repo.nextNumber());
         o.shipFromWarehouseId = warehouses.defaultId();
         o.withholdingPct = c.type() == CustomerType.BUSINESS
@@ -232,7 +243,7 @@ class OrderService {
         applyLines(o, req.lines(), c, Set.of());
         repo.saveAndFlush(o);
         audit.record(AuditAction.CREATED, ENTITY, o.id, "Created order " + o.number, null);
-        return toResponse(o, s);
+        return o;
     }
 
     @Transactional
