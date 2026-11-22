@@ -258,6 +258,29 @@
         },
         "type" : "object"
       },
+      "AgingBuckets" : {
+        "properties" : {
+          "current" : {
+            "type" : "number"
+          },
+          "days1to30" : {
+            "type" : "number"
+          },
+          "days31to60" : {
+            "type" : "number"
+          },
+          "days61to90" : {
+            "type" : "number"
+          },
+          "over90" : {
+            "type" : "number"
+          },
+          "total" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "ApprovalResponse" : {
         "properties" : {
           "decidedAt" : {
@@ -313,6 +336,21 @@
           },
           "type" : {
             "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF", "INVOICE_VOID", "REFUND" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ArAgingRow" : {
+        "properties" : {
+          "aging" : {
+            "$ref" : "#/components/schemas/AgingBuckets"
+          },
+          "customerId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "customerName" : {
             "type" : "string"
           }
         },
@@ -6147,6 +6185,34 @@
         "tags" : [ "customer-sales-controller" ]
       }
     },
+    "/api/customers/{id}/statement.pdf" : {
+      "get" : {
+        "operationId" : "statement",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "customer-sales-controller" ]
+      }
+    },
     "/api/deals" : {
       "get" : {
         "operationId" : "list_10",
@@ -9695,6 +9761,25 @@
         "tags" : [ "portal-order-controller" ]
       }
     },
+    "/api/portal/statement.pdf" : {
+      "get" : {
+        "operationId" : "statementPdf",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "portal-order-controller" ]
+      }
+    },
     "/api/product-categories" : {
       "get" : {
         "operationId" : "list_3",
@@ -10216,6 +10301,27 @@
           }
         },
         "tags" : [ "refund-controller" ]
+      }
+    },
+    "/api/reports/ar-aging" : {
+      "get" : {
+        "operationId" : "arAging",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ArAgingRow"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "report-controller" ]
       }
     },
     "/api/reports/missing-2307" : {

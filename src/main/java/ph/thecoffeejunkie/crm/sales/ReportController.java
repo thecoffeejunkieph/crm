@@ -15,16 +15,25 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 class ReportController {
 
     private final SalesReports reports;
     private final CurrentActor actor;
+    private final Statements statements;
 
-    ReportController(SalesReports reports, CurrentActor actor) {
+    ReportController(SalesReports reports, CurrentActor actor, Statements statements) {
+        this.statements = statements;
         this.reports = reports;
         this.actor = actor;
+    }
+
+    @GetMapping("/api/reports/ar-aging")
+    @PreAuthorize("@salesPermissions.canRead()")
+    List<ArAgingRow> arAging() {
+        return statements.agingReport(actor.scope());
     }
 
     @GetMapping("/api/reports/missing-2307")

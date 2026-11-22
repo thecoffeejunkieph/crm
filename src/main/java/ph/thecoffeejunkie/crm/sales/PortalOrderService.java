@@ -65,13 +65,16 @@ class PortalOrderService {
     private final ApplicationEventPublisher events;
     private final Catalog catalog;
     private final Customers customers;
+    private final Statements statements;
 
     PortalOrderService(SalesOrderRepository repo, OrderService orders, PaymentService payments,
                        PaymentRepository paymentRepo, InvoiceRepository invoices, InvoiceDocument invoiceDocument,
                        QuoteDocument quoteDocument, Approvals approvals, Notifications notifications, AuditLog audit,
                        CurrentActor actor, Clock clock, Fulfilment fulfilment, Users users,
                        RefundRepository refunds, CreditMemoDocument creditMemo,
-                       ApplicationEventPublisher events, Catalog catalog, Customers customers) {
+                       ApplicationEventPublisher events, Catalog catalog, Customers customers,
+                       Statements statements) {
+        this.statements = statements;
         this.catalog = catalog;
         this.customers = customers;
         this.events = events;
@@ -240,6 +243,10 @@ class PortalOrderService {
     }
 
     @Transactional(readOnly = true)
+    PdfFile statementPdf() {
+        return statements.pdf(contact().customerId());
+    }
+
     PdfFile quotePdf(long id) {
         SalesOrder o = visible(contact(), id);
         return new PdfFile(o.number + ".pdf", quoteDocument.render(o));

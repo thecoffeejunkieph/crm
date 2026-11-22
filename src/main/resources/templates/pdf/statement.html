@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<style>@page { size: A4; margin: 20mm 18mm; }</style>
+</head>
+<body class="text-[10pt] leading-relaxed text-body">
+
+<header th:replace="~{fragments/parts :: letterhead('STATEMENT OF ACCOUNT', ${number})}"></header>
+
+<section class="mb-12 grid grid-cols-[1fr_1fr_50mm] gap-10">
+  <div th:replace="~{fragments/parts :: company}"></div>
+  <div>
+    <div class="mb-2 text-[8.5pt] text-muted">Statement for</div>
+    <div class="font-semibold text-ink" th:text="${customer.name}">Name</div>
+    <div class="mt-1" th:text="${customer.address}">Address</div>
+    <div class="mt-1" th:if="${customer.tin != ''}">TIN <span th:text="${customer.tin}">TIN</span></div>
+  </div>
+  <dl class="space-y-2">
+    <div class="flex justify-between gap-4"><dt class="text-muted">As of</dt><dd class="text-ink" th:text="${date}">date</dd></div>
+  </dl>
+</section>
+
+<p th:if="${items.isEmpty()}" class="text-ink">Nothing is due. Thank you.</p>
+
+<table class="w-full" th:unless="${items.isEmpty()}">
+  <thead>
+    <tr class="border-b border-ink text-left text-[8.5pt] text-muted">
+      <th class="pb-2.5 font-normal">Order</th><th class="pb-2.5 pl-3 font-normal">Invoice</th>
+      <th class="pb-2.5 pl-3 font-normal">Invoice date</th><th class="pb-2.5 pl-3 font-normal">Due</th>
+      <th class="pb-2.5 pl-4 text-right font-normal">Total</th><th class="pb-2.5 pl-4 text-right font-normal">Paid</th>
+      <th class="pb-2.5 pl-4 text-right font-normal">Balance</th><th class="pb-2.5 pl-4 text-right font-normal">Days late</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="i : ${items}" class="break-inside-avoid border-b border-line">
+      <td class="py-3 text-ink" th:text="${i.orderNumber}">SO-00000</td>
+      <td class="py-3 pl-3" th:text="${i.invoiceNumber}">SI-00000</td>
+      <td class="py-3 pl-3" th:text="${i.invoiceDate}">date</td>
+      <td class="py-3 pl-3" th:text="${i.dueDate}">date</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${#numbers.formatDecimal(i.total, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${#numbers.formatDecimal(i.paid, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+      <td class="py-3 pl-4 text-right tabular-nums text-ink" th:text="${#numbers.formatDecimal(i.balance, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+      <td class="py-3 pl-4 text-right tabular-nums" th:text="${i.daysOverdue > 0} ? ${i.daysOverdue} : ''">0</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="mt-10 ml-auto w-[64%] break-inside-avoid" th:unless="${items.isEmpty()}">
+  <table class="w-full">
+    <tr><td class="py-1.5">Current</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(aging.current, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr><td class="py-1.5">1–30 days late</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(aging.days1to30, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr><td class="py-1.5">31–60 days late</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(aging.days31to60, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr><td class="py-1.5">61–90 days late</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(aging.days61to90, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+    <tr><td class="py-1.5">Over 90 days late</td><td class="py-1.5 text-right tabular-nums whitespace-nowrap" th:text="|PHP ${#numbers.formatDecimal(aging.over90, 1, 'COMMA', 2, 'POINT')}|">0</td></tr>
+  </table>
+  <div class="mt-4 flex items-baseline justify-between gap-6 rounded-[1.5mm] bg-ink px-5 py-4">
+    <span class="font-semibold text-white">Total Due</span>
+    <span class="text-[16pt] font-bold tabular-nums whitespace-nowrap text-brand-yellow"
+          th:text="|PHP ${#numbers.formatDecimal(aging.total, 1, 'COMMA', 2, 'POINT')}|">0</span>
+  </div>
+</div>
+
+<section th:if="${!bankAccounts.isEmpty() and !items.isEmpty()}" class="mt-12 break-inside-avoid">
+  <h2 class="text-[15pt] font-bold tracking-tight text-ink">Payment details</h2>
+  <p class="mt-2">Please use the order number as your payment reference.</p>
+  <div class="mt-8 grid grid-cols-2 gap-x-12 gap-y-10">
+    <div th:each="a : ${bankAccounts}" class="flex break-inside-avoid items-start gap-5">
+      <img th:if="${not #strings.isEmpty(a.qr)}" th:src="${a.qr}" alt="" class="size-[32mm] shrink-0 object-contain"/>
+      <div class="min-w-0">
+        <div class="font-semibold text-ink whitespace-pre-line" th:text="${a.bankName}">Bank</div>
+        <div class="mt-1.5" th:text="${a.accountName}">Account name</div>
+        <div class="mt-1.5 tabular-nums text-ink" th:text="${a.accountNumber}">0000-0000</div>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

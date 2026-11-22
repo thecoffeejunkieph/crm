@@ -92,6 +92,11 @@ class PortalOrderController {
         return portal.requestQuote(req);
     }
 
+    @GetMapping("/statement.pdf")
+    ResponseEntity<byte[]> statementPdf() {
+        return portal.statementPdf().inline();
+    }
+
     @GetMapping("/orders/{id}/quote.pdf")
     ResponseEntity<byte[]> quotePdf(@PathVariable long id) {
         return portal.quotePdf(id).inline();

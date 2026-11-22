@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.sales;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,9 +50,11 @@ class CustomerSalesController {
     private final SalesOrderRepository orderRepo;
     private final CurrentActor actor;
     private final Clock clock;
+    private final Statements statements;
 
     CustomerSalesController(Customers customers, OrderService orders, InvoiceRepository invoices,
-                            SalesOrderRepository orderRepo, CurrentActor actor, Clock clock) {
+                            SalesOrderRepository orderRepo, CurrentActor actor, Clock clock, Statements statements) {
+        this.statements = statements;
         this.customers = customers;
         this.orders = orders;
         this.invoices = invoices;
@@ -98,6 +101,13 @@ class CustomerSalesController {
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
         return new CustomerAccount(orderRepo.openBalanceExcluding(id, 0), profile.creditLimit(),
                 orderRepo.hasOverdue(id, SalesTime.today(clock)), orderRepo.lifetimeValue(id));
+    }
+
+    @GetMapping("/api/customers/{id}/statement.pdf")
+    @PreAuthorize("@salesPermissions.canRead()")
+    ResponseEntity<byte[]> statement(@PathVariable long id) {
+        requireVisible(id);
+        return statements.pdf(id).inline();
     }
 
     private Scope requireVisible(long customerId) {
