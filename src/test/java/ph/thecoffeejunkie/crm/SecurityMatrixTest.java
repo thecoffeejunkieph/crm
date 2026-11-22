@@ -229,6 +229,7 @@ class SecurityMatrixTest {
             Map.entry("GET /api/reports/sales", AS),
             Map.entry("GET /api/reports/missing-2307.csv", AS),
             Map.entry("GET /api/reports/ar-aging", AS),
+            Map.entry("GET /api/insights/today", AS),
 
             Map.entry("GET /api/orders", AS),
             Map.entry("POST /api/orders", AS),

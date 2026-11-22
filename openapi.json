@@ -1506,6 +1506,32 @@
         },
         "type" : "object"
       },
+      "Item" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "orderId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "since" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "JsonNode" : {
         "properties" : {
           "array" : {
@@ -4273,6 +4299,21 @@
         },
         "type" : "object"
       },
+      "Section" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Item"
+            },
+            "type" : "array"
+          },
+          "total" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "SendQuoteResponse" : {
         "properties" : {
           "emailedTo" : {
@@ -4454,6 +4495,26 @@
           "toPick" : {
             "format" : "int64",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "TodayQueue" : {
+        "properties" : {
+          "approvals" : {
+            "$ref" : "#/components/schemas/Section"
+          },
+          "followUps" : {
+            "$ref" : "#/components/schemas/Section"
+          },
+          "quoteRequests" : {
+            "$ref" : "#/components/schemas/Section"
+          },
+          "toRelease" : {
+            "$ref" : "#/components/schemas/Section"
+          },
+          "toVerify" : {
+            "$ref" : "#/components/schemas/Section"
           }
         },
         "type" : "object"
@@ -7394,6 +7455,24 @@
           }
         },
         "tags" : [ "target-controller" ]
+      }
+    },
+    "/api/insights/today" : {
+      "get" : {
+        "operationId" : "today",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TodayQueue"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "insights-controller" ]
       }
     },
     "/api/insights/warehouse" : {
