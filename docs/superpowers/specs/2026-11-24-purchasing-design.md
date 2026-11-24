@@ -84,11 +84,13 @@ Endpoints:
 
 ### Daily reminder
 
-Scheduled job at 07:00 (app time zone). Computes suggestions; if non-empty and the set of suggested product ids differs from the last reminder's, notify users with `PURCHASING_MANAGE`: "N items to reorder across M suppliers", linking to the suggestions page. The last-reminded set is kept in the settings store. If the staff Today queue can show a count tile cheaply, add a "Reorder" tile; decided during planning.
+Scheduled job at 07:00 (app time zone). Computes suggestions; if non-empty and the set of suggested product ids differs from the last reminder's, notify ADMIN users: "N items to reorder across M suppliers", linking to the suggestions page. The last-reminded set is kept in a one-row table `reorder_reminder_state`. No Today-queue tile; the notification covers it.
 
 ## Permissions
 
-`PURCHASING_VIEW` (suppliers, POs, suggestions read), `PURCHASING_MANAGE` (suppliers, POs, draft from suggestions), `PURCHASING_PAY` (record payments). Approving uses existing approval rights. Follows the existing `*Permissions` class pattern and role mapping; security matrix tests get rows for every new endpoint.
+The codebase gates by role (ADMIN, SALES, WAREHOUSE), not permission strings, so: ADMIN does everything (suppliers, POs, suggestions, payments). WAREHOUSE may read POs and receive POs for warehouses it can act on (`InventoryPermissions.canAct`). SALES has no purchasing access. Approving uses existing approval rights (ADMIN). Security matrix tests get rows for every new endpoint.
+
+Because only admins send POs, the over-limit approval is an admin confirming their own over-limit PO: a deliberate second step, recorded in the approvals log.
 
 ## Frontend (`crm-dashboard-ui`)
 
