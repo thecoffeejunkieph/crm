@@ -15,11 +15,13 @@ import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
@@ -126,6 +128,21 @@ class SupplierCreditIT {
         assertThat(credit(over).available()).isEqualByComparingTo("-0.01");
         assertThat(credit(exact).flag()).isEqualTo("NEAR"); // available 0 is not over
         assertThat(credit.forSuppliers(List.of(near, ok, over)).keySet()).containsExactlyInAnyOrder(near, ok, over);
+    }
+
+    @Test
+    void idempotentRetryRecordsOnePayment() throws Exception {
+        long s = supplier("S1", "5000", "1000");
+        String key = UUID.randomUUID().toString();
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(post("/api/suppliers/" + s + "/payments").contentType("application/json")
+                    .content("{\"amount\":30,\"paidOn\":\"2026-11-20\"}").header("Idempotency-Key", key)
+                    .with(csrf(mvc)).with(admin)).andExpect(status().isCreated())
+                    .andExpect(header().string("Idempotent-Replayed", i == 0 ? null : "true"));
+        }
+        assertThat(jdbc.queryForObject("select count(*) from supplier_payment where supplier_id = ?", Integer.class, s))
+                .isEqualTo(1);
+        assertThat(credit(s).balance()).isEqualByComparingTo("970.00");
     }
 
     @Test

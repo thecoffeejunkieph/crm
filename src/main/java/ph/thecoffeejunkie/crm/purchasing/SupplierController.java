@@ -33,25 +33,25 @@ class SupplierController {
     }
 
     @GetMapping
-    PageResponse<SupplierResponse> list(@RequestParam(required = false) String q,
+    PageResponse<SupplierResponse> listSuppliers(@RequestParam(required = false) String q,
                                         @RequestParam(defaultValue = "false") boolean includeArchived,
                                         PageQuery page) {
         return suppliers.list(q, includeArchived, page);
     }
 
     @GetMapping("/{id}")
-    SupplierResponse get(@PathVariable long id) {
+    SupplierResponse getSupplier(@PathVariable long id) {
         return suppliers.get(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    SupplierResponse create(@Valid @RequestBody SupplierRequest req) {
+    SupplierResponse createSupplier(@Valid @RequestBody SupplierRequest req) {
         return suppliers.create(req);
     }
 
     @PutMapping("/{id}")
-    SupplierResponse update(@PathVariable long id, @Valid @RequestBody SupplierRequest req) {
+    SupplierResponse updateSupplier(@PathVariable long id, @Valid @RequestBody SupplierRequest req) {
         return suppliers.update(id, req);
     }
 
@@ -81,7 +81,7 @@ class SupplierController {
 
     @PostMapping("/{id}/archive")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void archive(@PathVariable long id) {
+    void archiveSupplier(@PathVariable long id) {
         suppliers.archive(id);
     }
 }

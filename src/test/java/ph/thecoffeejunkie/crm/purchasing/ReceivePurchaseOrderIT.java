@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -27,6 +28,7 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
@@ -148,6 +150,22 @@ class ReceivePurchaseOrderIT {
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("lines[1].lineId"));
         receive(p[0], p[1], "0", admin).andExpect(status().isBadRequest());
         assertThat(receiptLineSum(p[0])).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void idempotentRetryReceivesOnce() throws Exception {
+        long[] p = po("10", true);
+        String key = UUID.randomUUID().toString();
+        String body = "{\"receivedOn\":\"2026-11-25\",\"lines\":[{\"lineId\":" + p[1] + ",\"qty\":3}]}";
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(post("/api/purchase-orders/" + p[0] + "/receipts").contentType("application/json").content(body)
+                    .header("Idempotency-Key", key).with(csrf(mvc)).with(admin)).andExpect(status().isOk())
+                    .andExpect(header().string("Idempotent-Replayed", i == 0 ? null : "true"));
+        }
+        assertThat(receivedQty(p[1])).isEqualByComparingTo("3");
+        assertThat(receiptLineSum(p[0])).isEqualByComparingTo("3");
+        assertThat(jdbc.queryForObject("select count(*) from stock_receipt where purchase_order_id = ?", Integer.class,
+                p[0])).isEqualTo(1);
     }
 
     @Test

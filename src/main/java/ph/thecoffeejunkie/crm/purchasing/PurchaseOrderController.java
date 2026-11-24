@@ -26,49 +26,49 @@ class PurchaseOrderController {
     }
 
     @GetMapping
-    PageResponse<PoResponse> list(@RequestParam(required = false) PoStatus status,
+    PageResponse<PoResponse> listPurchaseOrders(@RequestParam(required = false) PoStatus status,
                                   @RequestParam(required = false) Long supplierId, PageQuery page) {
         return orders.list(status, supplierId, page);
     }
 
     @GetMapping("/{id}")
-    PoResponse get(@PathVariable long id) {
+    PoResponse getPurchaseOrder(@PathVariable long id) {
         return orders.get(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    PoResponse create(@Valid @RequestBody PoRequest req) {
+    PoResponse createPurchaseOrder(@Valid @RequestBody PoRequest req) {
         return orders.createDraft(req);
     }
 
     @PutMapping("/{id}")
-    PoResponse update(@PathVariable long id, @Valid @RequestBody PoRequest req) {
+    PoResponse updatePurchaseOrder(@PathVariable long id, @Valid @RequestBody PoRequest req) {
         return orders.update(id, req);
     }
 
     @PostMapping("/{id}/send")
-    PoResponse send(@PathVariable long id) {
+    PoResponse sendPurchaseOrder(@PathVariable long id) {
         return orders.send(id);
     }
 
     @GetMapping("/{id}/credit-check")
-    CreditCheck creditCheck(@PathVariable long id) {
+    CreditCheck purchaseOrderCreditCheck(@PathVariable long id) {
         return orders.creditCheck(id);
     }
 
     @PostMapping("/{id}/receipts")
-    PoResponse receive(@PathVariable long id, @Valid @RequestBody PoReceiveRequest req) {
+    PoResponse receivePurchaseOrder(@PathVariable long id, @Valid @RequestBody PoReceiveRequest req) {
         return orders.receive(id, req);
     }
 
     @PostMapping("/{id}/close")
-    PoResponse close(@PathVariable long id) {
+    PoResponse closePurchaseOrder(@PathVariable long id) {
         return orders.closeShort(id);
     }
 
     @PostMapping("/{id}/cancel")
-    PoResponse cancel(@PathVariable long id) {
+    PoResponse cancelPurchaseOrder(@PathVariable long id) {
         return orders.cancel(id);
     }
 }

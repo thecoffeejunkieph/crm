@@ -5544,7 +5544,7 @@
     },
     "/api/admin/log-level" : {
       "get" : {
-        "operationId" : "get_10",
+        "operationId" : "get_8",
         "responses" : {
           "200" : {
             "content" : {
@@ -5588,7 +5588,7 @@
     },
     "/api/admin/settings" : {
       "get" : {
-        "operationId" : "get_9",
+        "operationId" : "get_7",
         "responses" : {
           "200" : {
             "content" : {
@@ -5637,7 +5637,7 @@
     },
     "/api/admin/users" : {
       "get" : {
-        "operationId" : "list_16",
+        "operationId" : "list_14",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -5712,7 +5712,7 @@
     },
     "/api/admin/users/{id}" : {
       "put" : {
-        "operationId" : "update_11",
+        "operationId" : "update_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5749,7 +5749,7 @@
     },
     "/api/admin/users/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_7",
+        "operationId" : "archive_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -5884,7 +5884,7 @@
     },
     "/api/approvals" : {
       "get" : {
-        "operationId" : "list_15",
+        "operationId" : "list_13",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -5970,7 +5970,7 @@
     },
     "/api/approvals/{id}/cancel" : {
       "post" : {
-        "operationId" : "cancel_4",
+        "operationId" : "cancel_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6027,7 +6027,7 @@
     },
     "/api/attachments" : {
       "get" : {
-        "operationId" : "list_14",
+        "operationId" : "list_12",
         "parameters" : [ {
           "in" : "query",
           "name" : "subjectType",
@@ -6135,7 +6135,7 @@
     },
     "/api/attachments/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_6",
+        "operationId" : "archive_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6344,7 +6344,7 @@
     },
     "/api/customers" : {
       "get" : {
-        "operationId" : "list_13",
+        "operationId" : "list_11",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -6383,7 +6383,7 @@
         "tags" : [ "customer-controller" ]
       },
       "post" : {
-        "operationId" : "create_9",
+        "operationId" : "create_7",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -6482,7 +6482,7 @@
     },
     "/api/customers/{id}" : {
       "get" : {
-        "operationId" : "get_8",
+        "operationId" : "get_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6507,7 +6507,7 @@
         "tags" : [ "customer-controller" ]
       },
       "put" : {
-        "operationId" : "update_10",
+        "operationId" : "update_8",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6601,7 +6601,7 @@
     },
     "/api/customers/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_5",
+        "operationId" : "archive_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -6898,7 +6898,7 @@
     },
     "/api/deals" : {
       "get" : {
-        "operationId" : "list_12",
+        "operationId" : "list_10",
         "parameters" : [ {
           "in" : "query",
           "name" : "stage",
@@ -6974,7 +6974,7 @@
         "tags" : [ "deal-controller" ]
       },
       "post" : {
-        "operationId" : "create_8",
+        "operationId" : "create_6",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -7065,7 +7065,7 @@
         "tags" : [ "deal-controller" ]
       },
       "get" : {
-        "operationId" : "get_7",
+        "operationId" : "get_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7090,7 +7090,7 @@
         "tags" : [ "deal-controller" ]
       },
       "put" : {
-        "operationId" : "update_9",
+        "operationId" : "update_7",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7236,7 +7236,7 @@
     },
     "/api/delivery-orders" : {
       "get" : {
-        "operationId" : "list_22",
+        "operationId" : "list_20",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -7285,7 +7285,7 @@
     },
     "/api/delivery-orders/{id}" : {
       "get" : {
-        "operationId" : "get_12",
+        "operationId" : "get_10",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7456,7 +7456,7 @@
     },
     "/api/follow-ups" : {
       "get" : {
-        "operationId" : "list_11",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "query",
           "name" : "bucket",
@@ -7532,7 +7532,7 @@
         "tags" : [ "follow-up-controller" ]
       },
       "post" : {
-        "operationId" : "create_7",
+        "operationId" : "create_5",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -7595,7 +7595,7 @@
     },
     "/api/follow-ups/{id}" : {
       "put" : {
-        "operationId" : "update_8",
+        "operationId" : "update_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -7719,7 +7719,7 @@
     },
     "/api/insights/ad-spend" : {
       "get" : {
-        "operationId" : "list_21",
+        "operationId" : "list_19",
         "parameters" : [ {
           "in" : "query",
           "name" : "month",
@@ -7883,7 +7883,7 @@
     },
     "/api/insights/targets" : {
       "get" : {
-        "operationId" : "list_20",
+        "operationId" : "list_18",
         "parameters" : [ {
           "in" : "query",
           "name" : "month",
@@ -8280,7 +8280,7 @@
     },
     "/api/lead-sources" : {
       "get" : {
-        "operationId" : "list_10",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "query",
           "name" : "includeArchived",
@@ -8373,7 +8373,7 @@
     },
     "/api/lead-sources/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_4",
+        "operationId" : "archive_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -8427,7 +8427,7 @@
     },
     "/api/leads" : {
       "get" : {
-        "operationId" : "list_9",
+        "operationId" : "list_7",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -8503,7 +8503,7 @@
         "tags" : [ "lead-controller" ]
       },
       "post" : {
-        "operationId" : "create_6",
+        "operationId" : "create_4",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -8590,7 +8590,7 @@
     },
     "/api/leads/{id}" : {
       "get" : {
-        "operationId" : "get_6",
+        "operationId" : "get_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -8615,7 +8615,7 @@
         "tags" : [ "lead-controller" ]
       },
       "put" : {
-        "operationId" : "update_7",
+        "operationId" : "update_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -8779,7 +8779,7 @@
         "tags" : [ "me-controller" ]
       },
       "put" : {
-        "operationId" : "update_6",
+        "operationId" : "update_4",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -8994,7 +8994,7 @@
     },
     "/api/notifications" : {
       "get" : {
-        "operationId" : "list_19",
+        "operationId" : "list_17",
         "parameters" : [ {
           "in" : "query",
           "name" : "unread",
@@ -9099,7 +9099,7 @@
     },
     "/api/orders" : {
       "get" : {
-        "operationId" : "list_6",
+        "operationId" : "list_4",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -9173,7 +9173,7 @@
         "tags" : [ "order-controller" ]
       },
       "post" : {
-        "operationId" : "create_5",
+        "operationId" : "create_3",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -9201,7 +9201,7 @@
     },
     "/api/orders/{id}" : {
       "get" : {
-        "operationId" : "get_5",
+        "operationId" : "get_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -9226,7 +9226,7 @@
         "tags" : [ "order-controller" ]
       },
       "put" : {
-        "operationId" : "update_5",
+        "operationId" : "update_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -9263,7 +9263,7 @@
     },
     "/api/orders/{id}/cancel" : {
       "post" : {
-        "operationId" : "cancel_3",
+        "operationId" : "cancel_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -9489,7 +9489,7 @@
     },
     "/api/orders/{id}/invoices" : {
       "get" : {
-        "operationId" : "list_18",
+        "operationId" : "list_16",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -9519,7 +9519,7 @@
     },
     "/api/orders/{id}/payments" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -9628,7 +9628,7 @@
     },
     "/api/orders/{id}/refunds" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -10365,7 +10365,7 @@
     },
     "/api/portal/orders" : {
       "get" : {
-        "operationId" : "list_17",
+        "operationId" : "list_15",
         "parameters" : [ {
           "in" : "query",
           "name" : "page",
@@ -10391,7 +10391,7 @@
     },
     "/api/portal/orders/{id}" : {
       "get" : {
-        "operationId" : "get_11",
+        "operationId" : "get_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -10821,7 +10821,7 @@
     },
     "/api/product-categories" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_3",
         "parameters" : [ {
           "in" : "query",
           "name" : "includeArchived",
@@ -10914,7 +10914,7 @@
     },
     "/api/product-categories/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_3",
+        "operationId" : "archive_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -10968,7 +10968,7 @@
     },
     "/api/products" : {
       "get" : {
-        "operationId" : "list_4",
+        "operationId" : "list_2",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -11015,7 +11015,7 @@
         "tags" : [ "product-controller" ]
       },
       "post" : {
-        "operationId" : "create_4",
+        "operationId" : "create_2",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -11114,7 +11114,7 @@
     },
     "/api/products/{id}" : {
       "get" : {
-        "operationId" : "get_4",
+        "operationId" : "get_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11139,7 +11139,7 @@
         "tags" : [ "product-controller" ]
       },
       "put" : {
-        "operationId" : "update_4",
+        "operationId" : "update_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11176,7 +11176,7 @@
     },
     "/api/products/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_2",
+        "operationId" : "archive_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11226,7 +11226,7 @@
     },
     "/api/purchase-orders" : {
       "get" : {
-        "operationId" : "list_3",
+        "operationId" : "listPurchaseOrders",
         "parameters" : [ {
           "in" : "query",
           "name" : "status",
@@ -11266,7 +11266,7 @@
         "tags" : [ "purchase-order-controller" ]
       },
       "post" : {
-        "operationId" : "create_3",
+        "operationId" : "createPurchaseOrder",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -11294,7 +11294,7 @@
     },
     "/api/purchase-orders/{id}" : {
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "getPurchaseOrder",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11319,7 +11319,7 @@
         "tags" : [ "purchase-order-controller" ]
       },
       "put" : {
-        "operationId" : "update_3",
+        "operationId" : "updatePurchaseOrder",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11356,7 +11356,7 @@
     },
     "/api/purchase-orders/{id}/cancel" : {
       "post" : {
-        "operationId" : "cancel_2",
+        "operationId" : "cancelPurchaseOrder",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11383,7 +11383,7 @@
     },
     "/api/purchase-orders/{id}/close" : {
       "post" : {
-        "operationId" : "close",
+        "operationId" : "closePurchaseOrder",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11410,7 +11410,7 @@
     },
     "/api/purchase-orders/{id}/credit-check" : {
       "get" : {
-        "operationId" : "creditCheck",
+        "operationId" : "purchaseOrderCreditCheck",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11437,7 +11437,7 @@
     },
     "/api/purchase-orders/{id}/receipts" : {
       "post" : {
-        "operationId" : "receive_2",
+        "operationId" : "receivePurchaseOrder",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11474,7 +11474,7 @@
     },
     "/api/purchase-orders/{id}/send" : {
       "post" : {
-        "operationId" : "send",
+        "operationId" : "sendPurchaseOrder",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -12070,7 +12070,7 @@
     },
     "/api/suppliers" : {
       "get" : {
-        "operationId" : "list_2",
+        "operationId" : "listSuppliers",
         "parameters" : [ {
           "in" : "query",
           "name" : "q",
@@ -12109,7 +12109,7 @@
         "tags" : [ "supplier-controller" ]
       },
       "post" : {
-        "operationId" : "create_2",
+        "operationId" : "createSupplier",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -12137,7 +12137,7 @@
     },
     "/api/suppliers/{id}" : {
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "getSupplier",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -12162,7 +12162,7 @@
         "tags" : [ "supplier-controller" ]
       },
       "put" : {
-        "operationId" : "update_2",
+        "operationId" : "updateSupplier",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -12199,7 +12199,7 @@
     },
     "/api/suppliers/{id}/archive" : {
       "post" : {
-        "operationId" : "archive_1",
+        "operationId" : "archiveSupplier",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
