@@ -25,5 +25,6 @@ public enum NotificationType {
     ORDER_DELIVERED,
     RELEASED_ORDER_CHANGED,
     TARGET_MILESTONE,
-    REFUND_PAID
+    REFUND_PAID,
+    REORDER_DUE
 }
