@@ -45,6 +45,7 @@ class TargetMilestonesIT {
     @AfterEach
     void cleanUp() {
         jdbc.update("delete from notification where recipient_user_id = ?", rep);
+        jdbc.update("delete from sales_category_target where rep_id = ?", rep);
         jdbc.update("delete from sales_target where rep_id = ?", rep);
         f.cleanUp();
     }
@@ -115,6 +116,51 @@ class TargetMilestonesIT {
         target(dec, "1000.00");
         verify("600.00", Instant.parse("2026-11-30T16:30:00Z"), rep); // 00:30 on Dec 1 in Manila
         assertThat(titles()).containsExactly("You're at 50% of your December target");
+    }
+
+    private void coffeeTarget(String amount) {
+        long coffee = f.category("coffee");
+        long beans = f.product("beans", "10.00");
+        f.categorize(beans, coffee);
+        f.line(order, beans, "1", "100000.00", "10.00");
+        jdbc.update("insert into sales_category_target (rep_id, month, category_id, target_amount, updated_by) "
+                + "values (?, ?, ?, ?::numeric, ?)", rep, nov.atDay(1), coffee, amount, admin);
+    }
+
+    @Test
+    void categoryCrossingSendsCategoryTitle() {
+        coffeeTarget("1000.00");
+        already("400.00");
+        verify("450.00", at(nov, 2), rep);
+        assertThat(titles()).containsExactly("You're at 80% of your " + f.tag + "coffee target for November");
+        assertThat(jdbc.queryForObject("select body from notification where recipient_user_id = ? "
+                + "and type = 'TARGET_MILESTONE'", String.class, rep)).isEqualTo("850.00 of 1000.00");
+    }
+
+    @Test
+    void categoryHitTitle() {
+        coffeeTarget("1000.00");
+        already("950.00");
+        verify("50.00", at(nov, 2), rep);
+        assertThat(titles()).containsExactly(f.tag + "coffee target hit for November");
+    }
+
+    @Test
+    void categoryMilestoneWithoutOverallTarget() {
+        coffeeTarget("1000.00");
+        already("400.00");
+        verify("450.00", at(nov, 2), rep);
+        assertThat(titles()).hasSize(1);
+    }
+
+    @Test
+    void overallAndCategoryBothCross() {
+        target(nov, "1000.00");
+        coffeeTarget("2000.00");
+        already("400.00");
+        verify("1200.00", at(nov, 2), rep);
+        assertThat(titles()).containsExactly("Target hit for November",
+                "You're at 80% of your " + f.tag + "coffee target for November");
     }
 
     @Test
