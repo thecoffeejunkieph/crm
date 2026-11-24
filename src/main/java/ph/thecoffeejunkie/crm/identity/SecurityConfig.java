@@ -74,6 +74,9 @@ class SecurityConfig {
                     a.requestMatchers("/api/admin/**", "/api/approvals/*/decision", "/api/insights/targets",
                                     "/api/insights/targets/**", "/api/insights/admin", "/api/insights/ad-spend",
                                     "/api/insights/ad-spend/**", "/api/insights/ad-performance").hasRole("ADMIN")
+                            .requestMatchers("/api/suppliers", "/api/suppliers/**", "/api/purchasing/**").hasRole("ADMIN")
+                            // service enforces ADMIN for everything except GET and receive
+                            .requestMatchers("/api/purchase-orders", "/api/purchase-orders/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers("/api/follow-ups", "/api/follow-ups/**").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers(HttpMethod.POST, "/api/lead-sources", "/api/lead-sources/**").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/lead-sources/**").hasRole("ADMIN")
