@@ -85,6 +85,18 @@ class InsightsFixture {
                 + "values (?, ?, 'PC', 100, ?::numeric, 'VATABLE') returning id", Long.class, tag + name, tag + name, cost);
     }
 
+    long category(String name) {
+        return jdbc.queryForObject("insert into product_category (name) values (?) returning id", Long.class, tag + name);
+    }
+
+    void archiveCategory(long id) {
+        jdbc.update("update product_category set archived_at = now() where id = ?", id);
+    }
+
+    void categorize(long productId, long categoryId) {
+        jdbc.update("update product set category_id = ? where id = ?", categoryId, productId);
+    }
+
     long warehouse(String code) {
         return jdbc.queryForObject("insert into warehouse (code, name) values (?, ?) returning id", Long.class,
                 tag + code, tag + code);
@@ -197,7 +209,9 @@ class InsightsFixture {
         jdbc.update("delete from lead where contact_name like ?", tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
         jdbc.update("delete from lead_source where name like ?", tag + "%");
+        jdbc.update("delete from sales_category_target where rep_id in (" + users + ") or updated_by in (" + users + ")");
         jdbc.update("delete from product where sku like ?", tag + "%");
+        jdbc.update("delete from product_category where name like ?", tag + "%");
         jdbc.update("delete from user_warehouse where warehouse_id in (select id from warehouse where code like ?)",
                 tag + "%");
         jdbc.update("delete from warehouse where code like ?", tag + "%");

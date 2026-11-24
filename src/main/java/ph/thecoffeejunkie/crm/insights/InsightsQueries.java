@@ -15,9 +15,11 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -306,6 +308,24 @@ class InsightsQueries {
                 .addValue("toTs", Timestamp.from(InsightsMonth.end(to)));
         return jdbc.query(sql, p, (rs, i) -> new AdCohortRow(rs.getObject(1, LocalDate.class), rs.getLong(2),
                 rs.getString(3), rs.getBigDecimal(4), rs.getLong(5), rs.getLong(6), rs.getBigDecimal(7)));
+    }
+
+    record Category(long id, String name, boolean archived) {
+    }
+
+    /** Active categories plus {@code alsoInclude} (archived ones that still carry a target), by name. */
+    List<Category> categories(Collection<Long> alsoInclude) {
+        String sql = "select id, name, archived_at is not null archived from product_category where archived_at is null"
+                + (alsoInclude.isEmpty() ? "" : " or id in (:ids)") + " order by lower(name)";
+        return jdbc.query(sql, new MapSqlParameterSource("ids", alsoInclude),
+                (rs, i) -> new Category(rs.getLong("id"), rs.getString("name"), rs.getBoolean("archived")));
+    }
+
+    Optional<Category> category(long id) {
+        return jdbc.query("select id, name, archived_at is not null archived from product_category where id = :id",
+                new MapSqlParameterSource("id", id),
+                (rs, i) -> new Category(rs.getLong("id"), rs.getString("name"), rs.getBoolean("archived"))).stream()
+                .findFirst();
     }
 
     static BigDecimal money(BigDecimal v) {

@@ -2,12 +2,15 @@ package ph.thecoffeejunkie.crm.insights;
 
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
@@ -34,6 +37,24 @@ class TargetController {
     @PutMapping("/api/insights/targets/{repId}/{month}")
     TargetRow set(@PathVariable long repId, @PathVariable String month, @Valid @RequestBody TargetRequest req) {
         return targets.set(repId, InsightsMonth.parseForPlanning(month, clock), req);
+    }
+
+    @GetMapping("/api/insights/targets/{repId}/{month}/categories")
+    List<CategoryTargetRow> categories(@PathVariable long repId, @PathVariable String month) {
+        return targets.categoryTargets(repId, InsightsMonth.parseForPlanning(month, clock));
+    }
+
+    @PutMapping("/api/insights/targets/{repId}/{month}/categories/{categoryId}")
+    CategoryTargetRow setCategory(@PathVariable long repId, @PathVariable String month, @PathVariable long categoryId,
+                                  @Valid @RequestBody CategoryTargetRequest req) {
+        return targets.setCategoryTarget(repId, InsightsMonth.parseForPlanning(month, clock), categoryId, req);
+    }
+
+    @DeleteMapping("/api/insights/targets/{repId}/{month}/categories/{categoryId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void clearCategory(@PathVariable long repId, @PathVariable String month, @PathVariable long categoryId,
+                       @RequestParam long version) {
+        targets.clearCategoryTarget(repId, InsightsMonth.parseForPlanning(month, clock), categoryId, version);
     }
 
     @PostMapping("/api/insights/targets/copy")
