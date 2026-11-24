@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.catalog;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -45,8 +46,11 @@ public class Catalog {
     private final AuditLog audit;
     private final CurrentActor actor;
     private final ProductCategories categories;
+    private final JdbcTemplate jdbc;
 
-    Catalog(ProductRepository repo, AuditLog audit, CurrentActor actor, ProductCategories categories) {
+    Catalog(ProductRepository repo, AuditLog audit, CurrentActor actor, ProductCategories categories,
+            JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.categories = categories;
         this.repo = repo;
         this.audit = audit;
@@ -74,6 +78,7 @@ public class Catalog {
     @Transactional
     ProductResponse create(ProductRequest req) {
         categories.requireActive(req.categoryId());
+        validateReorder(req, null);
         Product p = new Product();
         apply(p, req);
         save(p);
@@ -101,10 +106,13 @@ public class Catalog {
                 .field("price", money(p.price), money(req.price()))
                 .field("cost", money(p.cost), money(req.cost()))
                 .field("taxClass", p.taxClass, req.taxClass())
-                .field("reorderLevel", qty(p.reorderLevel), qty(req.reorderLevel()));
+                .field("reorderLevel", qty(p.reorderLevel), qty(req.reorderLevel()))
+                .field("reorderTarget", qty(p.reorderTarget), qty(req.reorderTarget()))
+                .field("preferredSupplierId", p.preferredSupplierId, req.preferredSupplierId());
         if (!Objects.equals(p.categoryId, req.categoryId())) {
             categories.requireActive(req.categoryId()); // an archived category may stay, but not be newly chosen
         }
+        validateReorder(req, p.preferredSupplierId);
         apply(p, req);
         p.updatedAt = Instant.now();
         save(p);
@@ -183,6 +191,25 @@ public class Catalog {
         p.cost = r.cost();
         p.taxClass = r.taxClass();
         p.reorderLevel = r.reorderLevel();
+        p.reorderTarget = r.reorderTarget();
+        p.preferredSupplierId = r.preferredSupplierId();
+    }
+
+    /** Catalog may not depend on purchasing, so the supplier is checked in SQL. A supplier archived since stays. */
+    private void validateReorder(ProductRequest r, Long currentSupplier) {
+        if (r.reorderTarget() != null && r.reorderLevel() != null && r.reorderTarget().compareTo(r.reorderLevel()) < 0) {
+            throw invalid("reorderTarget", "must be at least the reorder level");
+        }
+        Long s = r.preferredSupplierId();
+        if (s != null && !s.equals(currentSupplier) && !Boolean.TRUE.equals(jdbc.queryForObject(
+                "select exists(select 1 from supplier where id = ? and archived_at is null)", Boolean.class, s))) {
+            throw invalid("preferredSupplierId", "supplier doesn't exist or is archived");
+        }
+    }
+
+    private static DomainException invalid(String field, String msg) {
+        return new DomainException(ErrorCode.VALIDATION_FAILED, msg,
+                Map.of("errors", List.of(Map.of("field", field, "message", msg))));
     }
 
     private static String qty(BigDecimal v) {
@@ -209,6 +236,6 @@ public class Catalog {
 
     private static ProductResponse toResponse(Product p, boolean withCost, String categoryName) {
         return new ProductResponse(p.id, p.sku, p.name, p.description, p.unit, p.price, withCost ? p.cost : null,
-                p.taxClass, p.reorderLevel, p.categoryId, categoryName, p.archivedAt, p.version);
+                p.taxClass, p.reorderLevel, p.reorderTarget, p.preferredSupplierId, p.categoryId, categoryName, p.archivedAt, p.version);
     }
 }

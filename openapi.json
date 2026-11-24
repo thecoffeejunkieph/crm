@@ -3694,10 +3694,17 @@
             "minLength" : 0,
             "type" : "string"
           },
+          "preferredSupplierId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "price" : {
             "type" : "number"
           },
           "reorderLevel" : {
+            "type" : "number"
+          },
+          "reorderTarget" : {
             "type" : "number"
           },
           "sku" : {
@@ -3747,10 +3754,17 @@
           "name" : {
             "type" : "string"
           },
+          "preferredSupplierId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "price" : {
             "type" : "number"
           },
           "reorderLevel" : {
+            "type" : "number"
+          },
+          "reorderTarget" : {
             "type" : "number"
           },
           "sku" : {

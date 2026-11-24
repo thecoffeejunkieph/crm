@@ -30,6 +30,8 @@ class Product {
     @Enumerated(EnumType.STRING)
     TaxClass taxClass;
     BigDecimal reorderLevel;
+    BigDecimal reorderTarget;
+    Long preferredSupplierId;
     Instant archivedAt;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();
