@@ -110,6 +110,10 @@ class PurchaseOrderService {
         if (po.lines.isEmpty()) {
             throw invalid("lines", "Purchase order " + po.number + " has no lines.");
         }
+        Supplier supplier = suppliers.findById(po.supplierId).orElseThrow();
+        if (supplier.archivedAt != null) {
+            throw invalid("supplierId", "This supplier is archived.");
+        }
         CreditCheck check = check(po);
         po.rejectionReason = null;
         po.updatedAt = Instant.now();
@@ -119,7 +123,7 @@ class PurchaseOrderService {
             audit.record(AuditAction.UPDATED, ENTITY, id, "Sent purchase order " + po.number, null);
             return toResponses(List.of(po)).get(0);
         }
-        String supplierName = suppliers.findById(po.supplierId).orElseThrow().name;
+        String supplierName = supplier.name;
         po.status = PoStatus.PENDING_APPROVAL;
         orders.saveAndFlush(po);
         // Approvals runs in this transaction (REQUIRED); the PO is saved first so the version is the one the request names.

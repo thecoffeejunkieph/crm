@@ -176,6 +176,14 @@ class SendPurchaseOrderIT {
     }
 
     @Test
+    void sendToArchivedSupplierIs400() throws Exception {
+        long id = draft("1000", "0");
+        jdbc.update("update supplier set archived_at = now() where id = (select supplier_id from purchase_order where id = ?)", id);
+        send(id).andExpect(status().isBadRequest());
+        assertThat(poStatus(id)).isEqualTo("DRAFT");
+    }
+
+    @Test
     void sendTwiceIsConflict() throws Exception {
         long id = draft("1000", "0");
         send(id).andExpect(status().isOk());
