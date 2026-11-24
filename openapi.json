@@ -1295,6 +1295,27 @@
         },
         "type" : "object"
       },
+      "DraftFromSuggestionsRequest" : {
+        "properties" : {
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PoLineRequest"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          },
+          "supplierId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "warehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "lines", "supplierId" ],
+        "type" : "object"
+      },
       "FollowUpCounts" : {
         "properties" : {
           "overdue" : {
@@ -4735,6 +4756,84 @@
           "warehouseId" : {
             "format" : "int64",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "SuggestionGroup" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SuggestionItem"
+            },
+            "type" : "array"
+          },
+          "leadTimeDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "supplierId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "supplierName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SuggestionItem" : {
+        "properties" : {
+          "available" : {
+            "type" : "number"
+          },
+          "backorder" : {
+            "type" : "number"
+          },
+          "coverDays" : {
+            "type" : "number"
+          },
+          "incoming" : {
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "onDraftPo" : {
+            "type" : "string"
+          },
+          "perDay" : {
+            "type" : "number"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reorderLevel" : {
+            "type" : "number"
+          },
+          "reorderTarget" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "suggestedQty" : {
+            "type" : "number"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SuggestionResponse" : {
+        "properties" : {
+          "groups" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SuggestionGroup"
+            },
+            "type" : "array"
           }
         },
         "type" : "object"
@@ -11497,6 +11596,52 @@
           }
         },
         "tags" : [ "purchase-order-controller" ]
+      }
+    },
+    "/api/purchasing/suggestions" : {
+      "get" : {
+        "operationId" : "reorderSuggestions",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SuggestionResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "suggestion-controller" ]
+      }
+    },
+    "/api/purchasing/suggestions/draft" : {
+      "post" : {
+        "operationId" : "draftFromSuggestions",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DraftFromSuggestionsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PoResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "suggestion-controller" ]
       }
     },
     "/api/refunds/{id}/cancel" : {

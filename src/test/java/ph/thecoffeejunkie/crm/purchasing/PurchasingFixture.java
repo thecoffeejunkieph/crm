@@ -31,6 +31,7 @@ final class PurchasingFixture {
     }
 
     void cleanUp() {
+        jdbc.update("update product set preferred_supplier_id = null where sku like ?", inv.tag + "%");
         jdbc.update("delete from stock_receipt where purchase_order_id in (select id from purchase_order where supplier_id in "
                 + "(select id from supplier where code like ?))", inv.tag + "%");
         jdbc.update("delete from supplier_payment where supplier_id in (select id from supplier where code like ?)", inv.tag + "%");
