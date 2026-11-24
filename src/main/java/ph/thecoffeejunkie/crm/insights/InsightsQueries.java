@@ -67,6 +67,21 @@ class InsightsQueries {
         return verifiedSum(CREDIT, repId, Period.of(m), excludePaymentId);
     }
 
+    /** Verified net sales per product category (uncategorized lines dropped): each payment split across its order's lines. */
+    Map<Long, BigDecimal> netSalesByCategory(long repId, YearMonth m, Long excludePaymentId) {
+        MapSqlParameterSource p = Period.of(m).params().addValue("exclude", excludePaymentId);
+        Map<Long, BigDecimal> out = new HashMap<>();
+        jdbc.query("select pr.category_id, sum((" + PAID + ") * " + LINE_NET + " / o.total) net from money_movement p "
+                + "join sales_order o on o.id = p.order_id join order_line l on l.order_id = o.id "
+                + "join product pr on pr.id = l.product_id "
+                + "where o.total > 0 and pr.category_id is not null and p.at >= :start and p.at < :end"
+                + (excludePaymentId == null ? "" : " and p.id <> :exclude") + rep(repId, p) + " group by pr.category_id",
+                p, rs -> {
+                    out.put(rs.getLong("category_id"), money(rs.getBigDecimal("net")));
+                });
+        return out;
+    }
+
     private BigDecimal verifiedSum(String amount, Long repId, Period m, Long excludePaymentId) {
         MapSqlParameterSource p = m.params().addValue("exclude", excludePaymentId);
         return money(jdbc.queryForObject("select sum(" + amount + ") from money_movement p join sales_order o on o.id = p.order_id "

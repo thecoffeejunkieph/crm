@@ -14,9 +14,13 @@ record SalesInsights(YearMonth month, Target target, BigDecimal collected, BigDe
                      Integer progressPct, BigDecimal remaining,
                      boolean targetHit, BigDecimal commission, BigDecimal invoiced, BigDecimal outstanding,
                      BigDecimal overdue, ToVerify toVerify, List<DayAmount> collectedByDay, NeedsAction needsAction,
-                     List<CustomerAmount> topCustomers) implements Serializable {
+                     List<CustomerAmount> topCustomers, List<CategoryProgress> categories) implements Serializable {
 
     record Target(BigDecimal amount, BigDecimal commissionPct) implements Serializable {
+    }
+
+    record CategoryProgress(long categoryId, String name, BigDecimal target, BigDecimal netSales, Integer progressPct,
+                            BigDecimal remaining, boolean hit) implements Serializable {
     }
 
     record ToVerify(long count, BigDecimal amount) implements Serializable {

@@ -260,6 +260,98 @@ class SalesInsightsIT {
         sales(repA, m).andExpect(jsonPath("$.target.amount").value(5000.00));
     }
 
+    long coffee;
+    long tea;
+    long order;
+
+    /** A 1000.00 order of coffee 600 and tea 400 with 500.00 verified this month; both products categorized. */
+    private void seedCategories() {
+        coffee = f.category("coffee");
+        tea = f.category("tea");
+        long cp = f.product("coffeeP", "10.00");
+        long tp = f.product("teaP", "10.00");
+        f.categorize(cp, coffee);
+        f.categorize(tp, tea);
+        order = f.order(cust, repA, "FULFILLED", "1000.00", "0.00", null);
+        f.line(order, cp, "1", "600.00", "10.00");
+        f.line(order, tp, "1", "400.00", "10.00");
+        f.payment(order, "VERIFIED", "500.00", "0.00", at(m, 30));
+    }
+
+    private void catTarget(long category, String amount) {
+        jdbc.update("insert into sales_category_target (rep_id, month, category_id, target_amount, updated_by) "
+                + "values (?, ?, ?, ?::numeric, ?)", repA, m.atDay(1), category, amount, admin);
+    }
+
+    @Test
+    void categoryProgressSplitsPaymentByLine() throws Exception {
+        seedCategories();
+        catTarget(coffee, "600.00");
+        catTarget(tea, "1000.00");
+        sales(repA, m).andExpect(jsonPath("$.netSales").value(500.00))
+                .andExpect(jsonPath("$.categories[0].categoryId").value(coffee))
+                .andExpect(jsonPath("$.categories[0].netSales").value(300.00))
+                .andExpect(jsonPath("$.categories[0].progressPct").value(50))
+                .andExpect(jsonPath("$.categories[0].remaining").value(300.00))
+                .andExpect(jsonPath("$.categories[0].hit").value(false))
+                .andExpect(jsonPath("$.categories[1].categoryId").value(tea))
+                .andExpect(jsonPath("$.categories[1].netSales").value(200.00))
+                .andExpect(jsonPath("$.categories[1].progressPct").value(20));
+    }
+
+    @Test
+    void categoriesEmptyWithoutCategoryTargets() throws Exception {
+        seedCategories();
+        sales(repA, m).andExpect(jsonPath("$.categories.length()").value(0));
+    }
+
+    @Test
+    void untargetedCategoryOmitted() throws Exception {
+        seedCategories();
+        catTarget(coffee, "600.00");
+        sales(repA, m).andExpect(jsonPath("$.categories.length()").value(1));
+    }
+
+    @Test
+    void uncategorizedLineCountsTowardNoCategory() throws Exception {
+        seedCategories();
+        jdbc.update("update product set category_id = null where id = (select product_id from order_line "
+                + "where order_id = ? and line_total = 400)", order);
+        catTarget(coffee, "300.00");
+        sales(repA, m).andExpect(jsonPath("$.netSales").value(500.00))
+                .andExpect(jsonPath("$.categories[0].netSales").value(300.00))
+                .andExpect(jsonPath("$.categories[0].progressPct").value(100))
+                .andExpect(jsonPath("$.categories[0].hit").value(true));
+    }
+
+    @Test
+    void refundReducesCategoriesProRata() throws Exception {
+        seedCategories();
+        catTarget(coffee, "600.00");
+        catTarget(tea, "1000.00");
+        f.refund(order, "100.00", at(m, 30));
+        sales(repA, m).andExpect(jsonPath("$.categories[0].netSales").value(240.00))
+                .andExpect(jsonPath("$.categories[1].netSales").value(160.00));
+    }
+
+    @Test
+    void archivedCategoryStillShowsProgress() throws Exception {
+        seedCategories();
+        catTarget(coffee, "600.00");
+        f.archiveCategory(coffee);
+        sales(repA, m).andExpect(jsonPath("$.categories[0].categoryId").value(coffee))
+                .andExpect(jsonPath("$.categories[0].netSales").value(300.00));
+    }
+
+    @Test
+    void categoryTargetWriteShowsOnNextLoad() throws Exception {
+        seedCategories();
+        sales(repA, m).andExpect(jsonPath("$.categories.length()").value(0));
+        mvc.perform(f.json(put("/api/insights/targets/" + repA + "/" + m + "/categories/" + coffee),
+                "{\"targetAmount\":600,\"version\":null}").with(as(admin, Role.ADMIN))).andExpect(status().isOk());
+        sales(repA, m).andExpect(jsonPath("$.categories.length()").value(1));
+    }
+
     @Test
     void badMonth400() throws Exception {
         sales(repA, m.plusMonths(1)).andExpect(status().isBadRequest())

@@ -47,7 +47,18 @@ class InsightsService {
                 Commission.remaining(net, amount), Commission.hit(net, amount),
                 Commission.of(net, amount, pct), q.invoiced(userId, Period.of(m)), owed.outstanding(), owed.overdue(),
                 q.toVerify(userId), q.collectedByDay(userId, m),
-                q.needsAction(userId, InsightsMonth.today(clock), 5), q.topCustomers(userId, Period.of(m), TOP));
+                q.needsAction(userId, InsightsMonth.today(clock), 5), q.topCustomers(userId, Period.of(m), TOP), categories(userId, m));
+    }
+
+    private List<SalesInsights.CategoryProgress> categories(long userId, YearMonth m) {
+        Map<Long, BigDecimal> sold = q.netSalesByCategory(userId, m, null);
+        return targets.categoryTargets(userId, m).stream().filter(c -> c.targetAmount() != null)
+                .map(c -> {
+                    BigDecimal net = sold.getOrDefault(c.categoryId(), Commission.ZERO);
+                    return new SalesInsights.CategoryProgress(c.categoryId(), c.categoryName(), c.targetAmount(), net,
+                            Commission.progressPct(net, c.targetAmount()), Commission.remaining(net, c.targetAmount()),
+                            Commission.hit(net, c.targetAmount()));
+                }).toList();
     }
 
     @Transactional(readOnly = true)
