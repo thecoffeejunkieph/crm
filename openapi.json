@@ -3427,6 +3427,39 @@
         },
         "type" : "object"
       },
+      "PoReceiveLine" : {
+        "properties" : {
+          "lineId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "lineId", "qty" ],
+        "type" : "object"
+      },
+      "PoReceiveRequest" : {
+        "properties" : {
+          "lines" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PoReceiveLine"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          },
+          "receivedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "reference" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "lines", "receivedOn" ],
+        "type" : "object"
+      },
       "PoRequest" : {
         "properties" : {
           "expectedOn" : {
@@ -11348,6 +11381,33 @@
         "tags" : [ "purchase-order-controller" ]
       }
     },
+    "/api/purchase-orders/{id}/close" : {
+      "post" : {
+        "operationId" : "close",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PoResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "purchase-order-controller" ]
+      }
+    },
     "/api/purchase-orders/{id}/credit-check" : {
       "get" : {
         "operationId" : "creditCheck",
@@ -11366,6 +11426,43 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CreditCheck"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "purchase-order-controller" ]
+      }
+    },
+    "/api/purchase-orders/{id}/receipts" : {
+      "post" : {
+        "operationId" : "receive_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PoReceiveRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PoResponse"
                 }
               }
             },

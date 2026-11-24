@@ -13,7 +13,10 @@ import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
+import ph.thecoffeejunkie.crm.inventory.Inventory;
 import ph.thecoffeejunkie.crm.inventory.InventoryPermissions;
+import ph.thecoffeejunkie.crm.inventory.ReceiptRequest;
+import ph.thecoffeejunkie.crm.inventory.ReceiptResponse;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
@@ -29,9 +32,11 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -52,10 +57,12 @@ class PurchaseOrderService {
     private final CurrentActor actor;
     private final CreditQuery credit;
     private final Approvals approvals;
+    private final Inventory inventory;
 
     PurchaseOrderService(PurchaseOrderRepository orders, SupplierRepository suppliers, InventoryPermissions perms,
                          Warehouses warehouses, Catalog catalog, DocumentCounters counters, AuditLog audit,
-                         CurrentActor actor, CreditQuery credit, Approvals approvals) {
+                         CurrentActor actor, CreditQuery credit, Approvals approvals, Inventory inventory) {
+        this.inventory = inventory;
         this.orders = orders;
         this.suppliers = suppliers;
         this.perms = perms;
@@ -134,6 +141,64 @@ class PurchaseOrderService {
         po.approvalRequestId = ar.id();
         orders.saveAndFlush(po);
         audit.record(AuditAction.UPDATED, ENTITY, id, "Purchase order " + po.number + " sent for approval (over credit)", null);
+        return toResponses(List.of(po)).get(0);
+    }
+
+    /**
+     * Receives into the PO's warehouse. The PO row lock serialises receipts, so two at once cannot both pass the
+     * remaining check; the stock receipt and received_qty commit or roll back together, keeping received_qty equal
+     * to the PO's receipt lines (credit and the supplier statement both rely on that).
+     */
+    PoResponse receive(long id, PoReceiveRequest req) {
+        PurchaseOrder po = orders.lockById(id).filter(x -> perms.canAct(x.warehouseId))
+                .orElseThrow(PurchaseOrderService::notFound);
+        po.requireStatus(PoStatus.SENT, PoStatus.PARTIALLY_RECEIVED);
+        Map<Long, PurchaseOrderLine> byId = po.lines.stream().collect(Collectors.toMap(l -> l.id, Function.identity()));
+        Set<Long> seen = new HashSet<>();
+        List<ReceiptRequest.ReceiptLineRequest> receiptLines = new ArrayList<>();
+        for (int i = 0; i < req.lines().size(); i++) {
+            PoReceiveRequest.PoReceiveLine r = req.lines().get(i);
+            PurchaseOrderLine line = byId.get(r.lineId());
+            if (line == null) {
+                throw invalid("lines[" + i + "].lineId", "Not a line of this purchase order.");
+            }
+            if (!seen.add(r.lineId())) {
+                throw invalid("lines[" + i + "].lineId", "This line is already in the receipt.");
+            }
+            BigDecimal remaining = line.qty.subtract(line.receivedQty);
+            if (r.qty().compareTo(remaining) > 0) {
+                ProductInfo p = catalog.info(List.of(line.productId)).get(line.productId);
+                throw new DomainException(ErrorCode.CONFLICT, "Purchase order " + po.number + ", line " + p.sku()
+                        + ": only " + remaining.stripTrailingZeros().toPlainString() + " left to receive.");
+            }
+            receiptLines.add(new ReceiptRequest.ReceiptLineRequest(line.productId, r.qty()));
+        }
+        String supplierName = suppliers.findById(po.supplierId).orElseThrow().name;
+        ReceiptResponse receipt = inventory.receiveForPurchase(new ReceiptRequest(po.warehouseId, supplierName,
+                req.reference(), req.receivedOn(), "PO " + po.number, receiptLines), po.id);
+        req.lines().forEach(r -> {
+            PurchaseOrderLine line = byId.get(r.lineId());
+            line.receivedQty = line.receivedQty.add(r.qty());
+        });
+        po.status = po.lines.stream().allMatch(l -> l.receivedQty.compareTo(l.qty) >= 0)
+                ? PoStatus.RECEIVED : PoStatus.PARTIALLY_RECEIVED;
+        po.updatedAt = Instant.now();
+        orders.saveAndFlush(po);
+        audit.record(AuditAction.UPDATED, ENTITY, id, "Received " + receipt.number() + " against purchase order "
+                + po.number, null);
+        return toResponses(List.of(po)).get(0);
+    }
+
+    /** Ends a partly received PO: what is still open no longer counts as committed credit. */
+    PoResponse closeShort(long id) {
+        requireAdmin();
+        PurchaseOrder po = orders.lockById(id).orElseThrow(PurchaseOrderService::notFound);
+        po.requireStatus(PoStatus.PARTIALLY_RECEIVED);
+        po.status = PoStatus.RECEIVED;
+        po.closedShort = true;
+        po.updatedAt = Instant.now();
+        orders.saveAndFlush(po);
+        audit.record(AuditAction.UPDATED, ENTITY, id, "Closed purchase order " + po.number + " short", null);
         return toResponses(List.of(po)).get(0);
     }
 

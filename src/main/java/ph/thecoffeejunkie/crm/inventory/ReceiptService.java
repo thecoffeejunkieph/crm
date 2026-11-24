@@ -62,6 +62,11 @@ class ReceiptService {
     }
 
     ReceiptResponse receive(ReceiptRequest req) {
+        return receive(req, null);
+    }
+
+    /** purchaseOrderId links the receipt to a PO (the purchasing module keeps received_qty in step). */
+    ReceiptResponse receive(ReceiptRequest req, Long purchaseOrderId) {
         perms.require(req.warehouseId(), true);
         warehouses.get(req.warehouseId()); // 404 for an unknown or archived warehouse
         Map<Long, ProductInfo> products = catalog.info(req.lines().stream().map(ReceiptRequest.ReceiptLineRequest::productId).toList());
@@ -80,6 +85,7 @@ class ReceiptService {
         r.reference = req.reference();
         r.receivedOn = req.receivedOn();
         r.notes = req.notes();
+        r.purchaseOrderId = purchaseOrderId;
         r.createdBy = actor.scope().userId();
         for (ReceiptRequest.ReceiptLineRequest l : req.lines()) {
             StockReceiptLine line = new StockReceiptLine();

@@ -27,6 +27,7 @@ class StockReceipt {
     String reference;
     LocalDate receivedOn;
     String notes;
+    Long purchaseOrderId;
     Long createdBy;
     Instant createdAt = Instant.now();
     @OneToMany(mappedBy = "receipt", cascade = CascadeType.ALL)

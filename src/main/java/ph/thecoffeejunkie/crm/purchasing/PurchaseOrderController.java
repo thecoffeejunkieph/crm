@@ -57,6 +57,16 @@ class PurchaseOrderController {
         return orders.creditCheck(id);
     }
 
+    @PostMapping("/{id}/receipts")
+    PoResponse receive(@PathVariable long id, @Valid @RequestBody PoReceiveRequest req) {
+        return orders.receive(id, req);
+    }
+
+    @PostMapping("/{id}/close")
+    PoResponse close(@PathVariable long id) {
+        return orders.closeShort(id);
+    }
+
     @PostMapping("/{id}/cancel")
     PoResponse cancel(@PathVariable long id) {
         return orders.cancel(id);
