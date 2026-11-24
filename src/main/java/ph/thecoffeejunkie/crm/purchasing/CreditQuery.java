@@ -57,10 +57,10 @@ class CreditQuery {
     }
 
     /** Opening balance and running balance over receipts (PO-linked only) and payments; null from/to are unbounded. */
-    StatementResponse statement(long supplierId, LocalDate from, LocalDate to) {
+    SupplierStatementResponse statement(long supplierId, LocalDate from, LocalDate to) {
         BigDecimal running = jdbc.queryForObject("select opening_balance from supplier where id = :id",
                 Map.of("id", supplierId), BigDecimal.class);
-        List<StatementResponse.Entry> all = new ArrayList<>();
+        List<SupplierStatementResponse.SupplierStatementEntry> all = new ArrayList<>();
         // Receipt value: each receipt line at its PO line's unit cost (one line per product per PO), rounded per line.
         jdbc.query("select * from ("
                 + " select r.received_on d, 0 ord, r.id, 'RECEIPT' kind, r.number ref,"
@@ -72,12 +72,12 @@ class CreditQuery {
                 + " union all"
                 + " select p.paid_on, 1, p.id, 'PAYMENT', p.reference, -p.amount from supplier_payment p where p.supplier_id = :id"
                 + ") e order by d, ord, id", Map.of("id", supplierId), rs -> {
-                    all.add(new StatementResponse.Entry(rs.getObject("d", LocalDate.class), rs.getString("kind"),
+                    all.add(new SupplierStatementResponse.SupplierStatementEntry(rs.getObject("d", LocalDate.class), rs.getString("kind"),
                             rs.getString("ref"), rs.getBigDecimal("amt"), null));
                 });
-        List<StatementResponse.Entry> shown = new ArrayList<>();
+        List<SupplierStatementResponse.SupplierStatementEntry> shown = new ArrayList<>();
         BigDecimal opening = null;
-        for (StatementResponse.Entry e : all) {
+        for (SupplierStatementResponse.SupplierStatementEntry e : all) {
             if (from != null && e.date().isBefore(from)) {
                 running = running.add(e.amount());
                 continue;
@@ -89,9 +89,9 @@ class CreditQuery {
                 opening = running;
             }
             running = running.add(e.amount());
-            shown.add(new StatementResponse.Entry(e.date(), e.kind(), e.reference(), e.amount(), scale(running)));
+            shown.add(new SupplierStatementResponse.SupplierStatementEntry(e.date(), e.kind(), e.reference(), e.amount(), scale(running)));
         }
-        return new StatementResponse(scale(opening == null ? running : opening), shown, scale(running));
+        return new SupplierStatementResponse(scale(opening == null ? running : opening), shown, scale(running));
     }
 
     private static BigDecimal scale(BigDecimal v) {

@@ -57,23 +57,23 @@ class SupplierController {
 
     @PostMapping("/{id}/payments")
     @ResponseStatus(HttpStatus.CREATED)
-    PaymentResponse addPayment(@PathVariable long id, @Valid @RequestBody PaymentRequest req) {
+    SupplierPaymentResponse recordSupplierPayment(@PathVariable long id, @Valid @RequestBody SupplierPaymentRequest req) {
         return suppliers.addPayment(id, req);
     }
 
     @GetMapping("/{id}/payments")
-    List<PaymentResponse> payments(@PathVariable long id) {
+    List<SupplierPaymentResponse> supplierPayments(@PathVariable long id) {
         return suppliers.payments(id);
     }
 
     @DeleteMapping("/{id}/payments/{paymentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deletePayment(@PathVariable long id, @PathVariable long paymentId) {
+    void deleteSupplierPayment(@PathVariable long id, @PathVariable long paymentId) {
         suppliers.deletePayment(id, paymentId);
     }
 
     @GetMapping("/{id}/statement")
-    StatementResponse statement(@PathVariable long id,
+    SupplierStatementResponse supplierStatement(@PathVariable long id,
                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return suppliers.statement(id, from, to);

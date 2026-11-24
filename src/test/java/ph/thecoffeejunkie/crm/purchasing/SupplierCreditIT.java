@@ -151,6 +151,19 @@ class SupplierCreditIT {
     }
 
     @Test
+    void oversizedPaymentInputIs400() throws Exception {
+        long s = supplier("S11", null, "0");
+        for (String json : List.of("{\"amount\":1.234,\"paidOn\":\"2026-11-20\"}",
+                "{\"amount\":10000000000000,\"paidOn\":\"2026-11-20\"}",
+                "{\"amount\":1,\"paidOn\":\"2026-11-20\",\"method\":\"" + "x".repeat(51) + "\"}",
+                "{\"amount\":1,\"paidOn\":\"2026-11-20\",\"reference\":\"" + "x".repeat(101) + "\"}",
+                "{\"amount\":1,\"paidOn\":\"2026-11-20\",\"notes\":\"" + "x".repeat(1001) + "\"}")) {
+            mvc.perform(post("/api/suppliers/" + s + "/payments").contentType("application/json").content(json)
+                    .with(csrf(mvc)).with(admin)).andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     void statementRunningBalance() throws Exception {
         long s = supplier("S10", null, "1000");
         long po = po(s, "RECEIVED", "10", "12.50", "10", false);

@@ -1278,27 +1278,6 @@
         },
         "type" : "object"
       },
-      "Entry" : {
-        "properties" : {
-          "amount" : {
-            "type" : "number"
-          },
-          "balance" : {
-            "type" : "number"
-          },
-          "date" : {
-            "format" : "date",
-            "type" : "string"
-          },
-          "kind" : {
-            "type" : "string"
-          },
-          "reference" : {
-            "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
       "FollowUpCounts" : {
         "properties" : {
           "overdue" : {
@@ -3247,24 +3226,27 @@
       },
       "PaymentRequest" : {
         "properties" : {
-          "amount" : {
+          "cashAmount" : {
             "type" : "number"
           },
           "method" : {
+            "enum" : [ "CASH", "BANK_TRANSFER", "CHECK", "GCASH", "CARD", "OTHER" ],
             "type" : "string"
           },
-          "notes" : {
-            "type" : "string"
-          },
-          "paidOn" : {
+          "receivedOn" : {
             "format" : "date",
             "type" : "string"
           },
           "reference" : {
+            "maxLength" : 100,
+            "minLength" : 0,
             "type" : "string"
+          },
+          "withholdingAmount" : {
+            "type" : "number"
           }
         },
-        "required" : [ "amount", "paidOn" ],
+        "required" : [ "cashAmount", "method", "receivedOn" ],
         "type" : "object"
       },
       "PaymentResponse" : {
@@ -4591,23 +4573,6 @@
         },
         "type" : "object"
       },
-      "StatementResponse" : {
-        "properties" : {
-          "closing" : {
-            "type" : "number"
-          },
-          "entries" : {
-            "items" : {
-              "$ref" : "#/components/schemas/Entry"
-            },
-            "type" : "array"
-          },
-          "opening" : {
-            "type" : "number"
-          }
-        },
-        "type" : "object"
-      },
       "StockLevelResponse" : {
         "properties" : {
           "archived" : {
@@ -4662,6 +4627,59 @@
           },
           "limit" : {
             "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "SupplierPaymentRequest" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "method" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "notes" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "paidOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "reference" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "paidOn" ],
+        "type" : "object"
+      },
+      "SupplierPaymentResponse" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "method" : {
+            "type" : "string"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "paidOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "reference" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -4765,6 +4783,44 @@
           "version" : {
             "format" : "int64",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "SupplierStatementEntry" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "balance" : {
+            "type" : "number"
+          },
+          "date" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "reference" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SupplierStatementResponse" : {
+        "properties" : {
+          "closing" : {
+            "type" : "number"
+          },
+          "entries" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SupplierStatementEntry"
+            },
+            "type" : "array"
+          },
+          "opening" : {
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -6686,7 +6742,7 @@
     },
     "/api/customers/{id}/statement.pdf" : {
       "get" : {
-        "operationId" : "statement_1",
+        "operationId" : "statement",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -10301,7 +10357,7 @@
     },
     "/api/portal/orders/{id}/payments" : {
       "get" : {
-        "operationId" : "payments_1",
+        "operationId" : "payments",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11917,7 +11973,7 @@
     },
     "/api/suppliers/{id}/payments" : {
       "get" : {
-        "operationId" : "payments",
+        "operationId" : "supplierPayments",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11933,7 +11989,7 @@
               "*/*" : {
                 "schema" : {
                   "items" : {
-                    "$ref" : "#/components/schemas/PaymentResponse"
+                    "$ref" : "#/components/schemas/SupplierPaymentResponse"
                   },
                   "type" : "array"
                 }
@@ -11945,7 +12001,7 @@
         "tags" : [ "supplier-controller" ]
       },
       "post" : {
-        "operationId" : "addPayment",
+        "operationId" : "recordSupplierPayment",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -11959,7 +12015,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/PaymentRequest"
+                "$ref" : "#/components/schemas/SupplierPaymentRequest"
               }
             }
           },
@@ -11970,7 +12026,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/PaymentResponse"
+                  "$ref" : "#/components/schemas/SupplierPaymentResponse"
                 }
               }
             },
@@ -11982,7 +12038,7 @@
     },
     "/api/suppliers/{id}/payments/{paymentId}" : {
       "delete" : {
-        "operationId" : "deletePayment",
+        "operationId" : "deleteSupplierPayment",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -12010,7 +12066,7 @@
     },
     "/api/suppliers/{id}/statement" : {
       "get" : {
-        "operationId" : "statement",
+        "operationId" : "supplierStatement",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -12041,7 +12097,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/StatementResponse"
+                  "$ref" : "#/components/schemas/SupplierStatementResponse"
                 }
               }
             },

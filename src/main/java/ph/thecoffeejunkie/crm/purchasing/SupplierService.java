@@ -110,7 +110,7 @@ class SupplierService {
     }
 
     @Transactional
-    PaymentResponse addPayment(long supplierId, PaymentRequest req) {
+    SupplierPaymentResponse addPayment(long supplierId, SupplierPaymentRequest req) {
         Supplier s = find(supplierId);
         SupplierPayment p = new SupplierPayment();
         p.supplierId = supplierId;
@@ -127,7 +127,7 @@ class SupplierService {
     }
 
     @Transactional(readOnly = true)
-    List<PaymentResponse> payments(long supplierId) {
+    List<SupplierPaymentResponse> payments(long supplierId) {
         find(supplierId);
         return payments.findBySupplierIdOrderByPaidOnDescIdDesc(supplierId).stream().map(SupplierService::toResponse).toList();
     }
@@ -143,7 +143,7 @@ class SupplierService {
     }
 
     @Transactional(readOnly = true)
-    StatementResponse statement(long supplierId, LocalDate from, LocalDate to) {
+    SupplierStatementResponse statement(long supplierId, LocalDate from, LocalDate to) {
         find(supplierId);
         return credit.statement(supplierId, from, to);
     }
@@ -152,8 +152,8 @@ class SupplierService {
         return toResponse(s, credit.forSuppliers(List.of(s.id)).get(s.id));
     }
 
-    private static PaymentResponse toResponse(SupplierPayment p) {
-        return new PaymentResponse(p.id, p.amount, p.paidOn, p.method, p.reference, p.notes);
+    private static SupplierPaymentResponse toResponse(SupplierPayment p) {
+        return new SupplierPaymentResponse(p.id, p.amount, p.paidOn, p.method, p.reference, p.notes);
     }
 
     private Supplier find(long id) {
