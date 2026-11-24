@@ -5,6 +5,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ph.thecoffeejunkie.crm.approvals.ApprovalResponse;
+import ph.thecoffeejunkie.crm.approvals.ApprovalType;
+import ph.thecoffeejunkie.crm.approvals.Approvals;
+import ph.thecoffeejunkie.crm.approvals.CreateApprovalRequest;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.catalog.Catalog;
@@ -46,10 +50,12 @@ class PurchaseOrderService {
     private final DocumentCounters counters;
     private final AuditLog audit;
     private final CurrentActor actor;
+    private final CreditQuery credit;
+    private final Approvals approvals;
 
     PurchaseOrderService(PurchaseOrderRepository orders, SupplierRepository suppliers, InventoryPermissions perms,
                          Warehouses warehouses, Catalog catalog, DocumentCounters counters, AuditLog audit,
-                         CurrentActor actor) {
+                         CurrentActor actor, CreditQuery credit, Approvals approvals) {
         this.orders = orders;
         this.suppliers = suppliers;
         this.perms = perms;
@@ -58,6 +64,8 @@ class PurchaseOrderService {
         this.counters = counters;
         this.audit = audit;
         this.actor = actor;
+        this.credit = credit;
+        this.approvals = approvals;
     }
 
     PoResponse createDraft(PoRequest req) {
@@ -85,10 +93,86 @@ class PurchaseOrderService {
     PoResponse cancel(long id) {
         requireAdmin();
         PurchaseOrder po = orders.lockById(id).orElseThrow(PurchaseOrderService::notFound);
+        boolean pending = po.status == PoStatus.PENDING_APPROVAL;
         po.cancel();
+        if (pending && po.approvalRequestId != null) {
+            approvals.cancelForSubject(po.approvalRequestId);
+        }
         orders.saveAndFlush(po);
         audit.record(AuditAction.CANCELLED, ENTITY, id, "Cancelled purchase order " + po.number, null);
         return toResponses(List.of(po)).get(0);
+    }
+
+    PoResponse send(long id) {
+        requireAdmin();
+        PurchaseOrder po = orders.lockById(id).orElseThrow(PurchaseOrderService::notFound);
+        po.requireStatus(PoStatus.DRAFT);
+        if (po.lines.isEmpty()) {
+            throw invalid("lines", "Purchase order " + po.number + " has no lines.");
+        }
+        CreditCheck check = check(po);
+        po.rejectionReason = null;
+        po.updatedAt = Instant.now();
+        if (!check.needsApproval()) {
+            markSent(po);
+            orders.saveAndFlush(po);
+            audit.record(AuditAction.UPDATED, ENTITY, id, "Sent purchase order " + po.number, null);
+            return toResponses(List.of(po)).get(0);
+        }
+        String supplierName = suppliers.findById(po.supplierId).orElseThrow().name;
+        po.status = PoStatus.PENDING_APPROVAL;
+        orders.saveAndFlush(po);
+        // Approvals runs in this transaction (REQUIRED); the PO is saved first so the version is the one the request names.
+        ApprovalResponse ar = approvals.requestOnBehalf(new CreateApprovalRequest(ApprovalType.PO_OVER_CREDIT, ENTITY,
+                po.id, po.version, Map.of("total", po.total(), "over", check.over(), "supplier", supplierName,
+                "number", po.number), "PO " + po.number + " exceeds credit with " + supplierName + " by " + check.over()),
+                actor.scope().userId());
+        po.approvalRequestId = ar.id();
+        orders.saveAndFlush(po);
+        audit.record(AuditAction.UPDATED, ENTITY, id, "Purchase order " + po.number + " sent for approval (over credit)", null);
+        return toResponses(List.of(po)).get(0);
+    }
+
+    @Transactional(readOnly = true)
+    CreditCheck creditCheck(long id) {
+        requireAdmin();
+        return check(orders.findById(id).orElseThrow(PurchaseOrderService::notFound));
+    }
+
+    /** Exposure = balance + committed + this PO total; a draft is not yet in committed. Exactly at the limit is within it. */
+    private CreditCheck check(PurchaseOrder po) {
+        SupplierCredit c = credit.forSuppliers(List.of(po.supplierId)).get(po.supplierId);
+        BigDecimal exposure = c.balance().add(c.committed()).add(po.total());
+        if (c.limit() == null) {
+            return new CreditCheck(exposure, null, BigDecimal.ZERO, false);
+        }
+        BigDecimal over = exposure.subtract(c.limit()).max(BigDecimal.ZERO);
+        return new CreditCheck(exposure, c.limit(), over, over.signum() > 0);
+    }
+
+    private static void markSent(PurchaseOrder po) {
+        po.status = PoStatus.SENT;
+        po.sentAt = Instant.now();
+    }
+
+    /** Approval outcome. Only a PO still waiting changes, so a cancelled or edited one is never resurrected. */
+    void decided(long poId, boolean approved, String reason) {
+        PurchaseOrder po = orders.lockById(poId).orElse(null);
+        if (po == null || po.status != PoStatus.PENDING_APPROVAL) {
+            return;
+        }
+        po.updatedAt = Instant.now();
+        if (approved) {
+            markSent(po);
+            po.rejectionReason = null;
+        } else {
+            po.status = PoStatus.DRAFT;
+            po.rejectionReason = reason;
+            po.approvalRequestId = null;
+        }
+        orders.saveAndFlush(po);
+        audit.record(AuditAction.UPDATED, ENTITY, poId, "Purchase order " + po.number
+                + (approved ? " approved and sent" : " approval rejected; back to draft"), null);
     }
 
     @Transactional(readOnly = true)

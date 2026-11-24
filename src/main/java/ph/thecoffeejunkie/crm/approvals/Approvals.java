@@ -189,6 +189,12 @@ public class Approvals {
         audit.record(AuditAction.APPROVAL_CANCELLED, ENTITY, id, "approval cancelled (subject withdrawn)", null);
     }
 
+    /** The note written when the request was decided; null if none or unknown. For owning modules reacting to {@link ApprovalDecided}. */
+    @Transactional(readOnly = true)
+    public String decisionNote(long id) {
+        return repo.findById(id).map(a -> a.decisionNote).orElse(null);
+    }
+
     /**
      * Admins see everything (or just their own with mine=true); everyone else only their own. subjectType/subjectIds
      * narrow to one record's approvals (the order page, the stock page); null = any.

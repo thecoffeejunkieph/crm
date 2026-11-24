@@ -61,9 +61,9 @@ class PurchaseOrder {
         requireStatus(PoStatus.DRAFT);
     }
 
-    /** From DRAFT or SENT, and only while nothing has been received. */
+    /** From DRAFT, PENDING_APPROVAL or SENT, and only while nothing has been received. */
     void cancel() {
-        requireStatus(PoStatus.DRAFT, PoStatus.SENT);
+        requireStatus(PoStatus.DRAFT, PoStatus.PENDING_APPROVAL, PoStatus.SENT);
         if (lines.stream().anyMatch(l -> l.receivedQty.signum() > 0)) {
             throw new DomainException(ErrorCode.CONFLICT,
                     "Purchase order " + number + " has received stock and cannot be cancelled.");

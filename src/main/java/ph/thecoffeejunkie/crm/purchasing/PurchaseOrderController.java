@@ -47,6 +47,16 @@ class PurchaseOrderController {
         return orders.update(id, req);
     }
 
+    @PostMapping("/{id}/send")
+    PoResponse send(@PathVariable long id) {
+        return orders.send(id);
+    }
+
+    @GetMapping("/{id}/credit-check")
+    CreditCheck creditCheck(@PathVariable long id) {
+        return orders.creditCheck(id);
+    }
+
     @PostMapping("/{id}/cancel")
     PoResponse cancel(@PathVariable long id) {
         return orders.cancel(id);

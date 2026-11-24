@@ -380,7 +380,7 @@
             "type" : "integer"
           },
           "type" : {
-            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF", "INVOICE_VOID", "REFUND" ],
+            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF", "INVOICE_VOID", "REFUND", "PO_OVER_CREDIT" ],
             "type" : "string"
           }
         },
@@ -674,11 +674,28 @@
             "type" : "integer"
           },
           "type" : {
-            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF", "INVOICE_VOID", "REFUND" ],
+            "enum" : [ "DISCOUNT", "BELOW_COST", "CREDIT_LIMIT", "STOCK_WRITE_OFF", "INVOICE_VOID", "REFUND", "PO_OVER_CREDIT" ],
             "type" : "string"
           }
         },
         "required" : [ "reason", "requestedValue", "subjectType", "type" ],
+        "type" : "object"
+      },
+      "CreditCheck" : {
+        "properties" : {
+          "exposure" : {
+            "type" : "number"
+          },
+          "limit" : {
+            "type" : "number"
+          },
+          "needsApproval" : {
+            "type" : "boolean"
+          },
+          "over" : {
+            "type" : "number"
+          }
+        },
         "type" : "object"
       },
       "CsrfToken" : {
@@ -11229,6 +11246,60 @@
     "/api/purchase-orders/{id}/cancel" : {
       "post" : {
         "operationId" : "cancel_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PoResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "purchase-order-controller" ]
+      }
+    },
+    "/api/purchase-orders/{id}/credit-check" : {
+      "get" : {
+        "operationId" : "creditCheck",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CreditCheck"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "purchase-order-controller" ]
+      }
+    },
+    "/api/purchase-orders/{id}/send" : {
+      "post" : {
+        "operationId" : "send",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
