@@ -2,6 +2,6 @@ package ph.thecoffeejunkie.crm.purchasing;
 
 import java.math.BigDecimal;
 
-/** Computed credit position; filled in by the credit service (null on responses until then). */
-record SupplierCredit(BigDecimal balance, BigDecimal committed, BigDecimal available, String flag) {
+/** Computed credit position. {@code available} and {@code flag} are null when there is no limit; flag is OVER, NEAR or null. */
+record SupplierCredit(BigDecimal limit, BigDecimal balance, BigDecimal committed, BigDecimal available, String flag) {
 }

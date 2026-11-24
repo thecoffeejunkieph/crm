@@ -41,7 +41,8 @@ CREATE TABLE purchase_order_line (
   qty numeric(12,3) NOT NULL CHECK (qty > 0),
   unit_cost numeric(14,2) NOT NULL CHECK (unit_cost >= 0),
   received_qty numeric(12,3) NOT NULL DEFAULT 0 CHECK (received_qty >= 0),
-  CHECK (received_qty <= qty));
+  CHECK (received_qty <= qty),
+  UNIQUE (po_id, product_id));
 CREATE INDEX purchase_order_line_po_idx ON purchase_order_line (po_id);
 CREATE INDEX purchase_order_line_product_idx ON purchase_order_line (product_id);
 

@@ -1,8 +1,10 @@
 package ph.thecoffeejunkie.crm.purchasing;
 
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +16,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+
+import java.time.LocalDate;
+import java.util.List;
 
 /** ADMIN only (also gated by SecurityConfig on /api/suppliers/**). */
 @RestController
@@ -48,6 +53,30 @@ class SupplierController {
     @PutMapping("/{id}")
     SupplierResponse update(@PathVariable long id, @Valid @RequestBody SupplierRequest req) {
         return suppliers.update(id, req);
+    }
+
+    @PostMapping("/{id}/payments")
+    @ResponseStatus(HttpStatus.CREATED)
+    PaymentResponse addPayment(@PathVariable long id, @Valid @RequestBody PaymentRequest req) {
+        return suppliers.addPayment(id, req);
+    }
+
+    @GetMapping("/{id}/payments")
+    List<PaymentResponse> payments(@PathVariable long id) {
+        return suppliers.payments(id);
+    }
+
+    @DeleteMapping("/{id}/payments/{paymentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deletePayment(@PathVariable long id, @PathVariable long paymentId) {
+        suppliers.deletePayment(id, paymentId);
+    }
+
+    @GetMapping("/{id}/statement")
+    StatementResponse statement(@PathVariable long id,
+                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return suppliers.statement(id, from, to);
     }
 
     @PostMapping("/{id}/archive")

@@ -160,6 +160,17 @@ class PurchaseOrdersIT {
     }
 
     @Test
+    void sameProductTwiceIs400OnCreateAndUpdate() throws Exception {
+        String dup = "{\"supplierId\":" + supplier + ",\"warehouseId\":" + whA + ",\"lines\":[{\"productId\":" + product + ",\"qty\":1,\"unitCost\":1},"
+                + "{\"productId\":" + product + ",\"qty\":2,\"unitCost\":1}]}";
+        create(admin, dup).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("lines[1].productId"));
+        long id = createPo(whA);
+        mvc.perform(put("/api/purchase-orders/" + id).contentType("application/json").content(dup)
+                .with(csrf(mvc)).with(admin)).andExpect(status().isBadRequest());
+    }
+
+    @Test
     void emptyLinesIs400() throws Exception {
         create(admin, "{\"supplierId\":" + supplier + ",\"lines\":[]}").andExpect(status().isBadRequest());
     }

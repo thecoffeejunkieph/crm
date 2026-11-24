@@ -138,7 +138,11 @@ class PurchaseOrderService {
         long warehouseId = req.warehouseId() == null ? warehouses.defaultId() : req.warehouseId();
         warehouses.get(warehouseId); // 404 for an unknown or archived warehouse
         Map<Long, ProductInfo> products = catalog.info(req.lines().stream().map(PoRequest.Line::productId).toList());
+        Set<Long> seen = new java.util.HashSet<>();
         for (int i = 0; i < req.lines().size(); i++) {
+            if (!seen.add(req.lines().get(i).productId())) {
+                throw invalid("lines[" + i + "].productId", "This product is already on the PO.");
+            }
             ProductInfo p = products.get(req.lines().get(i).productId());
             if (p == null || p.archived()) {
                 throw invalid("lines[" + i + "].productId", p == null ? "Unknown product." : "This product is archived.");
@@ -149,6 +153,7 @@ class PurchaseOrderService {
         po.expectedOn = req.expectedOn();
         po.notes = req.notes();
         po.lines.clear();
+        orders.flush(); // delete the old lines first: UNIQUE (po_id, product_id) would trip on re-inserting the same product
         for (PoRequest.Line l : req.lines()) {
             PurchaseOrderLine line = new PurchaseOrderLine();
             line.po = po;
