@@ -31,6 +31,7 @@ final class PurchasingFixture {
     }
 
     void cleanUp() {
+        jdbc.update("delete from purchase_order where supplier_id in (select id from supplier where code like ?)", inv.tag + "%");
         jdbc.update("delete from supplier where code like ?", inv.tag + "%");
         inv.cleanUp();
     }
