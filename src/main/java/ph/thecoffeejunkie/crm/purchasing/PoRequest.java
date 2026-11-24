@@ -12,8 +12,8 @@ import java.util.List;
 
 /** A null unitCost takes the product's cost; a null warehouseId takes the default warehouse. */
 record PoRequest(@NotNull Long supplierId, Long warehouseId, LocalDate expectedOn, String notes,
-                        @NotEmpty List<@Valid Line> lines) {
+                        @NotEmpty List<@Valid PoLineRequest> lines) {
 
-    record Line(@NotNull Long productId, @NotNull @Positive BigDecimal qty, @PositiveOrZero BigDecimal unitCost) {
+    record PoLineRequest(@NotNull Long productId, @NotNull @Positive BigDecimal qty, @PositiveOrZero BigDecimal unitCost) {
     }
 }

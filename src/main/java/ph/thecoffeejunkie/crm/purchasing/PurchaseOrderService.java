@@ -225,7 +225,7 @@ class PurchaseOrderService {
         }
         long warehouseId = req.warehouseId() == null ? warehouses.defaultId() : req.warehouseId();
         warehouses.get(warehouseId); // 404 for an unknown or archived warehouse
-        Map<Long, ProductInfo> products = catalog.info(req.lines().stream().map(PoRequest.Line::productId).toList());
+        Map<Long, ProductInfo> products = catalog.info(req.lines().stream().map(PoRequest.PoLineRequest::productId).toList());
         Set<Long> seen = new java.util.HashSet<>();
         for (int i = 0; i < req.lines().size(); i++) {
             if (!seen.add(req.lines().get(i).productId())) {
@@ -242,7 +242,7 @@ class PurchaseOrderService {
         po.notes = req.notes();
         po.lines.clear();
         orders.flush(); // delete the old lines first: UNIQUE (po_id, product_id) would trip on re-inserting the same product
-        for (PoRequest.Line l : req.lines()) {
+        for (PoRequest.PoLineRequest l : req.lines()) {
             PurchaseOrderLine line = new PurchaseOrderLine();
             line.po = po;
             line.productId = l.productId();
@@ -267,7 +267,7 @@ class PurchaseOrderService {
                 p.warehouseId, p.status, p.expectedOn, p.notes, p.rejectionReason, p.approvalRequestId, p.sentAt,
                 p.closedShort, p.total(), p.lines.stream().map(l -> {
                     ProductInfo i = products.get(l.productId);
-                    return new PoResponse.LineResponse(l.id, l.productId, i.sku(), i.name(), l.qty, l.unitCost,
+                    return new PoResponse.PoLineResponse(l.id, l.productId, i.sku(), i.name(), l.qty, l.unitCost,
                             l.receivedQty);
                 }).toList(), p.version)).toList();
     }

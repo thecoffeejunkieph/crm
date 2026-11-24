@@ -8,9 +8,9 @@ import java.util.List;
 record PoResponse(long id, String number, long supplierId, String supplierName, long warehouseId,
                          PoStatus status, LocalDate expectedOn, String notes, String rejectionReason,
                          Long approvalRequestId, Instant sentAt, boolean closedShort, BigDecimal total,
-                         List<LineResponse> lines, long version) {
+                         List<PoLineResponse> lines, long version) {
 
-    record LineResponse(long id, long productId, String sku, String name, BigDecimal qty, BigDecimal unitCost,
+    record PoLineResponse(long id, long productId, String sku, String name, BigDecimal qty, BigDecimal unitCost,
                                BigDecimal receivedQty) {
     }
 }

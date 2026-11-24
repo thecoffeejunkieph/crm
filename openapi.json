@@ -1961,18 +1961,28 @@
       },
       "Line" : {
         "properties" : {
-          "productId" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "disposition" : {
+            "enum" : [ "RESTOCK", "DAMAGED" ],
+            "type" : "string"
+          },
+          "orderLineId" : {
             "format" : "int64",
             "type" : "integer"
           },
           "qty" : {
             "type" : "number"
           },
-          "unitCost" : {
-            "type" : "number"
+          "warehouseId" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
-        "required" : [ "productId", "qty" ],
         "type" : "object"
       },
       "LineRequest" : {
@@ -2007,12 +2017,25 @@
       },
       "LineResponse" : {
         "properties" : {
+          "belowCost" : {
+            "type" : "boolean"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "discountPct" : {
+            "type" : "number"
+          },
           "id" : {
             "format" : "int64",
             "type" : "integer"
           },
-          "name" : {
-            "type" : "string"
+          "lineTotal" : {
+            "type" : "number"
+          },
+          "position" : {
+            "format" : "int32",
+            "type" : "integer"
           },
           "productId" : {
             "format" : "int64",
@@ -2021,13 +2044,24 @@
           "qty" : {
             "type" : "number"
           },
-          "receivedQty" : {
+          "reservedQty" : {
+            "type" : "number"
+          },
+          "shortQty" : {
             "type" : "number"
           },
           "sku" : {
             "type" : "string"
           },
-          "unitCost" : {
+          "taxClass" : {
+            "enum" : [ "VATABLE", "VAT_EXEMPT", "ZERO_RATED" ],
+            "type" : "string"
+          },
+          "unit" : {
+            "enum" : [ "PC", "BOX", "PACK", "KG", "G", "L", "ML", "M" ],
+            "type" : "string"
+          },
+          "unitPrice" : {
             "type" : "number"
           }
         },
@@ -3349,6 +3383,50 @@
         "required" : [ "lines" ],
         "type" : "object"
       },
+      "PoLineRequest" : {
+        "properties" : {
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "unitCost" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "productId", "qty" ],
+        "type" : "object"
+      },
+      "PoLineResponse" : {
+        "properties" : {
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "productId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "qty" : {
+            "type" : "number"
+          },
+          "receivedQty" : {
+            "type" : "number"
+          },
+          "sku" : {
+            "type" : "string"
+          },
+          "unitCost" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "PoRequest" : {
         "properties" : {
           "expectedOn" : {
@@ -3357,7 +3435,7 @@
           },
           "lines" : {
             "items" : {
-              "$ref" : "#/components/schemas/Line"
+              "$ref" : "#/components/schemas/PoLineRequest"
             },
             "minItems" : 1,
             "type" : "array"
@@ -3396,7 +3474,7 @@
           },
           "lines" : {
             "items" : {
-              "$ref" : "#/components/schemas/LineResponse"
+              "$ref" : "#/components/schemas/PoLineResponse"
             },
             "type" : "array"
           },
