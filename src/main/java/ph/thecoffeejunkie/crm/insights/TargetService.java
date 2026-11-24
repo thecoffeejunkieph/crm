@@ -168,9 +168,12 @@ class TargetService {
                 + " target for " + m.format(MONTH), null);
     }
 
-    /** Copies into {@code to} only for reps with no row there; returns how many were copied. */
+    record CopyResult(int copied, int categoriesCopied) {
+    }
+
+    /** Copies into {@code to} only the rows (overall and per category) the rep doesn't already have there. */
     @Transactional
-    int copy(YearMonth from, YearMonth to) {
+    CopyResult copy(YearMonth from, YearMonth to) {
         Map<Long, SalesTarget> there = repo.findByMonth(to.atDay(1)).stream()
                 .collect(Collectors.toMap(t -> t.repId, Function.identity()));
         int copied = 0;
@@ -187,10 +190,28 @@ class TargetService {
             repo.save(t);
             copied++;
         }
+        Set<String> thereCat = categoryRepo.findByMonth(to.atDay(1)).stream()
+                .map(t -> t.repId + ":" + t.categoryId).collect(Collectors.toSet());
+        int categoriesCopied = 0;
+        for (SalesCategoryTarget src : categoryRepo.findByMonth(from.atDay(1))) {
+            if (thereCat.contains(src.repId + ":" + src.categoryId)
+                    || !users.isActiveWithRole(src.repId, Role.SALES)
+                    || q.category(src.categoryId).map(InsightsQueries.Category::archived).orElse(true)) {
+                continue;
+            }
+            SalesCategoryTarget t = new SalesCategoryTarget();
+            t.repId = src.repId;
+            t.month = to.atDay(1);
+            t.categoryId = src.categoryId;
+            t.targetAmount = src.targetAmount;
+            t.updatedBy = actor.scope().userId();
+            categoryRepo.save(t);
+            categoriesCopied++;
+        }
         evictDashboardsAfterCommit();
-        audit.record(AuditAction.SALES_TARGET_SET, "SALES_TARGET", null, "Copied " + copied + " targets from "
-                + from.format(MONTH) + " to " + to.format(MONTH), null);
-        return copied;
+        audit.record(AuditAction.SALES_TARGET_SET, "SALES_TARGET", null, "Copied " + copied + " targets and "
+                + categoriesCopied + " category targets from " + from.format(MONTH) + " to " + to.format(MONTH), null);
+        return new CopyResult(copied, categoriesCopied);
     }
 
     /**

@@ -59,7 +59,8 @@ class TargetController {
 
     @PostMapping("/api/insights/targets/copy")
     Map<String, Integer> copy(@RequestParam String from, @RequestParam String to) {
-        return Map.of("copied", targets.copy(InsightsMonth.parseForPlanning(from, clock),
-                InsightsMonth.parseForPlanning(to, clock)));
+        TargetService.CopyResult r = targets.copy(InsightsMonth.parseForPlanning(from, clock),
+                InsightsMonth.parseForPlanning(to, clock));
+        return Map.of("copied", r.copied(), "categoriesCopied", r.categoriesCopied());
     }
 }

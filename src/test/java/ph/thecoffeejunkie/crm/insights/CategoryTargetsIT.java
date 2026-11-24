@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -154,6 +155,30 @@ class CategoryTargetsIT {
     void salesUserIs403() throws Exception {
         mvc.perform(get("/api/insights/targets/" + rep + "/" + now + "/categories").with(as(rep, Role.SALES)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void copyAlsoCopiesCategoryTargets() throws Exception {
+        YearMonth prev = now.minusMonths(1);
+        long archivedCat = f.category("gone");
+        long inactiveRep = f.user("inact", Role.SALES);
+        putCat(rep, prev, coffee, "500.00", null).andExpect(status().isOk());
+        putCat(rep, prev, tea, "700.00", null).andExpect(status().isOk());
+        putCat(rep, prev, archivedCat, "100.00", null).andExpect(status().isOk());
+        putCat(inactiveRep, prev, coffee, "900.00", null).andExpect(status().isOk());
+        f.archiveCategory(archivedCat);
+        jdbc.update("update app_user set archived_at = now() where id = ?", inactiveRep);
+        putCat(rep, now, tea, "50.00", null).andExpect(status().isOk());
+
+        mvc.perform(post("/api/insights/targets/copy").param("from", prev.toString()).param("to", now.toString())
+                        .with(CsrfSupport.csrf(mvc)).with(asAdmin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.categoriesCopied").value(1));
+
+        list().andExpect(jsonPath(row(coffee) + ".targetAmount").value(contains(500.0)))
+                .andExpect(jsonPath(row(tea) + ".targetAmount").value(contains(50.0)));
+        assertThat(jdbc.queryForObject("select count(*) from sales_category_target where month = ? and "
+                + "(category_id = ? or rep_id = ?)", Integer.class, java.sql.Date.valueOf(now.atDay(1)), archivedCat,
+                inactiveRep)).isZero();
     }
 
     @Test
