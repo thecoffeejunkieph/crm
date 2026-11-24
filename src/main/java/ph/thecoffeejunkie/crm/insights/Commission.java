@@ -30,7 +30,7 @@ final class Commission {
         }
         // Clamped: a ₱1 target with millions collected must not fail the whole dashboard.
         return collected.multiply(HUNDRED).divide(target, 0, RoundingMode.FLOOR)
-                .min(BigDecimal.valueOf(Integer.MAX_VALUE)).intValueExact();
+                .min(BigDecimal.valueOf(Integer.MAX_VALUE)).max(BigDecimal.valueOf(Integer.MIN_VALUE)).intValueExact();
     }
 
     /** What is left to reach the target, never negative; null without a target. */

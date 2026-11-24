@@ -55,6 +55,11 @@ class CommissionTest {
     }
 
     @Test
+    void hugeNegativeRatioDoesNotThrow() {
+        assertThat(Commission.progressPct(d("-1000000000000.00"), d("1.00"))).isEqualTo(Integer.MIN_VALUE);
+    }
+
+    @Test
     void progressNotCapped() {
         assertThat(Commission.progressPct(d("15000"), d("10000"))).isEqualTo(150);
     }
