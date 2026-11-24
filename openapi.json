@@ -3501,6 +3501,10 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "warehouseId" : {
             "format" : "int64",
             "type" : "integer"

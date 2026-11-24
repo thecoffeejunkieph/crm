@@ -76,7 +76,8 @@ class SupplierCreditIT {
     @Test
     void balanceIsOpeningPlusReceivedMinusPaid() throws Exception {
         long s = supplier("S1", "5000", "1000");
-        po(s, "PARTIALLY_RECEIVED", "10", "12.50", "4", false);
+        long po = po(s, "PARTIALLY_RECEIVED", "10", "12.50", "4", false);
+        receipt(po, "2026-11-19", "4");
         mvc.perform(post("/api/suppliers/" + s + "/payments").contentType("application/json")
                 .content("{\"amount\":30,\"paidOn\":\"2026-11-20\"}").with(csrf(mvc)).with(admin))
                 .andExpect(status().isCreated());
@@ -203,9 +204,41 @@ class SupplierCreditIT {
                 .andExpect(jsonPath("$.closing").value(595.00));
     }
 
+    @Test
+    void balanceMatchesStatementClosingWithFractionalPartialReceipts() throws Exception {
+        long s = supplier("S12", null, "0");
+        long kg = f.inv.product("KG1", "KG");
+        long id = jdbc.queryForObject("insert into purchase_order (number, supplier_id, warehouse_id, status, closed_short) "
+                + "values (?, ?, ?, 'RECEIVED', false) returning id", Long.class, f.code("PO" + System.nanoTime()), s, wh);
+        jdbc.update("insert into purchase_order_line (po_id, product_id, qty, unit_cost, received_qty) values (?, ?, 1, 33.33, 1)",
+                id, kg);
+        receipt(id, kg, "2026-11-01", "0.333"); // 11.09889 -> 11.10
+        receipt(id, kg, "2026-11-02", "0.667"); // 22.23111 -> 22.23
+        // Per receipt line: 11.10 + 22.23 = 33.33 (rounding the cumulative 1 x 33.33 would also give 33.33)
+        String res = mvc.perform(get("/api/suppliers/" + s + "/statement").with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.closing").value(33.33)).andReturn().getResponse().getContentAsString();
+        BigDecimal closing = new BigDecimal(JsonPath.read(res, "$.closing").toString());
+        assertThat(credit(s).balance()).isEqualByComparingTo(closing);
+        // Second check where per-line and cumulative rounding differ: 0.05 x (0.1 + 0.1)
+        long s2 = supplier("S13", null, "0");
+        long id2 = jdbc.queryForObject("insert into purchase_order (number, supplier_id, warehouse_id, status, closed_short) "
+                + "values (?, ?, ?, 'PARTIALLY_RECEIVED', false) returning id", Long.class, f.code("PO" + System.nanoTime()), s2, wh);
+        jdbc.update("insert into purchase_order_line (po_id, product_id, qty, unit_cost, received_qty) values (?, ?, 1, 0.05, 0.2)",
+                id2, kg);
+        receipt(id2, kg, "2026-11-01", "0.1");
+        receipt(id2, kg, "2026-11-02", "0.1");
+        String res2 = mvc.perform(get("/api/suppliers/" + s2 + "/statement").with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.closing").value(0.02)).andReturn().getResponse().getContentAsString();
+        assertThat(credit(s2).balance()).isEqualByComparingTo(new BigDecimal(JsonPath.read(res2, "$.closing").toString()));
+    }
+
     private void receipt(long poId, String date, String qty) {
+        receipt(poId, product, date, qty);
+    }
+
+    private void receipt(long poId, long productId, String date, String qty) {
         long r = jdbc.queryForObject("insert into stock_receipt (number, warehouse_id, received_on, purchase_order_id) "
                 + "values (?, ?, ?::date, ?) returning id", Long.class, f.code("R" + System.nanoTime()), wh, date, poId);
-        jdbc.update("insert into stock_receipt_line (receipt_id, product_id, qty) values (?, ?, ?)", r, product, new BigDecimal(qty));
+        jdbc.update("insert into stock_receipt_line (receipt_id, product_id, qty) values (?, ?, ?)", r, productId, new BigDecimal(qty));
     }
 }

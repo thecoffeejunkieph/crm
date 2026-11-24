@@ -14,6 +14,7 @@ import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.shared.Role;
 
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -61,6 +62,15 @@ class PurchaseOrdersIT {
                 + (cost == null ? "" : ",\"unitCost\":" + cost) + "}]}";
     }
 
+    private String withVersion(String json, long version) {
+        return json.substring(0, json.length() - 1) + ",\"version\":" + version + "}";
+    }
+
+    private ResultActions update(long id, String json, long version) throws Exception {
+        return mvc.perform(put("/api/purchase-orders/" + id).contentType("application/json")
+                .content(withVersion(json, version)).with(csrf(mvc)).with(admin));
+    }
+
     private ResultActions create(RequestPostProcessor who, String json) throws Exception {
         return mvc.perform(post("/api/purchase-orders").contentType("application/json").content(json)
                 .with(csrf(mvc)).with(who));
@@ -95,12 +105,22 @@ class PurchaseOrdersIT {
     @Test
     void editOnlyInDraft() throws Exception {
         long id = createPo(whA);
-        mvc.perform(put("/api/purchase-orders/" + id).contentType("application/json").content(body(whA, "5", "1.00"))
-                .with(csrf(mvc)).with(admin)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(5.00));
+        update(id, body(whA, "5", "1.00"), 0).andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(5.00)).andExpect(jsonPath("$.version").value(1));
         setStatus(id, "SENT");
-        mvc.perform(put("/api/purchase-orders/" + id).contentType("application/json").content(body(whA, "5", "1.00"))
-                .with(csrf(mvc)).with(admin)).andExpect(status().isConflict());
+        update(id, body(whA, "5", "1.00"), 1).andExpect(status().isConflict());
+    }
+
+    @Test
+    void staleVersionUpdateIs409AndMissingVersionIs400() throws Exception {
+        long id = createPo(whA);
+        update(id, body(whA, "5", "1.00"), 0).andExpect(status().isOk());
+        update(id, body(whA, "7", "1.00"), 0).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+        mvc.perform(put("/api/purchase-orders/" + id).contentType("application/json").content(body(whA, "7", "1.00"))
+                .with(csrf(mvc)).with(admin)).andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("select qty from purchase_order_line where po_id = ?", java.math.BigDecimal.class, id))
+                .isEqualByComparingTo("5");
     }
 
     @Test
@@ -166,8 +186,7 @@ class PurchaseOrdersIT {
         create(admin, dup).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("lines[1].productId"));
         long id = createPo(whA);
-        mvc.perform(put("/api/purchase-orders/" + id).contentType("application/json").content(dup)
-                .with(csrf(mvc)).with(admin)).andExpect(status().isBadRequest());
+        update(id, dup, 0).andExpect(status().isBadRequest());
     }
 
     @Test

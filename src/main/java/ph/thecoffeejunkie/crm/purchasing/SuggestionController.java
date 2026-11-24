@@ -31,6 +31,6 @@ class SuggestionController {
     @PostMapping("/draft")
     @ResponseStatus(HttpStatus.CREATED)
     PoResponse draftFromSuggestions(@Valid @RequestBody DraftFromSuggestionsRequest req) {
-        return orders.createDraft(new PoRequest(req.supplierId(), req.warehouseId(), null, null, req.lines()));
+        return orders.createDraft(new PoRequest(req.supplierId(), req.warehouseId(), null, null, req.lines(), null));
     }
 }

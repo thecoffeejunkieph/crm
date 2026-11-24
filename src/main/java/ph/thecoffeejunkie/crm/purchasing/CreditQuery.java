@@ -33,8 +33,11 @@ class CreditQuery {
             return out;
         }
         jdbc.query("select s.id, s.credit_limit, s.opening_balance"
-                + " + coalesce((select sum(round(l.received_qty * l.unit_cost, 2)) from purchase_order o"
-                + "    join purchase_order_line l on l.po_id = o.id where o.supplier_id = s.id and o.status <> 'CANCELLED'), 0)"
+                // Received value per receipt line, the same expression as statement(), so balance == statement closing.
+                + " + coalesce((select sum(round(rl.qty * pl.unit_cost, 2)) from stock_receipt r"
+                + "    join purchase_order o on o.id = r.purchase_order_id join stock_receipt_line rl on rl.receipt_id = r.id"
+                + "    join purchase_order_line pl on pl.po_id = o.id and pl.product_id = rl.product_id"
+                + "    where o.supplier_id = s.id), 0)"
                 + " - coalesce((select sum(p.amount) from supplier_payment p where p.supplier_id = s.id), 0) balance,"
                 + " coalesce((select sum(round((l.qty - l.received_qty) * l.unit_cost, 2)) from purchase_order o"
                 + "    join purchase_order_line l on l.po_id = o.id where o.supplier_id = s.id and not o.closed_short"

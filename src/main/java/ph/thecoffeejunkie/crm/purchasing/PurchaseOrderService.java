@@ -89,6 +89,14 @@ class PurchaseOrderService {
     PoResponse update(long id, PoRequest req) {
         requireAdmin();
         PurchaseOrder po = orders.lockById(id).orElseThrow(PurchaseOrderService::notFound);
+        if (req.version() == null) {
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "version is required",
+                    Map.of("errors", List.of(Map.of("field", "version", "message", "must not be null"))));
+        }
+        if (po.version != req.version()) {
+            throw new DomainException(ErrorCode.STALE_VERSION,
+                    "This record was changed by someone else. Reload and retry.");
+        }
         po.requireEditable();
         apply(po, req);
         po.updatedAt = Instant.now();
