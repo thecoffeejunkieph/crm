@@ -42,6 +42,8 @@ class PurchaseOrderDocument {
         this.renderer = renderer;
     }
 
+    // ponytail: renders inside the readOnly tx, so each queued render holds a DB connection while waiting on
+    // PdfRenderer's single browser lock; upgrade path = load the model in the tx and render after it.
     @Transactional(readOnly = true)
     byte[] pdf(long poId) {
         return renderer.render("purchase-order", model(orders.documentFor(poId)));
@@ -83,11 +85,11 @@ class PurchaseOrderDocument {
                 "total", po.total());
     }
 
-    /** "50% downpayment ₱X (paid ₱Y) · balance on 30-day credit"; empty when the supplier has neither term. */
+    /** "50% downpayment PHP X (paid PHP Y) · balance on 30-day credit"; empty when the supplier has neither term. */
     static String terms(Supplier s, PurchaseOrderService.Downpayment dp) {
         List<String> parts = new ArrayList<>();
         if (s.downpaymentPercent.signum() > 0) {
-            parts.add(String.format(Locale.US, "%s%% downpayment ₱%,.2f (paid ₱%,.2f)",
+            parts.add(String.format(Locale.US, "%s%% downpayment PHP %,.2f (paid PHP %,.2f)",
                     s.downpaymentPercent.stripTrailingZeros().toPlainString(), dp.required(), dp.paid()));
         }
         if (s.paymentTermsDays != null) {

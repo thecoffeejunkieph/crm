@@ -106,6 +106,10 @@ class PurchaseOrderService {
                     "This record was changed by someone else. Reload and retry.");
         }
         po.requireEditable();
+        if (req.supplierId() != null && req.supplierId() != po.supplierId && payments.sumByPurchaseOrderId(po.id).signum() > 0) {
+            throw invalid("supplierId", po.number + " has a downpayment recorded with "
+                    + suppliers.findById(po.supplierId).orElseThrow().name + "; delete it before changing supplier.");
+        }
         apply(po, req);
         po.updatedAt = Instant.now();
         orders.saveAndFlush(po);

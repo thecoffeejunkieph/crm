@@ -98,7 +98,8 @@ class PurchaseOrderDocumentIT {
         try (var doc = Loader.loadPDF(pdf)) {
             text = new PDFTextStripper().getText(doc);
         }
-        assertThat(text).contains(number(id), "Supplier S1", "50% downpayment", "balance on 30-day credit", "DRAFT");
+        assertThat(text).contains(number(id), "Supplier S1", "DRAFT");
+        assertThat(text.replaceAll("\s+", " ")).contains("50% downpayment PHP 50.00 (paid PHP 0.00) · balance on 30-day credit");
         sample("sample-po.pdf", pdf);
     }
 

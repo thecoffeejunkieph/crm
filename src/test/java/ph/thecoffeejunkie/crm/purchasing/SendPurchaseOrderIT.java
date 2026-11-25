@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
@@ -221,6 +222,20 @@ class SendPurchaseOrderIT {
                 .andExpect(jsonPath("$.downpaymentPaid").value(500.00));
         mvc.perform(get("/api/suppliers/" + d[1]).with(admin)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.credit.available").value(2499500.00));
+    }
+
+    @Test
+    void supplierCannotChangeOnceDownpaymentRecorded() throws Exception {
+        long[] d = draftWithTerm("50", "10", "100.00");
+        pay(d[1], d[0], "500");
+        long other = f.supplier("O" + System.nanoTime(), new BigDecimal("2500000"));
+        String json = "{\"supplierId\":" + other + ",\"warehouseId\":" + wh + ",\"version\":0,\"lines\":[{\"productId\":"
+                + product + ",\"qty\":10,\"unitCost\":100.00}]}";
+        mvc.perform(put("/api/purchase-orders/" + d[0]).contentType("application/json").content(json)
+                .with(csrf(mvc)).with(admin)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("supplierId"));
+        assertThat(jdbc.queryForObject("select supplier_id from purchase_order where id = ?", Long.class, d[0]))
+                .isEqualTo(d[1]);
     }
 
     @Test
