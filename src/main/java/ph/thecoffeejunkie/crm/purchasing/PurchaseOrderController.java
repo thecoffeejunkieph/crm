@@ -1,7 +1,11 @@
 package ph.thecoffeejunkie.crm.purchasing;
 
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,9 +24,11 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 class PurchaseOrderController {
 
     private final PurchaseOrderService orders;
+    private final PurchaseOrderDocument document;
 
-    PurchaseOrderController(PurchaseOrderService orders) {
+    PurchaseOrderController(PurchaseOrderService orders, PurchaseOrderDocument document) {
         this.orders = orders;
+        this.document = document;
     }
 
     @GetMapping
@@ -34,6 +40,24 @@ class PurchaseOrderController {
     @GetMapping("/{id}")
     PoResponse getPurchaseOrder(@PathVariable long id) {
         return orders.get(id);
+    }
+
+    @GetMapping("/{id}.pdf")
+    ResponseEntity<byte[]> getPurchaseOrderPdf(@PathVariable long id, @RequestParam(defaultValue = "false") boolean download) {
+        String number = orders.get(id).number(); // scope check first: out of scope is 404 before any rendering
+        return file(number + ".pdf", MediaType.APPLICATION_PDF, download, document.pdf(id));
+    }
+
+    @GetMapping("/{id}.png")
+    ResponseEntity<byte[]> getPurchaseOrderPng(@PathVariable long id, @RequestParam(defaultValue = "false") boolean download) {
+        String number = orders.get(id).number();
+        return file(number + ".png", MediaType.IMAGE_PNG, download, document.png(id));
+    }
+
+    private static ResponseEntity<byte[]> file(String filename, MediaType type, boolean download, byte[] bytes) {
+        var disposition = (download ? ContentDisposition.attachment() : ContentDisposition.inline()).filename(filename);
+        return ResponseEntity.ok().contentType(type)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.build().toString()).body(bytes);
     }
 
     @PostMapping

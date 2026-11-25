@@ -267,6 +267,12 @@ class PurchaseOrderService {
         return toResponses(List.of(po)).get(0);
     }
 
+    /** The PO for its document, with the same read scope as {@link #get}: out of scope is 404. */
+    @Transactional(readOnly = true)
+    PurchaseOrder documentFor(long id) {
+        return orders.findById(id).filter(x -> perms.canRead(x.warehouseId)).orElseThrow(PurchaseOrderService::notFound);
+    }
+
     @Transactional(readOnly = true)
     PageResponse<PoResponse> list(PoStatus status, Long supplierId, PageQuery page) {
         Scope scope = actor.scope();
