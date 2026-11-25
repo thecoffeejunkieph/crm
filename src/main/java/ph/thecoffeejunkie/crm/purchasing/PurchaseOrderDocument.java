@@ -24,15 +24,17 @@ class PurchaseOrderDocument {
     private static final ZoneId MANILA = ZoneId.of("Asia/Manila");
 
     private final PurchaseOrderService orders;
+    private final PurchaseOrderRepository poRepo;
     private final SupplierRepository suppliers;
     private final Catalog catalog;
     private final Warehouses warehouses;
     private final Settings settings;
     private final PdfRenderer renderer;
 
-    PurchaseOrderDocument(PurchaseOrderService orders, SupplierRepository suppliers, Catalog catalog,
+    PurchaseOrderDocument(PurchaseOrderService orders, PurchaseOrderRepository poRepo, SupplierRepository suppliers, Catalog catalog,
                           Warehouses warehouses, Settings settings, PdfRenderer renderer) {
         this.orders = orders;
+        this.poRepo = poRepo;
         this.suppliers = suppliers;
         this.catalog = catalog;
         this.warehouses = warehouses;
@@ -42,16 +44,21 @@ class PurchaseOrderDocument {
 
     @Transactional(readOnly = true)
     byte[] pdf(long poId) {
-        return renderer.render("purchase-order", model(poId));
+        return renderer.render("purchase-order", model(orders.documentFor(poId)));
+    }
+
+    /** For the supplier mail, rendered off-thread after commit: no request principal there, so no read-scope check. */
+    @Transactional(readOnly = true)
+    byte[] mailPdf(long poId) {
+        return renderer.render("purchase-order", model(poRepo.findById(poId).orElseThrow()));
     }
 
     @Transactional(readOnly = true)
     byte[] png(long poId) {
-        return renderer.renderPng("purchase-order", model(poId));
+        return renderer.renderPng("purchase-order", model(orders.documentFor(poId)));
     }
 
-    private Map<String, Object> model(long poId) {
-        PurchaseOrder po = orders.documentFor(poId);
+    private Map<String, Object> model(PurchaseOrder po) {
         Supplier s = suppliers.findById(po.supplierId).orElseThrow();
         Map<Long, ProductInfo> products = catalog.info(po.lines.stream().map(l -> l.productId).toList());
         return PdfRenderer.vars(

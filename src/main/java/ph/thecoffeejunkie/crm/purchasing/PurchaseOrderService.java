@@ -59,11 +59,16 @@ class PurchaseOrderService {
     private final Approvals approvals;
     private final Inventory inventory;
     private final SupplierPaymentRepository payments;
+    private final PurchasingMailer mailer;
+    private final PurchaseOrderDocument document;
 
     PurchaseOrderService(PurchaseOrderRepository orders, SupplierRepository suppliers, InventoryPermissions perms,
                          Warehouses warehouses, Catalog catalog, DocumentCounters counters, AuditLog audit,
                          CurrentActor actor, CreditQuery credit, Approvals approvals, Inventory inventory,
-                         SupplierPaymentRepository payments) {
+                         SupplierPaymentRepository payments, PurchasingMailer mailer,
+                         @org.springframework.context.annotation.Lazy PurchaseOrderDocument document) {
+        this.mailer = mailer;
+        this.document = document;
         this.payments = payments;
         this.inventory = inventory;
         this.orders = orders;
@@ -144,6 +149,7 @@ class PurchaseOrderService {
             markSent(po);
             orders.saveAndFlush(po);
             audit.record(AuditAction.UPDATED, ENTITY, id, "Sent purchase order " + po.number, null);
+            emailSupplier(po);
             return toResponses(List.of(po)).get(0);
         }
         String supplierName = supplier.name;
@@ -218,6 +224,27 @@ class PurchaseOrderService {
         return toResponses(List.of(po)).get(0);
     }
 
+    /** Re-emails a PO the supplier already has; empty when the supplier has no email. */
+    PoResendResponse resend(long id) {
+        requireAdmin();
+        PurchaseOrder po = orders.findById(id).orElseThrow(PurchaseOrderService::notFound);
+        po.requireStatus(PoStatus.SENT, PoStatus.PARTIALLY_RECEIVED);
+        return new PoResendResponse(emailSupplier(po));
+    }
+
+    /** Mails the PO PDF to the supplier after commit (rendered off-thread). Blank email: nothing sent, returns []. */
+    private List<String> emailSupplier(PurchaseOrder po) {
+        Supplier s = suppliers.findById(po.supplierId).orElseThrow();
+        if (s.email == null || s.email.isBlank()) {
+            return List.of();
+        }
+        List<String> to = List.of(s.email.trim());
+        long id = po.id;
+        mailer.poAfterCommit(to, po.number, s.name, () -> document.mailPdf(id));
+        to.forEach(a -> audit.record(AuditAction.PO_SENT, ENTITY, id, "Sent PO " + po.number + " to " + a, null));
+        return to;
+    }
+
     @Transactional(readOnly = true)
     CreditCheck creditCheck(long id) {
         requireAdmin();
@@ -258,6 +285,9 @@ class PurchaseOrderService {
         orders.saveAndFlush(po);
         audit.record(AuditAction.UPDATED, ENTITY, poId, "Purchase order " + po.number
                 + (approved ? " approved and sent" : " approval rejected; back to draft"), null);
+        if (approved) {
+            emailSupplier(po);
+        }
     }
 
     @Transactional(readOnly = true)

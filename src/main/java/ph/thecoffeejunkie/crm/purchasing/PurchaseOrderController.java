@@ -76,6 +76,11 @@ class PurchaseOrderController {
         return orders.send(id);
     }
 
+    @PostMapping("/{id}/resend")
+    PoResendResponse resendPurchaseOrder(@PathVariable long id) {
+        return orders.resend(id);
+    }
+
     @GetMapping("/{id}/credit-check")
     CreditCheck purchaseOrderCreditCheck(@PathVariable long id) {
         return orders.creditCheck(id);
