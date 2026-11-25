@@ -73,7 +73,8 @@ class CreditQuery {
                 + "  join purchase_order_line pl on pl.po_id = o.id and pl.product_id = rl.product_id"
                 + "  where o.supplier_id = :id group by r.id, r.received_on, r.number"
                 + " union all"
-                + " select p.paid_on, 1, p.id, 'PAYMENT', p.reference, -p.amount from supplier_payment p where p.supplier_id = :id"
+                + " select p.paid_on, 1, p.id, 'PAYMENT', case when po.id is null then p.reference else 'Downpayment – ' || po.number end, -p.amount"
+                + " from supplier_payment p left join purchase_order po on po.id = p.purchase_order_id where p.supplier_id = :id"
                 + ") e order by d, ord, id", Map.of("id", supplierId), rs -> {
                     all.add(new SupplierStatementResponse.SupplierStatementEntry(rs.getObject("d", LocalDate.class), rs.getString("kind"),
                             rs.getString("ref"), rs.getBigDecimal("amt"), null));

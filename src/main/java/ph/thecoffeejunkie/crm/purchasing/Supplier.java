@@ -27,6 +27,7 @@ class Supplier {
     Integer leadTimeDays;
     BigDecimal creditLimit;
     BigDecimal openingBalance = BigDecimal.ZERO;
+    BigDecimal downpaymentPercent = BigDecimal.ZERO;
     String notes;
     Instant archivedAt;
     Instant createdAt = Instant.now();

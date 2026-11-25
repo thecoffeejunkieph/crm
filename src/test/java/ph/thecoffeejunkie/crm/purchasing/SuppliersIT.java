@@ -84,6 +84,20 @@ class SuppliersIT {
     }
 
     @Test
+    void downpaymentPercentRoundTrips() throws Exception {
+        String res = mvc.perform(post("/api/suppliers").contentType("application/json")
+                .content("{\"code\":\"" + f.code("DP") + "\",\"name\":\"Acme\",\"downpaymentPercent\":50}")
+                .with(csrf(mvc)).with(admin)).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.downpaymentPercent").value(50.00)).andReturn().getResponse().getContentAsString();
+        int id = com.jayway.jsonpath.JsonPath.read(res, "$.id");
+        mvc.perform(get("/api/suppliers/" + id).with(admin)).andExpect(jsonPath("$.downpaymentPercent").value(50.00));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/suppliers/" + id)
+                .contentType("application/json")
+                .content("{\"code\":\"" + f.code("DP") + "\",\"name\":\"Acme\",\"downpaymentPercent\":101,\"version\":0}")
+                .with(csrf(mvc)).with(admin)).andExpect(status().isBadRequest());
+    }
+
+    @Test
     void salesAndWarehouseGet403() throws Exception {
         mvc.perform(get("/api/suppliers").with(sales)).andExpect(status().isForbidden());
         mvc.perform(get("/api/suppliers").with(warehouse)).andExpect(status().isForbidden());

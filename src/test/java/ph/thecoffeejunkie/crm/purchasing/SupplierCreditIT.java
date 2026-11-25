@@ -146,6 +146,33 @@ class SupplierCreditIT {
         assertThat(credit(s).balance()).isEqualByComparingTo("970.00");
     }
 
+    private org.springframework.test.web.servlet.ResultActions payLinked(long s, long po) throws Exception {
+        return mvc.perform(post("/api/suppliers/" + s + "/payments").contentType("application/json")
+                .content("{\"amount\":500,\"paidOn\":\"2026-11-20\",\"purchaseOrderId\":" + po + "}")
+                .with(csrf(mvc)).with(admin));
+    }
+
+    @Test
+    void paymentLinkedToPoShowsOnStatement() throws Exception {
+        long s = supplier("S20", null, "0");
+        long po = po(s, "SENT", "10", "100", "0", false);
+        String number = jdbc.queryForObject("select number from purchase_order where id = ?", String.class, po);
+        payLinked(s, po).andExpect(status().isCreated()).andExpect(jsonPath("$.purchaseOrderId").value(po))
+                .andExpect(jsonPath("$.purchaseOrderNumber").value(number));
+        mvc.perform(get("/api/suppliers/" + s + "/statement").with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries[0].reference").value("Downpayment – " + number));
+        assertThat(jdbc.queryForObject("select coalesce(sum(amount),0) from supplier_payment where purchase_order_id = ?",
+                BigDecimal.class, po)).isEqualByComparingTo("500");
+    }
+
+    @Test
+    void paymentLinkRejectsOtherSupplierAndCancelledPo() throws Exception {
+        long s = supplier("S21", null, "0");
+        long other = supplier("S22", null, "0");
+        payLinked(s, po(other, "SENT", "1", "1", "0", false)).andExpect(status().isBadRequest());
+        payLinked(s, po(s, "CANCELLED", "1", "1", "0", false)).andExpect(status().isBadRequest());
+    }
+
     @Test
     void paymentDeleteIsAudited() throws Exception {
         long s = supplier("S9", null, "100");

@@ -38,9 +38,11 @@ class SupplierService {
     private final CreditQuery credit;
     private final SupplierPaymentRepository payments;
     private final CurrentActor actor;
+    private final PurchaseOrderRepository orders;
 
     SupplierService(SupplierRepository repo, AuditLog audit, CreditQuery credit, SupplierPaymentRepository payments,
-                    CurrentActor actor) {
+                    CurrentActor actor, PurchaseOrderRepository orders) {
+        this.orders = orders;
         this.repo = repo;
         this.audit = audit;
         this.credit = credit;
@@ -89,7 +91,8 @@ class SupplierService {
                 .field("paymentTermsDays", s.paymentTermsDays, req.paymentTermsDays())
                 .field("leadTimeDays", s.leadTimeDays, req.leadTimeDays())
                 .field("creditLimit", money(s.creditLimit), money(req.creditLimit()))
-                .field("openingBalance", money(s.openingBalance), money(req.openingBalance()));
+                .field("openingBalance", money(s.openingBalance), money(req.openingBalance()))
+                .field("downpaymentPercent", money(s.downpaymentPercent), money(req.downpaymentPercent() == null ? BigDecimal.ZERO : req.downpaymentPercent()));
         apply(s, req);
         s.updatedAt = Instant.now();
         save(s);
@@ -112,8 +115,18 @@ class SupplierService {
     @Transactional
     SupplierPaymentResponse addPayment(long supplierId, SupplierPaymentRequest req) {
         Supplier s = find(supplierId);
+        PurchaseOrder po = null;
+        if (req.purchaseOrderId() != null) {
+            po = orders.findById(req.purchaseOrderId()).orElse(null);
+            if (po == null || po.supplierId != supplierId || po.status == PoStatus.CANCELLED) {
+                throw new DomainException(ErrorCode.VALIDATION_FAILED, "Not an open purchase order of this supplier.",
+                        Map.of("errors", List.of(Map.of("field", "purchaseOrderId",
+                                "message", "Not an open purchase order of this supplier."))));
+            }
+        }
         SupplierPayment p = new SupplierPayment();
         p.supplierId = supplierId;
+        p.purchaseOrderId = req.purchaseOrderId();
         p.amount = req.amount().setScale(2, RoundingMode.HALF_UP);
         p.paidOn = req.paidOn();
         p.method = req.method();
@@ -123,13 +136,13 @@ class SupplierService {
         payments.saveAndFlush(p);
         audit.record(AuditAction.PAYMENT_RECORDED, PAYMENT_ENTITY, p.id,
                 "Recorded payment of " + p.amount + " to supplier " + s.code, null);
-        return toResponse(p);
+        return toResponse(p, po == null ? null : po.number);
     }
 
     @Transactional(readOnly = true)
     List<SupplierPaymentResponse> payments(long supplierId) {
         find(supplierId);
-        return payments.findBySupplierIdOrderByPaidOnDescIdDesc(supplierId).stream().map(SupplierService::toResponse).toList();
+        return payments.findBySupplierIdOrderByPaidOnDescIdDesc(supplierId).stream().map(this::toResponse).toList();
     }
 
     @Transactional
@@ -152,8 +165,14 @@ class SupplierService {
         return toResponse(s, credit.forSuppliers(List.of(s.id)).get(s.id));
     }
 
-    private static SupplierPaymentResponse toResponse(SupplierPayment p) {
-        return new SupplierPaymentResponse(p.id, p.amount, p.paidOn, p.method, p.reference, p.notes);
+    private SupplierPaymentResponse toResponse(SupplierPayment p) {
+        return toResponse(p, p.purchaseOrderId == null ? null
+                : orders.findById(p.purchaseOrderId).map(o -> o.number).orElse(null));
+    }
+
+    private static SupplierPaymentResponse toResponse(SupplierPayment p, String poNumber) {
+        return new SupplierPaymentResponse(p.id, p.amount, p.paidOn, p.method, p.reference, p.notes,
+                p.purchaseOrderId, poNumber);
     }
 
     private Supplier find(long id) {
@@ -180,6 +199,7 @@ class SupplierService {
         s.leadTimeDays = r.leadTimeDays();
         s.creditLimit = r.creditLimit();
         s.openingBalance = r.openingBalance() == null ? BigDecimal.ZERO : r.openingBalance();
+        s.downpaymentPercent = r.downpaymentPercent() == null ? BigDecimal.ZERO : r.downpaymentPercent();
         s.notes = r.notes();
     }
 
@@ -199,7 +219,7 @@ class SupplierService {
 
     private static SupplierResponse toResponse(Supplier s, SupplierCredit credit) {
         return new SupplierResponse(s.id, s.code, s.name, s.contactName, s.phone, s.email, s.address,
-                s.paymentTermsDays, s.leadTimeDays, s.creditLimit, s.openingBalance, s.notes, s.archivedAt != null,
+                s.paymentTermsDays, s.leadTimeDays, s.creditLimit, s.openingBalance, s.downpaymentPercent, s.notes, s.archivedAt != null,
                 credit, s.version);
     }
 }

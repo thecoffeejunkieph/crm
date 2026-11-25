@@ -1,5 +1,7 @@
 package ph.thecoffeejunkie.crm.purchasing;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -13,5 +15,6 @@ record SupplierRequest(@NotBlank @Size(max = 64) String code, @NotBlank @Size(ma
                        @PositiveOrZero Integer paymentTermsDays, @PositiveOrZero Integer leadTimeDays,
                        @PositiveOrZero @Digits(integer = 12, fraction = 2) BigDecimal creditLimit,
                        @PositiveOrZero @Digits(integer = 12, fraction = 2) BigDecimal openingBalance,
+                       @DecimalMin("0") @DecimalMax("100") @Digits(integer = 3, fraction = 2) BigDecimal downpaymentPercent,
                        String notes, Long version) {
 }

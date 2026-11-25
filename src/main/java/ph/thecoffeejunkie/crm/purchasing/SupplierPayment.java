@@ -18,6 +18,7 @@ class SupplierPayment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
     Long supplierId;
+    Long purchaseOrderId;
     BigDecimal amount;
     LocalDate paidOn;
     String method;

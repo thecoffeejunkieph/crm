@@ -9,5 +9,5 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 record SupplierPaymentRequest(@NotNull @Positive @Digits(integer = 12, fraction = 2) BigDecimal amount, @NotNull LocalDate paidOn, @Size(max = 50) String method, @Size(max = 100) String reference,
-                              @Size(max = 1000) String notes) {
+                              @Size(max = 1000) String notes, Long purchaseOrderId) {
 }
