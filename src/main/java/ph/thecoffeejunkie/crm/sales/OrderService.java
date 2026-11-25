@@ -496,7 +496,7 @@ class OrderService {
         o.releasedAt = Instant.now();
         save(o, o.releasedAt);
         fulfilment.create(new DeliveryRequest(o.id, o.number, OrderStockMapper.rep(o), o.shipFromWarehouseId,
-                o.deliveryMethod, c.displayName(), o.shipTo != null ? o.shipTo
+                o.deliveryMethod, c.preferredShipping(), c.displayName(), o.shipTo != null ? o.shipTo
                         : addresses.defaultAddress(o.customerId).orElse(c.address()), o.lines.stream().map(l ->
                         new DeliveryRequest.DeliveryLine(l.id, l.productId, l.description, l.unit, l.qty)).toList()));
         audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number, null);

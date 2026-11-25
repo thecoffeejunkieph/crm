@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.fulfilment;
 
+import ph.thecoffeejunkie.crm.shared.ShippingMethod;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +41,11 @@ class DeliveryOrderController {
     @PostMapping("/api/delivery-orders/{id}/pick")
     DeliveryOrderResponse pick(@PathVariable long id, @Valid @RequestBody PickRequest req) {
         return deliveries.pick(id, req);
+    }
+
+    @PostMapping("/api/delivery-orders/{id}/shipping-method")
+    DeliveryOrderResponse setShippingMethod(@PathVariable long id, @RequestBody ShippingMethodRequest req) {
+        return deliveries.setShippingMethod(id, req.shippingMethod());
     }
 
     @PostMapping("/api/delivery-orders/{id}/dispatch")

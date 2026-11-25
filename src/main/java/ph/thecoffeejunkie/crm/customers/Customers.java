@@ -123,7 +123,8 @@ public class Customers {
                 .field("taxTreatment", c.taxTreatment, req.taxTreatment())
                 .field("sourceId", c.sourceId, req.sourceId())
                 .field("notes", c.notes, req.notes())
-                .field("socialMedia", c.socialMedia, req.socialMedia());
+                .field("socialMedia", c.socialMedia, req.socialMedia())
+                .field("preferredShipping", c.preferredShipping, req.preferredShipping());
         apply(c, req);
         c.updatedAt = Instant.now();
         repo.saveAndFlush(c);
@@ -424,7 +425,7 @@ public class Customers {
 
     private static CustomerSalesProfile toSalesProfile(Customer c) {
         return new CustomerSalesProfile(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.creditLimit,
-                c.paymentTerms, c.taxTreatment, c.assignedRepId, c.archivedAt != null, c.email);
+                c.paymentTerms, c.taxTreatment, c.assignedRepId, c.archivedAt != null, c.email, c.preferredShipping);
     }
 
     private Customer findVisible(long id, Scope s, boolean includeArchived) {
@@ -490,6 +491,7 @@ public class Customers {
         c.sourceId = r.sourceId();
         c.notes = r.notes();
         c.socialMedia = r.socialMedia();
+        c.preferredShipping = r.preferredShipping();
         if (c.id != null) {
             c.creditLimit = r.creditLimit();
         }
@@ -527,7 +529,7 @@ public class Customers {
                 .map(Customers::toResponse).toList();
         String rep = c.assignedRepId == null ? null : repNames(List.of(c.assignedRepId)).get(c.assignedRepId);
         return new CustomerResponse(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.phone, c.email,
-                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.sourceId, leadSources.name(c.sourceId), c.notes, c.socialMedia, c.convertedFromLeadId, cs, c.archivedAt, c.version);
+                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.sourceId, leadSources.name(c.sourceId), c.notes, c.socialMedia, c.convertedFromLeadId, cs, c.preferredShipping, c.archivedAt, c.version);
     }
 
     private static ContactResponse toResponse(CustomerContact k) {

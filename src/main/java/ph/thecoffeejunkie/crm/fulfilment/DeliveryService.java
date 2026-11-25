@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.fulfilment;
 
+import ph.thecoffeejunkie.crm.shared.ShippingMethod;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
+import ph.thecoffeejunkie.crm.audit.AuditChanges;
 import ph.thecoffeejunkie.crm.audit.AuditLog;
 import ph.thecoffeejunkie.crm.catalog.Catalog;
 import ph.thecoffeejunkie.crm.catalog.ProductInfo;
@@ -147,6 +149,21 @@ class DeliveryService {
         return toResponse(d);
     }
 
+    /** The customer may ask for another courier any time before it is delivered. */
+    DeliveryOrderResponse setShippingMethod(long id, ShippingMethod method) {
+        DeliveryOrder d = lock(id);
+        if (d.status == DeliveryStatus.DELIVERED || d.status == DeliveryStatus.CANCELLED) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "This delivery order can no longer be changed.");
+        }
+        if (d.shippingMethod != method) {
+            audit.record(AuditAction.UPDATED, ENTITY, d.id, "Changed shipping method on " + d.number,
+                    AuditChanges.diff().field("shippingMethod", d.shippingMethod, method));
+            d.shippingMethod = method;
+            d.updatedAt = Instant.now();
+        }
+        return toResponse(d);
+    }
+
     DeliveryOrderResponse dispatch(long id) {
         DeliveryOrder d = lock(id);
         if (d.status != DeliveryStatus.PICKING || d.method != DeliveryMethod.DELIVERY) {
@@ -249,7 +266,7 @@ class DeliveryService {
     private List<DeliveryOrderResponse> toResponses(Collection<DeliveryOrder> ds) {
         Map<Long, ProductInfo> products = catalog.info(ds.stream().flatMap(d -> d.lines.stream())
                 .map(l -> l.productId).toList());
-        return ds.stream().map(d -> new DeliveryOrderResponse(d.id, d.number, d.status, d.method, d.salesOrderId,
+        return ds.stream().map(d -> new DeliveryOrderResponse(d.id, d.number, d.status, d.method, d.shippingMethod, d.salesOrderId,
                 d.orderNumber, d.warehouseId, d.customerName, d.shipTo, d.createdAt, d.dispatchedAt, d.deliveredAt,
                 d.receiverName, proofUrls(d), canAct(d), d.lines.stream().map(l ->
                         new DeliveryOrderResponse.DeliveryLineResponse(l.id, l.orderLineId, l.productId,

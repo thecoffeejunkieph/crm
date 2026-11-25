@@ -811,6 +811,10 @@
           "phone" : {
             "type" : "string"
           },
+          "preferredShipping" : {
+            "enum" : [ "LALAMOVE", "CAPEX", "AP_CARGO", "MORETA_SHIPPING_LINES", "DROP_AND_GO", "SELF_PICKUP" ],
+            "type" : "string"
+          },
           "socialMedia" : {
             "maxLength" : 1000,
             "minLength" : 0,
@@ -889,6 +893,10 @@
             "type" : "string"
           },
           "phone" : {
+            "type" : "string"
+          },
+          "preferredShipping" : {
+            "enum" : [ "LALAMOVE", "CAPEX", "AP_CARGO", "MORETA_SHIPPING_LINES", "DROP_AND_GO", "SELF_PICKUP" ],
             "type" : "string"
           },
           "socialMedia" : {
@@ -1223,6 +1231,10 @@
             "type" : "integer"
           },
           "shipTo" : {
+            "type" : "string"
+          },
+          "shippingMethod" : {
+            "enum" : [ "LALAMOVE", "CAPEX", "AP_CARGO", "MORETA_SHIPPING_LINES", "DROP_AND_GO", "SELF_PICKUP" ],
             "type" : "string"
           },
           "status" : {
@@ -4718,6 +4730,15 @@
         },
         "type" : "object"
       },
+      "ShippingMethodRequest" : {
+        "properties" : {
+          "shippingMethod" : {
+            "enum" : [ "LALAMOVE", "CAPEX", "AP_CARGO", "MORETA_SHIPPING_LINES", "DROP_AND_GO", "SELF_PICKUP" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "SseEmitter" : {
         "properties" : {
           "timeout" : {
@@ -4875,6 +4896,21 @@
           },
           "limit" : {
             "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "SupplierOption" : {
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -7573,6 +7609,43 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/PickRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryOrderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "delivery-order-controller" ]
+      }
+    },
+    "/api/delivery-orders/{id}/shipping-method" : {
+      "post" : {
+        "operationId" : "setShippingMethod",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ShippingMethodRequest"
               }
             }
           },
@@ -12350,6 +12423,35 @@
           }
         },
         "tags" : [ "stock-controller" ]
+      }
+    },
+    "/api/supplier-options" : {
+      "get" : {
+        "operationId" : "supplierOptions",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/SupplierOption"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "supplier-option-controller" ]
       }
     },
     "/api/suppliers" : {

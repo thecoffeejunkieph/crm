@@ -75,6 +75,7 @@ class SecurityConfig {
                                     "/api/insights/targets/**", "/api/insights/admin", "/api/insights/ad-spend",
                                     "/api/insights/ad-spend/**", "/api/insights/ad-performance").hasRole("ADMIN")
                             .requestMatchers("/api/suppliers", "/api/suppliers/**", "/api/purchasing/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.GET, "/api/supplier-options").hasAnyRole("ADMIN", "WAREHOUSE")
                             // writes are ADMIN here, not only in the service: @Valid would otherwise answer 400 before a role check
                             .requestMatchers(HttpMethod.POST, "/api/purchase-orders", "/api/purchase-orders/*/cancel",
                                     "/api/purchase-orders/*/close").hasRole("ADMIN")

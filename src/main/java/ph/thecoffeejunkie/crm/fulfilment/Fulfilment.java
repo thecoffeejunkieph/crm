@@ -55,6 +55,7 @@ public class Fulfilment {
         d.repUserId = r.repUserId();
         d.warehouseId = r.warehouseId();
         d.method = r.method();
+        d.shippingMethod = r.shippingMethod();
         d.customerName = r.customerName();
         d.shipTo = r.shipTo();
         for (DeliveryRequest.DeliveryLine l : r.lines()) {

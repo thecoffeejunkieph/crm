@@ -63,7 +63,7 @@ class ScanIT {
         OrderStock o = f.order(rep, wh, Instant.now(), l(p, "2"));
         tx.executeWithoutResult(s -> inventory.reserve(o));
         deliveryId = fulfilment.create(new DeliveryRequest(o.orderId(), o.orderNumber(), o.repUserId(), wh,
-                DeliveryMethod.DELIVERY, "Cafe Uno", "Makati", o.lines().stream().map(x ->
+                DeliveryMethod.DELIVERY, null, "Cafe Uno", "Makati", o.lines().stream().map(x ->
                 new DeliveryRequest.DeliveryLine(x.orderLineId(), x.productId(), "Beans", ProductUnit.KG, x.qty()))
                 .toList()));
         transferId = jdbc.queryForObject("insert into stock_transfer (number, status, from_warehouse_id, "

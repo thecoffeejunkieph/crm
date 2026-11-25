@@ -232,6 +232,8 @@ class OrderStockIT {
     void releaseCreatesDeliveryOrder() throws Exception {
         f.stock(p, "5");
         long order = confirmed("2");
+        jdbc.update("update customer set preferred_shipping = 'LALAMOVE' where id = "
+                + "(select customer_id from sales_order where id = ?)", order);
         f.transition(asRep, order, "release", null).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RELEASED"))
                 .andExpect(jsonPath("$.deliveryOrder.status").value("PICKING"))
@@ -240,6 +242,8 @@ class OrderStockIT {
         assertThat(jdbc.queryForMap("select warehouse_id, method, customer_name, ship_to from delivery_order "
                 + "where id = ?", d)).containsEntry("warehouse_id", wh).containsEntry("method", "DELIVERY")
                 .containsEntry("customer_name", f.tag + "acme").containsEntry("ship_to", "Makati");
+        assertThat(jdbc.queryForObject("select shipping_method from delivery_order where id = ?", String.class, d))
+                .isEqualTo("LALAMOVE");
         assertThat(jdbc.queryForObject("select order_line_id from delivery_order_line where delivery_order_id = ?",
                 Long.class, d)).isEqualTo(lineId(order));
     }

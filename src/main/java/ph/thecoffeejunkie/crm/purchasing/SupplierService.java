@@ -60,6 +60,14 @@ class SupplierService {
         return PageResponse.of(found.map(s -> toResponse(s, credits.get(s.id))));
     }
 
+    /** Active suppliers matching q, first 20 by name. */
+    @Transactional(readOnly = true)
+    List<SupplierOption> options(String q) {
+        Specification<Supplier> spec = Specification.<Supplier>where((r, cq, cb) -> cb.isNull(r.get("archivedAt"))).and(matches(q));
+        return repo.findAll(spec, org.springframework.data.domain.PageRequest.of(0, 20, DEFAULT_SORT))
+                .map(s -> new SupplierOption(s.id, s.code, s.name)).getContent();
+    }
+
     @Transactional(readOnly = true)
     SupplierResponse get(long id) {
         return withCredit(find(id));

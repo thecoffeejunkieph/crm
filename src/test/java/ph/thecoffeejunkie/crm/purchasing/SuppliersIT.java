@@ -62,6 +62,15 @@ class SuppliersIT {
     }
 
     @Test
+    void warehousePicksSupplierButCannotReadSuppliers() throws Exception {
+        f.supplier("S9", null);
+        mvc.perform(get("/api/supplier-options").param("q", f.code("S9")).with(warehouse)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value(f.code("S9"))).andExpect(jsonPath("$[0].creditLimit").doesNotExist());
+        mvc.perform(get("/api/supplier-options").with(sales)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/suppliers").with(warehouse)).andExpect(status().isForbidden());
+    }
+
+    @Test
     void duplicateCodeIs409() throws Exception {
         create("S2", "null").andExpect(status().isCreated());
         create("S2", "null").andExpect(status().isConflict());

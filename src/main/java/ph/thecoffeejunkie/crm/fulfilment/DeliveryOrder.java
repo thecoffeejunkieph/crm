@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.fulfilment;
 
+import ph.thecoffeejunkie.crm.shared.ShippingMethod;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -32,6 +33,8 @@ class DeliveryOrder {
     long warehouseId;
     @Enumerated(EnumType.STRING)
     DeliveryMethod method;
+    @Enumerated(EnumType.STRING)
+    ShippingMethod shippingMethod;
     @Enumerated(EnumType.STRING)
     DeliveryStatus status = DeliveryStatus.PICKING;
     Instant dispatchedAt;

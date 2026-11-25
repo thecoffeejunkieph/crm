@@ -85,7 +85,7 @@ class LedgerConsistencyIT {
         var o = f.order(rep, src, Instant.now(), l(p, qty));
         tx.executeWithoutResult(s -> inventory.reserve(o));
         return fulfilment.create(new DeliveryRequest(o.orderId(), o.orderNumber(), o.repUserId(), src,
-                DeliveryMethod.DELIVERY, "Cafe Uno", "Makati", o.lines().stream().map(x ->
+                DeliveryMethod.DELIVERY, null, "Cafe Uno", "Makati", o.lines().stream().map(x ->
                 new DeliveryRequest.DeliveryLine(x.orderLineId(), x.productId(), "Beans", ProductUnit.KG, x.qty()))
                 .toList()));
     }

@@ -124,7 +124,7 @@ class DeliveryOrdersIT {
 
     private long deliveryFor(OrderStock o, DeliveryMethod method) {
         return fulfilment.create(new DeliveryRequest(o.orderId(), o.orderNumber(), o.repUserId(), o.warehouseId(),
-                method, "Cafe Uno", "Makati", o.lines().stream().map(l -> new DeliveryRequest.DeliveryLine(
+                method, null, "Cafe Uno", "Makati", o.lines().stream().map(l -> new DeliveryRequest.DeliveryLine(
                         l.orderLineId(), l.productId(), "Beans", ProductUnit.KG, l.qty())).toList()));
     }
 
@@ -278,6 +278,16 @@ class DeliveryOrdersIT {
                 .andExpect(jsonPath("$.status").value("DISPATCHED"));
         assertThat(f.onHand(p, wh)).isEqualByComparingTo("0");
         assertThat(f.reserved(p, wh)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void shippingMethodEditableUntilDelivered() throws Exception {
+        long id = delivery("1");
+        act(id, "shipping-method", "{\"shippingMethod\":\"AP_CARGO\"}", whUser).andExpect(status().isOk())
+                .andExpect(jsonPath("$.shippingMethod").value("AP_CARGO"));
+        act(id, "shipping-method", "{\"shippingMethod\":\"AP_CARGO\"}", otherWhUser).andExpect(status().isNotFound());
+        jdbc.update("update delivery_order set status = 'DELIVERED' where id = ?", id);
+        act(id, "shipping-method", "{\"shippingMethod\":null}", whUser).andExpect(status().isUnprocessableContent());
     }
 
     @Test

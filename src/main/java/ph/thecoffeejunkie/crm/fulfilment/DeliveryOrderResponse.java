@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.fulfilment;
 
+import ph.thecoffeejunkie.crm.shared.ShippingMethod;
 import ph.thecoffeejunkie.crm.catalog.ProductUnit;
 
 import java.math.BigDecimal;
@@ -7,6 +8,7 @@ import java.time.Instant;
 import java.util.List;
 
 public record DeliveryOrderResponse(long id, String number, DeliveryStatus status, DeliveryMethod method,
+                                    ShippingMethod shippingMethod,
                                     long salesOrderId, String orderNumber, long warehouseId, String customerName,
                                     String shipTo, Instant createdAt, Instant dispatchedAt, Instant deliveredAt,
                                     String receiverName, List<String> proofUrls, boolean canAct,
