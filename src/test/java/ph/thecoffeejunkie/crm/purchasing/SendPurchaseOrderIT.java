@@ -17,6 +17,8 @@ import ph.thecoffeejunkie.crm.shared.Role;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -188,5 +190,62 @@ class SendPurchaseOrderIT {
         long id = draft("1000", "0");
         send(id).andExpect(status().isOk());
         send(id).andExpect(status().isConflict());
+    }
+
+    /** A DRAFT PO of qty x cost for a fresh supplier (limit 2,500,000) on the given downpayment percent. */
+    private long[] draftWithTerm(String percent, String qty, String cost) throws Exception {
+        long s = f.supplier("D" + System.nanoTime(), new BigDecimal("2500000"));
+        jdbc.update("update supplier set downpayment_percent = ? where id = ?", new BigDecimal(percent), s);
+        String json = "{\"supplierId\":" + s + ",\"warehouseId\":" + wh + ",\"lines\":[{\"productId\":" + product
+                + ",\"qty\":" + qty + ",\"unitCost\":" + cost + "}]}";
+        String res = mvc.perform(post("/api/purchase-orders").contentType("application/json").content(json)
+                .with(csrf(mvc)).with(admin)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return new long[]{((Number) JsonPath.read(res, "$.id")).longValue(), s};
+    }
+
+    private String pay(long supplier, long po, String amount) throws Exception {
+        return mvc.perform(post("/api/suppliers/" + supplier + "/payments").contentType("application/json")
+                .content("{\"amount\":" + amount + ",\"paidOn\":\"2026-11-20\",\"purchaseOrderId\":" + po + "}")
+                .with(csrf(mvc)).with(admin)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+    }
+
+    @Test
+    void sendRefusedUntilDownpaymentPaid() throws Exception {
+        long[] d = draftWithTerm("50", "10", "100.00");
+        send(d[0]).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(containsString("needs a downpayment of ₱500.00")))
+                .andExpect(jsonPath("$.detail").value(containsString("₱0.00 recorded.")));
+        pay(d[1], d[0], "500");
+        send(d[0]).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SENT"))
+                .andExpect(jsonPath("$.downpaymentRequired").value(500.00))
+                .andExpect(jsonPath("$.downpaymentPaid").value(500.00));
+        mvc.perform(get("/api/suppliers/" + d[1]).with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.credit.available").value(2499500.00));
+    }
+
+    @Test
+    void zeroPercentSendsAsBefore() throws Exception {
+        long[] d = draftWithTerm("0", "10", "100.00");
+        send(d[0]).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SENT"))
+                .andExpect(jsonPath("$.downpaymentRequired").value(0));
+    }
+
+    @Test
+    void deletingDownpaymentAfterSendKeepsSent() throws Exception {
+        long[] d = draftWithTerm("50", "10", "100.00");
+        long paymentId = ((Number) JsonPath.read(pay(d[1], d[0], "500"), "$.id")).longValue();
+        send(d[0]).andExpect(status().isOk());
+        mvc.perform(delete("/api/suppliers/" + d[1] + "/payments/" + paymentId).with(csrf(mvc)).with(admin))
+                .andExpect(status().is2xxSuccessful());
+        mvc.perform(get("/api/purchase-orders/" + d[0]).with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SENT")).andExpect(jsonPath("$.downpaymentPaid").value(0));
+    }
+
+    @Test
+    void responseShowsRequiredAndPaid() throws Exception {
+        long[] d = draftWithTerm("33.33", "1", "100.01");
+        mvc.perform(get("/api/purchase-orders/" + d[0]).with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.downpaymentRequired").value(33.33))
+                .andExpect(jsonPath("$.downpaymentPaid").value(0));
     }
 }

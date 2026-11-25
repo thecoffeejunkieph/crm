@@ -8,6 +8,7 @@ import java.util.List;
 record PoResponse(long id, String number, long supplierId, String supplierName, long warehouseId,
                          PoStatus status, LocalDate expectedOn, String notes, String rejectionReason,
                          Long approvalRequestId, Instant sentAt, boolean closedShort, BigDecimal total,
+                         BigDecimal downpaymentRequired, BigDecimal downpaymentPaid,
                          List<PoLineResponse> lines, long version) {
 
     record PoLineResponse(long id, long productId, String sku, String name, BigDecimal qty, BigDecimal unitCost,

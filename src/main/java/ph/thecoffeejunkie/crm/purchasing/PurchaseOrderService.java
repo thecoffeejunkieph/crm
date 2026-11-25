@@ -58,10 +58,13 @@ class PurchaseOrderService {
     private final CreditQuery credit;
     private final Approvals approvals;
     private final Inventory inventory;
+    private final SupplierPaymentRepository payments;
 
     PurchaseOrderService(PurchaseOrderRepository orders, SupplierRepository suppliers, InventoryPermissions perms,
                          Warehouses warehouses, Catalog catalog, DocumentCounters counters, AuditLog audit,
-                         CurrentActor actor, CreditQuery credit, Approvals approvals, Inventory inventory) {
+                         CurrentActor actor, CreditQuery credit, Approvals approvals, Inventory inventory,
+                         SupplierPaymentRepository payments) {
+        this.payments = payments;
         this.inventory = inventory;
         this.orders = orders;
         this.suppliers = suppliers;
@@ -128,6 +131,11 @@ class PurchaseOrderService {
         Supplier supplier = suppliers.findById(po.supplierId).orElseThrow();
         if (supplier.archivedAt != null) {
             throw invalid("supplierId", "This supplier is archived.");
+        }
+        Downpayment dp = downpayment(po);
+        if (dp.paid().compareTo(dp.required()) < 0) {
+            throw new DomainException(ErrorCode.INVALID_STATE, String.format(
+                    "%s needs a downpayment of ₱%,.2f before sending; ₱%,.2f recorded.", po.number, dp.required(), dp.paid()));
         }
         CreditCheck check = check(po);
         po.rejectionReason = null;
@@ -331,14 +339,34 @@ class PurchaseOrderService {
                 Map.of("errors", List.of(Map.of("field", field, "message", msg))));
     }
 
+    /** Downpayment owed and recorded for a PO. The one place the rounding rule lives; the PO PDF reuses it. */
+    record Downpayment(BigDecimal required, BigDecimal paid) {
+    }
+
+    Downpayment downpayment(PurchaseOrder po) {
+        Supplier s = suppliers.findById(po.supplierId).orElseThrow();
+        return new Downpayment(requiredDownpayment(s.downpaymentPercent, po), payments.sumByPurchaseOrderId(po.id));
+    }
+
+    private static BigDecimal requiredDownpayment(BigDecimal percent, PurchaseOrder po) {
+        return percent.multiply(po.total()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    }
+
     private List<PoResponse> toResponses(Collection<PurchaseOrder> pos) {
         Map<Long, ProductInfo> products = catalog.info(pos.stream().flatMap(p -> p.lines.stream())
                 .map(l -> l.productId).toList());
-        Map<Long, String> names = suppliers.findAllById(pos.stream().map(p -> p.supplierId).collect(Collectors.toSet()))
-                .stream().collect(Collectors.toMap(s -> s.id, s -> s.name));
-        return pos.stream().map(p -> new PoResponse(p.id, p.number, p.supplierId, names.get(p.supplierId),
+        Map<Long, Supplier> sups = suppliers.findAllById(pos.stream().map(p -> p.supplierId).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(s -> s.id, Function.identity()));
+        Map<Long, BigDecimal> paid = new java.util.HashMap<>();
+        if (!pos.isEmpty()) {
+            payments.sumsByPurchaseOrderIds(pos.stream().map(p -> p.id).toList())
+                    .forEach(r -> paid.put((Long) r[0], (BigDecimal) r[1]));
+        }
+        return pos.stream().map(p -> new PoResponse(p.id, p.number, p.supplierId, sups.get(p.supplierId).name,
                 p.warehouseId, p.status, p.expectedOn, p.notes, p.rejectionReason, p.approvalRequestId, p.sentAt,
-                p.closedShort, p.total(), p.lines.stream().map(l -> {
+                p.closedShort, p.total(),
+                requiredDownpayment(sups.get(p.supplierId).downpaymentPercent, p),
+                paid.getOrDefault(p.id, BigDecimal.ZERO), p.lines.stream().map(l -> {
                     ProductInfo i = products.get(l.productId);
                     return new PoResponse.PoLineResponse(l.id, l.productId, i.sku(), i.name(), l.qty, l.unitCost,
                             l.receivedQty);
