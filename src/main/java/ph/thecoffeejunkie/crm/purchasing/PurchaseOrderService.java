@@ -134,7 +134,7 @@ class PurchaseOrderService {
         }
         Downpayment dp = downpayment(po);
         if (dp.paid().compareTo(dp.required()) < 0) {
-            throw new DomainException(ErrorCode.INVALID_STATE, String.format(
+            throw new DomainException(ErrorCode.INVALID_STATE, String.format(java.util.Locale.US,
                     "%s needs a downpayment of ₱%,.2f before sending; ₱%,.2f recorded.", po.number, dp.required(), dp.paid()));
         }
         CreditCheck check = check(po);

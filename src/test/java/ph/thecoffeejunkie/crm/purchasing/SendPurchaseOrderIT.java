@@ -212,9 +212,9 @@ class SendPurchaseOrderIT {
     @Test
     void sendRefusedUntilDownpaymentPaid() throws Exception {
         long[] d = draftWithTerm("50", "10", "100.00");
-        send(d[0]).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.detail").value(containsString("needs a downpayment of ₱500.00")))
-                .andExpect(jsonPath("$.detail").value(containsString("₱0.00 recorded.")));
+        String number = jdbc.queryForObject("select number from purchase_order where id = ?", String.class, d[0]);
+        send(d[0]).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.detail")
+                .value(number + " needs a downpayment of ₱500.00 before sending; ₱0.00 recorded."));
         pay(d[1], d[0], "500");
         send(d[0]).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SENT"))
                 .andExpect(jsonPath("$.downpaymentRequired").value(500.00))
@@ -247,5 +247,16 @@ class SendPurchaseOrderIT {
         mvc.perform(get("/api/purchase-orders/" + d[0]).with(admin)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.downpaymentRequired").value(33.33))
                 .andExpect(jsonPath("$.downpaymentPaid").value(0));
+    }
+
+    @Test
+    void downpaymentIsCheckedBeforeCreditApproval() throws Exception {
+        long[] d = draftWithTerm("50", "10", "100.00");
+        jdbc.update("update supplier set credit_limit = 400 where id = ?", d[1]); // exposure 500 after the downpayment
+        send(d[0]).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(containsString("needs a downpayment of ₱500.00")));
+        assertThat(poStatus(d[0])).isEqualTo("DRAFT");
+        pay(d[1], d[0], "500");
+        send(d[0]).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
     }
 }
