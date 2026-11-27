@@ -1,8 +1,15 @@
+<!--/* Generated from tailwind/mail/portal-login.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: email(|Your sign-in link for the ${company} portal.|, ~{::content})}">
 <body>
-<p>Use the link below to sign in to your <span th:text="${company}">The Coffee Junkie</span> portal.</p>
-<p><a th:href="${link}">Sign in</a></p>
-<p>This link works once and expires shortly. If you did not ask for it, you can ignore this email.</p>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Customer portal')}"></p>
+  <h1 th:replace="~{parts :: title('Your sign-in link')}"></h1>
+  <p style="margin-top: 16px; margin-bottom: 0">Use the button below to sign in to your <span th:text="${company}">The Coffee Junkie</span>
+    portal.</p>
+  <table th:replace="~{parts :: button(${link}, 'Sign in')}"></table>
+  <p style="margin-top: 28px; margin-bottom: 0; font-size: 14px; line-height: 22px; color: #667286">This link works once and expires shortly. If you did not ask for it, you
+    can ignore this email.</p>
+</div>
 </body>
 </html>

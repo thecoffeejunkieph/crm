@@ -1,18 +1,31 @@
+<!--/* Generated from tailwind/mail/order-dispatched.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: email(|Order ${orderNumber} is out for delivery.|, ~{::content})}">
 <body>
-<p>Hello,</p>
-<p>Your order <b th:text="${orderNumber}">SO-00000</b> from <span th:text="${company}">The Coffee Junkie</span> is
-  out for delivery (delivery order <span th:text="${number}">DO-00000</span>).</p>
-<p th:if="${shipTo != ''}">Delivering to: <span th:text="${shipTo}">address</span></p>
-<table cellpadding="4" style="border-collapse:collapse">
-  <tr><th align="left">Item</th><th align="right">Qty</th><th align="left">Unit</th></tr>
-  <tr th:each="l : ${lines}">
-    <td th:text="${l.description}">Item</td>
-    <td align="right" th:text="${l.qty.stripTrailingZeros().toPlainString()}">1</td>
-    <td th:text="${l.unit}">PC</td>
-  </tr>
-</table>
-<p>Track it in the <a th:href="${link}" href="#">customer portal</a>.</p>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Out for delivery')}"></p>
+  <h1 th:replace="~{parts :: title(|Order ${orderNumber} is on its way|)}"></h1>
+  <p style="margin-top: 16px; margin-bottom: 0">Hello,</p>
+  <p style="margin-top: 12px; margin-bottom: 0">Your order from <span th:text="${company}">The Coffee Junkie</span> is out for delivery.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 24px; width: 100%; border-collapse: separate; border-radius: 6px; background-color: #f6f7f9" width="100%">
+    <tr><td style="padding-left: 20px; padding-right: 20px; padding-top: 16px; padding-bottom: 16px">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 22px" width="100%">
+        <tr><td style="padding-top: 4px; padding-bottom: 4px; padding-right: 16px; vertical-align: top; color: #667286">Delivery order</td><td align="right" th:text="${number}" style="padding-top: 4px; padding-bottom: 4px; text-align: right; font-weight: 600; color: #0d2245">DO-00000</td></tr>
+        <tr th:if="${shipTo != ''}"><td style="padding-top: 4px; padding-bottom: 4px; padding-right: 16px; vertical-align: top; color: #667286">Delivering to</td><td align="right" th:text="${shipTo}" style="padding-top: 4px; padding-bottom: 4px; text-align: right; color: #0d2245">address</td></tr>
+      </table>
+    </td></tr>
+  </table>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 24px; width: 100%; border-collapse: collapse; font-size: 14px; line-height: 22px" width="100%">
+    <tr>
+      <th align="left" style="border-style: solid; border-width: 0; border-bottom-style: solid; border-bottom-width: 1px; border-color: #dde2ea; padding-bottom: 8px; text-align: left; font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: .08em; color: #667286; text-transform: uppercase">Item</th>
+      <th align="right" style="border-style: solid; border-width: 0; border-bottom-style: solid; border-bottom-width: 1px; border-color: #dde2ea; padding-bottom: 8px; padding-left: 16px; text-align: right; font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: .08em; color: #667286; text-transform: uppercase">Qty</th>
+    </tr>
+    <tr th:each="l : ${lines}">
+      <td th:text="${l.description}" style="border-style: solid; border-width: 0; border-bottom-style: solid; border-bottom-width: 1px; border-color: #dde2ea; padding-top: 12px; padding-bottom: 12px; color: #0d2245">Item</td>
+      <td align="right" th:text="|${l.qty.stripTrailingZeros().toPlainString()} ${l.unit}|" style="border-style: solid; border-width: 0; border-bottom-style: solid; border-bottom-width: 1px; border-color: #dde2ea; padding-top: 12px; padding-bottom: 12px; padding-left: 16px; text-align: right; white-space: nowrap; color: #0d2245">1 PC</td>
+    </tr>
+  </table>
+  <table th:replace="~{parts :: button(${link}, 'Track your order')}"></table>
+</div>
 </body>
 </html>

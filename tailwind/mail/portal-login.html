@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: email(|Your sign-in link for the ${company} portal.|, ~{::content})}">
+<body>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Customer portal')}"></p>
+  <h1 th:replace="~{parts :: title('Your sign-in link')}"></h1>
+  <p class="mt-4 mb-0">Use the button below to sign in to your <span th:text="${company}">The Coffee Junkie</span>
+    portal.</p>
+  <table th:replace="~{parts :: button(${link}, 'Sign in')}"></table>
+  <p class="mt-7 mb-0 text-sm text-muted">This link works once and expires shortly. If you did not ask for it, you
+    can ignore this email.</p>
+</div>
+</body>
+</html>

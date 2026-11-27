@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: email(|Invoice ${number} is attached.|, ~{::content})}">
+<body>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Invoice')}"></p>
+  <h1 th:replace="~{parts :: title(|Invoice ${number}|)}"></h1>
+  <p class="mt-4 mb-0">Hello,</p>
+  <p class="mt-3 mb-0">Thank you for your purchase from <span th:text="${company}">The Coffee Junkie</span>. Your
+    invoice <b class="font-semibold whitespace-nowrap text-ink" th:text="${number}">SI-00000</b> is attached as a PDF.</p>
+</div>
+</body>
+</html>

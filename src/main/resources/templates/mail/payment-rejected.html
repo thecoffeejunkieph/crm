@@ -1,11 +1,22 @@
+<!--/* Generated from tailwind/mail/payment-rejected.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: email(|Your payment of PHP ${amount} for order ${number} needs a corrected proof.|, ~{::content})}">
 <body>
-<p>Hello,</p>
-<p>We could not accept the payment of <b th:text="${amount}">0.00</b> you submitted for order
-  <b th:text="${number}">SO-00000</b>.</p>
-<p>Reason: <span th:text="${reason}">reason</span></p>
-<p>Please upload a corrected proof of payment in the <a th:href="${link}" href="#">customer portal</a>, or reply to
-  this email if you have questions.</p>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Payment not accepted')}"></p>
+  <h1 th:replace="~{parts :: title('We could not accept your payment')}"></h1>
+  <p style="margin-top: 16px; margin-bottom: 0">Hello,</p>
+  <p style="margin-top: 12px; margin-bottom: 0">We could not accept the payment of <b th:text="|PHP ${amount}|" style="font-weight: 600; white-space: nowrap; color: #0d2245">PHP 0.00</b>
+    you submitted for order <b th:text="${number}" style="font-weight: 600; white-space: nowrap; color: #0d2245">SO-00000</b>.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 24px; width: 100%; border-collapse: separate; border-radius: 6px; background-color: #fef3f2" width="100%">
+    <tr><td style="border-radius: 6px; border-style: solid; border-width: 0; border-left-style: solid; border-left-width: 3px; border-color: #b42318; padding-left: 20px; padding-right: 20px; padding-top: 16px; padding-bottom: 16px; font-size: 14px; line-height: 22px">
+      <div style="font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: .08em; color: #b42318; text-transform: uppercase">Reason</div>
+      <div th:text="${reason}" style="color: #0d2245">reason</div>
+    </td></tr>
+  </table>
+  <p style="margin-top: 24px; margin-bottom: 0">Please upload a corrected proof of payment in the customer portal, or reply to this email if
+    you have questions.</p>
+  <table th:replace="~{parts :: button(${link}, 'Upload proof of payment')}"></table>
+</div>
 </body>
 </html>

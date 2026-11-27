@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: email(|Your payment of PHP ${amount} for order ${number} needs a corrected proof.|, ~{::content})}">
+<body>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Payment not accepted')}"></p>
+  <h1 th:replace="~{parts :: title('We could not accept your payment')}"></h1>
+  <p class="mt-4 mb-0">Hello,</p>
+  <p class="mt-3 mb-0">We could not accept the payment of <b class="font-semibold whitespace-nowrap text-ink" th:text="|PHP ${amount}|">PHP 0.00</b>
+    you submitted for order <b class="font-semibold whitespace-nowrap text-ink" th:text="${number}">SO-00000</b>.</p>
+  <table role="presentation" class="mt-6 w-full border-separate rounded-md bg-danger-soft" cellpadding="0" cellspacing="0">
+    <tr><td class="rounded-md border-0 border-l-[3px] border-danger px-5 py-4 text-sm">
+      <div class="text-xs font-semibold uppercase tracking-wide text-danger">Reason</div>
+      <div class="mt-1 text-ink" th:text="${reason}">reason</div>
+    </td></tr>
+  </table>
+  <p class="mt-6 mb-0">Please upload a corrected proof of payment in the customer portal, or reply to this email if
+    you have questions.</p>
+  <table th:replace="~{parts :: button(${link}, 'Upload proof of payment')}"></table>
+</div>
+</body>
+</html>

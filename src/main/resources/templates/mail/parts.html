@@ -1,0 +1,20 @@
+<!--/* Generated from tailwind/mail/parts.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Table-wrapped so Outlook keeps the navy fill and rounded corners degrade to square. -->
+<table th:fragment="button(href, label)" role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 28px; border-collapse: separate">
+  <tr>
+    <td align="center" style="border-radius: 6px; background-color: #0d2245">
+      <a th:href="${href}" href="#" target="_blank" th:text="${label}" style="display: inline-block; border-radius: 6px; border-style: solid; border-width: 1px; border-color: #0d2245; padding-left: 24px; padding-right: 24px; padding-top: 12px; padding-bottom: 12px; font-size: 14px; line-height: 22px; font-weight: 600; color: #fff; text-decoration-line: none">Label</a>
+    </td>
+  </tr>
+</table>
+
+<p th:fragment="eyebrow(text)" th:text="${text}" style="font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: .08em; color: #667286; text-transform: uppercase">Eyebrow</p>
+
+<h1 th:fragment="title(text)" th:text="${text}" style="margin-top: 8px; margin-bottom: 0; font-size: 22px; line-height: 30px; font-weight: 700; letter-spacing: -.01em; color: #0d2245">Title</h1>
+
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:fragment="email(preheader, content)" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <title th:text="${company}">The Coffee Junkie</title>
+</head>
+<body class="m-0 bg-canvas p-0 font-sans">
+<div class="hidden max-h-0 overflow-hidden text-[1px] leading-[1px] text-canvas opacity-0" th:text="${preheader}">Preview text</div>
+<table role="presentation" class="w-full border-collapse bg-canvas font-sans" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="px-3 py-10" align="center">
+      <table role="presentation" class="w-full max-w-[600px] border-collapse" cellpadding="0" cellspacing="0">
+        <tr>
+          <td class="rounded-t-lg border border-b-0 border-line bg-white px-8 pt-7 pb-6">
+            <!-- Alt text is styled for clients that block images until the reader allows them. -->
+            <img th:src="${logo}" src="tcj-logo-email.png" th:alt="${company}" alt="The Coffee Junkie" width="160" height="61"
+                 class="block h-[61px] w-[160px] border-0 text-lg font-bold text-ink">
+          </td>
+        </tr>
+        <tr>
+          <td class="rounded-b-lg border border-t-0 border-line bg-white px-8 pt-0 pb-9 text-base text-body">
+            <div class="mb-8 h-px bg-line text-[1px] leading-px">&nbsp;</div>
+            <div th:replace="${content}">Content</div>
+          </td>
+        </tr>
+        <tr>
+          <td class="px-8 pt-6 text-center text-xs text-muted">
+            Sent by <span th:text="${company}">The Coffee Junkie</span>. Questions? Just reply to this email.
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
