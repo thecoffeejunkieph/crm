@@ -72,7 +72,18 @@ class SecurityConfig {
                     // Coarse role gates ahead of @PreAuthorize: argument validation runs before method security,
                     // so without these a forbidden caller would get a 400 instead of a 403.
                     a.requestMatchers("/api/admin/**", "/api/approvals/*/decision", "/api/insights/targets",
-                                    "/api/insights/targets/**", "/api/insights/admin").hasRole("ADMIN")
+                                    "/api/insights/targets/**", "/api/insights/admin", "/api/insights/ad-spend",
+                                    "/api/insights/ad-spend/**", "/api/insights/ad-performance").hasRole("ADMIN")
+                            .requestMatchers("/api/suppliers", "/api/suppliers/**", "/api/purchasing/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.GET, "/api/supplier-options").hasAnyRole("ADMIN", "WAREHOUSE")
+                            // writes are ADMIN here, not only in the service: @Valid would otherwise answer 400 before a role check
+                            .requestMatchers(HttpMethod.POST, "/api/purchase-orders", "/api/purchase-orders/*/cancel",
+                                    "/api/purchase-orders/*/close").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/purchase-orders/*").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.POST, "/api/purchase-orders/*/send").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.GET, "/api/purchase-orders/*/credit-check").hasRole("ADMIN")
+                            // service enforces ADMIN for everything except GET and receive
+                            .requestMatchers("/api/purchase-orders", "/api/purchase-orders/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers("/api/follow-ups", "/api/follow-ups/**").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers(HttpMethod.POST, "/api/lead-sources", "/api/lead-sources/**").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/lead-sources/**").hasRole("ADMIN")
@@ -82,18 +93,19 @@ class SecurityConfig {
                             .requestMatchers("/api/attachments", "/api/attachments/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")
                             .requestMatchers("/api/insights/sales").hasRole("SALES")
                             .requestMatchers("/api/insights/warehouse").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers("/api/insights/today").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers(HttpMethod.POST, "/api/warehouses/**").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/warehouses/**").hasRole("ADMIN")
-                            .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
-                            .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.POST, "/api/products/**", "/api/product-categories", "/api/product-categories/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/products/**", "/api/product-categories/**").hasRole("ADMIN")
                             .requestMatchers("/api/stock/receipts/**", "/api/stock/adjustments/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.POST, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.PUT, "/api/transfers/**").hasAnyRole("ADMIN", "WAREHOUSE")
-                            .requestMatchers(HttpMethod.POST, "/api/delivery-orders/**").hasAnyRole("ADMIN", "WAREHOUSE")
+                            .requestMatchers(HttpMethod.POST, "/api/delivery-orders/**").hasAnyRole("ADMIN", "WAREHOUSE", "SALES") // sales: DeliveryService.canAct
                             .requestMatchers("/api/labels", "/api/labels/**").hasAnyRole("ADMIN", "WAREHOUSE")
                             .requestMatchers(HttpMethod.GET, "/api/products/*/availability").hasAnyRole("ADMIN", "SALES")
                             .requestMatchers(HttpMethod.POST, "/api/payments/*/verify", "/api/payments/*/reject").hasRole("ADMIN")
-                            .requestMatchers("/api/customers/**", "/api/orders/**", "/api/payments/**", "/api/invoices/**",
+                            .requestMatchers("/api/customers/**", "/api/orders/**", "/api/payments/**", "/api/refunds/**", "/api/invoices/**",
                                     "/api/reports/**").hasAnyRole("ADMIN", "SALES");
                     a.requestMatchers("/api/portal/**").hasRole("CUSTOMER")
                             .requestMatchers("/api/**").hasAnyRole("ADMIN", "SALES", "WAREHOUSE")

@@ -185,6 +185,10 @@ class PaymentsIT {
                 .with(asAdmin)).andExpect(status().isOk());
         assertThat(notes(rep, "PAYMENT_REJECTED"))
                 .containsExactly("Payment rejected for " + number() + "|No such transfer|ORDER|" + order);
+        assertThat(events.stream(PaymentRejected.class)).singleElement().satisfies(e -> {
+            assertThat(e.orderId()).isEqualTo(order);
+            assertThat(e.paymentId()).isEqualTo(p);
+        });
     }
 
     @Test

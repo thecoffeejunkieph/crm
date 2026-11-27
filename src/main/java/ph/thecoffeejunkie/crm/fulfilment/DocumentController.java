@@ -44,10 +44,11 @@ class DocumentController {
     ResponseEntity<byte[]> delivery(@PathVariable long id) {
         var d = deliveries.get(id);
         return new PdfFile(d.number() + ".pdf", pdf.render("delivery-order", vars(
-                "number", d.number(), "status", d.status(), "date", day(d.createdAt()),
+                "number", d.number(), "date", day(d.createdAt()),
                 "pickup", d.method() == DeliveryMethod.PICKUP ? "yes" : null,
                 "company", company(), "customer", d.customerName(), "shipTo", d.shipTo(),
-                "orderNumber", d.orderNumber(), "warehouse", warehouses.name(d.warehouseId()),
+                "orderNumber", d.orderNumber(),
+                "shipVia", d.shippingMethod() == null ? null : d.shippingMethod().label, "warehouse", warehouses.name(d.warehouseId()),
                 "dispatched", day(d.dispatchedAt()), "delivered", day(d.deliveredAt()), "receiverName", d.receiverName(),
                 "lines", d.lines().stream().map(l -> vars("sku", l.sku(), "description", l.description(), "unit", l.unit(),
                         "qty", qty(l.qty()), "picked", qty(l.pickedQty()))).toList()))).inline();

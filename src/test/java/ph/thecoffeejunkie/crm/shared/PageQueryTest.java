@@ -18,14 +18,14 @@ class PageQueryTest {
         var p = new PageQuery(null, null, null).toPageable(FIELDS, DEFAULT);
         assertEquals(0, p.getPageNumber());
         assertEquals(20, p.getPageSize());
-        assertEquals(DEFAULT, p.getSort());
+        assertEquals(DEFAULT.and(Sort.by("id")), p.getSort()); // id is the final tie-breaker
         assertEquals(1, new PageQuery(2, 5, null).toPageable(FIELDS, DEFAULT).getPageNumber());
     }
 
     @Test
     void parsesSortAndRejectsUnknownField() {
         var p = new PageQuery(1, 10, "name,desc").toPageable(FIELDS, DEFAULT);
-        assertEquals(Sort.by(Sort.Direction.DESC, "name"), p.getSort());
+        assertEquals(Sort.by(new Sort.Order(Sort.Direction.DESC, "name").nullsLast()).and(Sort.by("id")), p.getSort());
         var ex = assertThrows(DomainException.class,
                 () -> new PageQuery(1, 10, "password,asc").toPageable(FIELDS, DEFAULT));
         assertEquals(ErrorCode.VALIDATION_FAILED, ex.code());

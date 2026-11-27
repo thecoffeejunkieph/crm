@@ -21,18 +21,29 @@ interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpecificati
      * Ordered by id so two transactions lock in the same order and cannot deadlock.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<AppUser> findByRoleAndArchivedAtIsNullOrderById(Role role);
+    @Query("select u from AppUser u where :role member of u.roles and u.archivedAt is null order by u.id")
+    List<AppUser> lockActiveWithRole(Role role);
 
-    @Query("select u.id from AppUser u where u.role = :role and u.archivedAt is null order by u.id")
+    /**
+     * Run after {@link #lockActiveWithRole}: a new statement sees the winner's committed role change, while the
+     * lock query's re-check after waiting only re-tests app_user columns, not the user_role subquery.
+     */
+    @Query("select count(u) > 0 from AppUser u where :role member of u.roles and u.archivedAt is null and u.id <> :id")
+    boolean anyOtherActiveWithRole(Role role, long id);
+
+    @Query("select u.id from AppUser u where :role member of u.roles and u.archivedAt is null order by u.id")
     List<Long> activeIdsWithRole(Role role);
 
-    @Query("select u.id from AppUser u join u.warehouseIds w where w = :warehouseId and u.role = :role "
+    @Query("select u.id from AppUser u join u.warehouseIds w where w = :warehouseId and :role member of u.roles "
             + "and u.archivedAt is null order by u.id")
     List<Long> activeIdsForWarehouse(Role role, long warehouseId);
 
-    boolean existsByIdAndRoleAndArchivedAtIsNull(long id, Role role);
+    @Query("select count(u) > 0 from AppUser u where u.id = :id and :role member of u.roles and u.archivedAt is null")
+    boolean isActiveWithRole(long id, Role role);
 
-    boolean existsByRoleAndArchivedAtIsNullAndPasswordHashIsNotNull(Role role);
+    @Query("select count(u) > 0 from AppUser u where :role member of u.roles and u.archivedAt is null "
+            + "and u.passwordHash is not null")
+    boolean anyActivatedWithRole(Role role);
 
     // Login mirrors LoginThrottle into the row with single atomic UPDATEs: no read-modify-write, no version bump.
 

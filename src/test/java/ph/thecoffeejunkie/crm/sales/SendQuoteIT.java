@@ -142,6 +142,41 @@ class SendQuoteIT {
         assertThat(jdbc.queryForMap("select version, quoted_at, quote_valid_until from sales_order where id = ?", id)).isEqualTo(before);
     }
 
+    /** The real edit-then-send path: no revision bump, but the open chase and expiry rows are closed each step. */
+    @Test
+    void editAndResendCloseOpenQuoteFollowUps() throws Exception {
+        long id = f.createdOrder(asRep, customer, line(product, "1"));
+        f.transition(asRep, id, "send-quote", null).andExpect(status().isOk());
+        long sent = jdbc.queryForObject("select max(id) from audit_event where entity_type = 'ORDER' and entity_id = ? "
+                + "and action = 'QUOTE_SENT'", Long.class, id);
+        try {
+            for (String rule : List.of("QUOTE_CHASE", "QUOTE_EXPIRING")) {
+                openFollowUp(id, rule, rule + ":order:" + id + ":sent:" + sent);
+            }
+            f.update(asRep, id, "", line(product, "2")).andExpect(status().isOk());
+            assertThat(closedReasons(id)).hasSize(2).allMatch(r -> r.endsWith(" revised"));
+
+            jdbc.update("update follow_up set done_at = null, closed_reason = null where order_id = ?", id);
+            f.transition(asRep, id, "send-quote", null).andExpect(status().isOk());
+            jdbc.update("update follow_up set done_at = null, closed_reason = null where order_id = ?", id);
+            f.transition(asRep, id, "send-quote", null).andExpect(status().isOk());
+            assertThat(closedReasons(id)).hasSize(2).allMatch(r -> r.endsWith(" resent"));
+            assertThat(jdbc.queryForObject("select revision from sales_order where id = ?", Integer.class, id)).isZero();
+        } finally {
+            jdbc.update("delete from follow_up where order_id = ?", id);
+        }
+    }
+
+    private void openFollowUp(long orderId, String rule, String key) {
+        jdbc.update("insert into follow_up (customer_id, order_id, assignee_id, title, due_date, created_by, rule, auto_key) "
+                + "values (?, ?, ?, 't', current_date, null, ?, ?)", customer, orderId, rep, rule, key);
+    }
+
+    private List<String> closedReasons(long orderId) {
+        return jdbc.queryForList("select closed_reason from follow_up where order_id = ? and done_at is not null",
+                String.class, orderId);
+    }
+
     @Test
     void resendRefusedUntilSentAndOnceExpired() throws Exception {
         long id = f.createdOrder(asRep, customer, line(product, "1"));

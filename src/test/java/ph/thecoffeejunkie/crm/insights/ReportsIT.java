@@ -78,6 +78,23 @@ class ReportsIT {
     }
 
     @Test
+    void reportTotalsNetOfRefunds() throws Exception {
+        YearMonth may = YearMonth.of(2021, 5);
+        long o = f.order(f.customer("Acme", repA), repA, "CONFIRMED", "5000", "0", null);
+        f.payment(o, "VERIFIED", "1000", "0", at(may, 30));
+        f.refund(o, "300", at(may, 40));
+        report(asAdmin, "by=month&from=2021-05-01&to=2021-05-31").andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows[0].collected").value(700.0))
+                .andExpect(jsonPath("$.rows[0].payments").value(1))
+                .andExpect(jsonPath("$.total.collected").value(700.0))
+                .andExpect(jsonPath("$.total.refunds").value(300.0))
+                .andExpect(jsonPath("$.total.payments").value(1));
+        report(asAdmin, "by=customer&from=2021-05-01&to=2021-05-31")
+                .andExpect(jsonPath("$.rows[0].collected").value(700.0))
+                .andExpect(jsonPath("$.rows[0].payments").value(1));
+    }
+
+    @Test
     void rangeEndIsInclusiveInManila() throws Exception {
         paidOrder(repA, "Late", "100", Instant.parse("2021-05-31T15:30:00Z"));
         paidOrder(repA, "Next", "50", Instant.parse("2021-05-31T16:30:00Z"));

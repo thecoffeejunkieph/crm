@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.sales;
 
+import ph.thecoffeejunkie.crm.customers.AssignmentRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -60,6 +61,12 @@ class OrderController {
     @PreAuthorize("@salesPermissions.canWrite()")
     OrderResponse update(@PathVariable long id, @Valid @RequestBody OrderRequest req) {
         return orders.update(actor.scope(), id, req);
+    }
+
+    @PutMapping("/{id}/rep")
+    @PreAuthorize("hasRole('ADMIN')")
+    OrderResponse assignRep(@PathVariable long id, @RequestBody AssignmentRequest req) {
+        return orders.assignRep(actor.scope(), id, req.repId());
     }
 
     @PostMapping("/{id}/send-quote")

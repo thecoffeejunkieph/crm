@@ -45,20 +45,21 @@ class CatalogIT {
 
     @BeforeEach
     void users() {
-        admin = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) values (?, 'A', 'D', 'ADMIN') returning id",
+        admin = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) values (?, 'A', 'D') returning id) insert into user_role select id, 'ADMIN' from u returning user_id",
                 Long.class, tag + "a@ca.it");
-        sales = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) values (?, 'S', 'R', 'SALES') returning id",
+        sales = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) values (?, 'S', 'R') returning id) insert into user_role select id, 'SALES' from u returning user_id",
                 Long.class, tag + "s@ca.it");
     }
 
     @AfterEach
     void cleanUp() {
         jdbc.update("delete from product where sku like ?", tag + "%");
+        jdbc.update("delete from product_category where name like ?", tag + "%");
         jdbc.update("delete from app_user where email like ?", tag + "%");
     }
 
     private static UsernamePasswordAuthenticationToken as(long id, Role role) {
-        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@ca.it", "A U", role, Set.of()),
+        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@ca.it", "A U", Set.of(role), Set.of()),
                 null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 
@@ -93,6 +94,49 @@ class CatalogIT {
         mvc.perform(get("/api/products/" + id).with(authentication(as(admin, Role.ADMIN))))
                 .andExpect(jsonPath("$.cost").value(7.50))
                 .andExpect(jsonPath("$.reorderLevel").value(25));
+    }
+
+    private ResultActions addCategory(String name) throws Exception {
+        return mvc.perform(post("/api/product-categories").with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"));
+    }
+
+    private ResultActions createInCategory(String sku, long categoryId) throws Exception {
+        return mvc.perform(post("/api/products").with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(sku, "10.00", null).replace("}", ",\"categoryId\":" + categoryId + "}")));
+    }
+
+    @Test
+    void categoriesManagedAndProductsFilteredByThem() throws Exception {
+        String cat = tag + " Beans";
+        String res = addCategory("  " + cat + " ").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value(cat)).andReturn().getResponse().getContentAsString();
+        long catId = ((Number) JsonPath.read(res, "$.id")).longValue();
+        addCategory(cat.toUpperCase()).andExpect(status().isConflict());
+        mvc.perform(post("/api/product-categories").with(authentication(as(sales, Role.SALES))).with(csrf(mvc))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + tag + "x\"}"))
+                .andExpect(status().isForbidden());
+
+        createInCategory(tag + "-1", catId).andExpect(jsonPath("$.category").value(cat));
+        createdId(tag + "-2", "10.00");
+        mvc.perform(get("/api/products").param("q", tag).param("categoryId", String.valueOf(catId))
+                        .with(authentication(as(sales, Role.SALES))))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].category").value(cat));
+        mvc.perform(get("/api/products").param("q", tag).param("sort", "category,asc")
+                        .with(authentication(as(sales, Role.SALES))))
+                .andExpect(status().isOk());
+
+        // rename shows through; archived can't be newly picked
+        mvc.perform(put("/api/product-categories/" + catId).with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + cat + " 2\",\"version\":0}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/product-categories/" + catId + "/archive").with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc)))
+                .andExpect(jsonPath("$.archived").value(true));
+        createInCategory(tag + "-3", catId).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/products").param("q", tag + "-1").with(authentication(as(sales, Role.SALES))))
+                .andExpect(jsonPath("$.content[0].category").value(cat + " 2"));
     }
 
     @Test
@@ -171,5 +215,36 @@ class CatalogIT {
         mvc.perform(get("/api/products/export?format=xlsx").with(authentication(as(admin, Role.ADMIN))))
                 .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith(
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+    }
+
+    private List<String> skus(String sort, long uid, Role role) throws Exception {
+        String res = mvc.perform(get("/api/products").param("q", tag).param("includeArchived", "true").param("sort", sort)
+                        .with(authentication(as(uid, role)))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(res, "$.content[*].sku");
+    }
+
+    @Test
+    void sortsByPriceAndStatus() throws Exception {
+        createdId(tag + "-a", "30.00");
+        createdId(tag + "-b", "10.00");
+        long archived = createdId(tag + "-c", "20.00");
+        jdbc.update("update product set archived_at = now() where id = ?", archived);
+        assertThat(skus("price,asc", admin, Role.ADMIN)).containsExactly(tag + "-b", tag + "-c", tag + "-a");
+        assertThat(skus("price,desc", admin, Role.ADMIN)).containsExactly(tag + "-a", tag + "-c", tag + "-b");
+        mvc.perform(get("/api/products").param("q", tag).param("includeArchived", "true").param("sort", "status,desc")
+                        .with(authentication(as(admin, Role.ADMIN)))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].sku").value(tag + "-c"));
+    }
+
+    @Test
+    void unknownSortKey400AndCostSortIsAdminOnly() throws Exception {
+        mvc.perform(get("/api/products").param("sort", "bogus,asc").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.field").value("sort"));
+        mvc.perform(get("/api/products").param("sort", "cost,asc").with(authentication(as(sales, Role.SALES))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/products").param("sort", "cost,asc").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isOk());
     }
 }

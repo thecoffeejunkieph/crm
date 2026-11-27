@@ -48,13 +48,13 @@ class CustomersIT {
     }
 
     private long user(String name, String role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'A', 'U', ?) returning id", Long.class, tag + name + "@cu.it", role);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'A', 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, tag + name + "@cu.it", role);
     }
 
     private static UsernamePasswordAuthenticationToken as(long id, Role role) {
         return new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(id, "u" + id + "@cu.it", "A U", role, Set.of()), null,
+                new StaffPrincipal(id, "u" + id + "@cu.it", "A U", Set.of(role), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 
@@ -133,6 +133,28 @@ class CustomersIT {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         List<List<String>> phone = JsonPath.read(body, "$.content[?(@.action=='UPDATED')].changes.phone");
         assertThat(phone).containsExactly(List.of("111", "222"));
+    }
+
+    @Test
+    void historySortsBySummaryAndRejectsUnknownKey() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long id = createdId(admin, Role.ADMIN, "hsort");
+        mvc.perform(put("/api/customers/" + id).with(authentication(as(admin, Role.ADMIN))).with(csrf(mvc))
+                .contentType(MediaType.APPLICATION_JSON).content(json("hsort", "222", null, 0L))).andExpect(status().isOk());
+        java.util.function.Function<String, List<String>> summaries = dir -> {
+            try {
+                return JsonPath.read(mvc.perform(get("/api/customers/" + id + "/history?sort=summary," + dir)
+                        .with(authentication(as(admin, Role.ADMIN)))).andExpect(status().isOk()).andReturn().getResponse()
+                        .getContentAsString(), "$.content[*].summary");
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        };
+        List<String> asc = summaries.apply("asc");
+        assertThat(asc).hasSizeGreaterThan(1).doesNotHaveDuplicates();
+        assertThat(summaries.apply("desc")).containsExactlyElementsOf(asc.reversed());
+        mvc.perform(get("/api/customers/" + id + "/history?sort=nope,asc").with(authentication(as(admin, Role.ADMIN))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
     }
 
     @Test
@@ -283,16 +305,16 @@ class CustomersIT {
         long archived = createdId(rep, Role.SALES, "v2");
         long foreign = createdId(other, Role.SALES, "v3");
         jdbc.update("update customer set archived_at = now() where id = ?", archived);
-        var ids = customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Role.SALES, Set.of()));
+        var ids = customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Set.of(Role.SALES), Set.of()));
         assertThat(ids).hasValueSatisfying(set -> assertThat(set).contains(own, archived).doesNotContain(foreign));
-        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Role.WAREHOUSE, Set.of())))
+        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(rep, Set.of(Role.WAREHOUSE), Set.of())))
                 .contains(Set.of());
     }
 
     @Test
     void visibleIdsForAdminUnrestricted() {
         long admin = user("adm", "ADMIN");
-        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(admin, Role.ADMIN, Set.of())))
+        assertThat(customers.visibleCustomerIds(new ph.thecoffeejunkie.crm.shared.Scope(admin, Set.of(Role.ADMIN), Set.of())))
                 .isEmpty();
     }
 
@@ -322,5 +344,31 @@ class CustomersIT {
                 .andExpect(jsonPath("$.content[0].displayName").value(tag + "sm"));
         create(rep, Role.SALES, json("sm2", "111", null, null).replace("}", ",\"socialMedia\":\"" + "x".repeat(1001) + "\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void sortByRep() throws Exception {
+        long admin = user("adm", "ADMIN"), amy = user("amy", "SALES"), zed = user("zed", "SALES");
+        jdbc.update("update app_user set first_name = 'Amy' where id = ?", amy);
+        jdbc.update("update app_user set first_name = 'Zed' where id = ?", zed);
+        long a = createdId(admin, Role.ADMIN, "ra"), z = createdId(admin, Role.ADMIN, "rz");
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", amy, a);
+        jdbc.update("update customer set assigned_rep_id = ? where id = ?", zed, z);
+        mvc.perform(get("/api/customers").param("q", tag).param("sort", "rep,desc")
+                .with(authentication(as(admin, Role.ADMIN)))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(z)).andExpect(jsonPath("$.content[1].id").value(a));
+    }
+
+    @Test
+    void customersSortByStatusActiveFirst() throws Exception {
+        long admin = user("adm", "ADMIN");
+        long gone = createdId(admin, Role.ADMIN, "aa"), live = createdId(admin, Role.ADMIN, "zz");
+        jdbc.update("update customer set archived_at = now() where id = ?", gone);
+        for (var c : List.of(List.of("asc", live, gone), List.of("desc", gone, live))) {
+            mvc.perform(get("/api/customers").param("q", tag).param("includeArchived", "true")
+                    .param("sort", "status," + c.get(0)).with(authentication(as(admin, Role.ADMIN))))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].id").value(c.get(1)))
+                    .andExpect(jsonPath("$.content[1].id").value(c.get(2)));
+        }
     }
 }

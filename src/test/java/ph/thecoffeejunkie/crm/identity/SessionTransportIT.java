@@ -39,7 +39,7 @@ class SessionTransportIT {
         u.passwordHash = new BCryptPasswordEncoder().encode("correct-horse-battery");
         u.firstName = "Dan";
         u.lastName = "Droid";
-        u.role = Role.WAREHOUSE;
+        u.roles = java.util.EnumSet.of(Role.WAREHOUSE);
         users.save(u);
 
         var res = mvc.perform(post("/api/auth/login").header("X-Client-Type", "ANDROID")
@@ -93,7 +93,7 @@ class SessionTransportIT {
         u.passwordHash = new BCryptPasswordEncoder().encode("correct-horse-battery");
         u.firstName = "Cee";
         u.lastName = "Kie";
-        u.role = Role.SALES;
+        u.roles = java.util.EnumSet.of(Role.SALES);
         users.save(u);
     }
 }

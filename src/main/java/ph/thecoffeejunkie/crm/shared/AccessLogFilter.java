@@ -83,7 +83,7 @@ public class AccessLogFilter extends OncePerRequestFilter {
             return "-";
         }
         return a.getAuthorities().stream().map(GrantedAuthority::getAuthority).filter(r -> r.startsWith("ROLE_"))
-                .map(r -> r.substring(5)).findFirst().orElse("-");
+                .map(r -> r.substring(5)).sorted().reduce((x, y) -> x + "," + y).orElse("-");
     }
 
     @Configuration

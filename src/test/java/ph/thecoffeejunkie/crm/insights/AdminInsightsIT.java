@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +19,7 @@ import java.time.YearMonth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static ph.thecoffeejunkie.crm.insights.InsightsFixture.as;
@@ -82,7 +84,35 @@ class AdminInsightsIT {
         adminView(q).andExpect(status().isOk())
                 .andExpect(jsonPath("$.month").value(q.toString()))
                 .andExpect(jsonPath("$.collected").value(1500.00))
-                .andExpect(jsonPath("$.collectedPrevMonth").value(300.00));
+                .andExpect(jsonPath("$.collectedPrev").value(300.00));
+    }
+
+    @Test
+    void yearViewSumsTheYearWithoutTargets() throws Exception {
+        payments();
+        jdbc.update("insert into sales_target (rep_id, month, target_amount, commission_pct, updated_by) "
+                + "values (?, ?, 1000, 2, ?)", repA, q.atDay(1), admin);
+        caches.getCache("insights").invalidate();
+        double year = q.getYear() == q.minusMonths(1).getYear() ? 1800.0 : 1500.0;
+        mvc.perform(get("/api/insights/admin").param("period", "year").param("date", q.atDay(1).toString())
+                        .with(as(admin, Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.period").value("year"))
+                .andExpect(jsonPath("$.from").value(q.getYear() + "-01-01"))
+                .andExpect(jsonPath("$.collected").value(year))
+                .andExpect(jsonPath(rep(repA) + ".target").value(contains((Object) null)));
+    }
+
+    @Test
+    void adminCreditsUnassignedOrderToRep() throws Exception {
+        long none = f.order(custNone, null, "FULFILLED", "5000.00", "0.00", null);
+        f.payment(none, "VERIFIED", "500.00", "0.00", at(q, 30));
+        mvc.perform(put("/api/orders/" + none + "/rep").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"repId\":" + repA + "}").with(ph.thecoffeejunkie.crm.CsrfSupport.csrf(mvc)).with(as(admin, Role.ADMIN))).andExpect(status().isOk());
+        adminView(q).andExpect(jsonPath(rep(repA) + ".collected").value(contains(500.0)))
+                .andExpect(jsonPath("$.reps[?(@.repId == null)]").isEmpty());
+        mvc.perform(put("/api/orders/" + none + "/rep").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"repId\":" + repB + "}").with(ph.thecoffeejunkie.crm.CsrfSupport.csrf(mvc)).with(as(admin, Role.ADMIN))).andExpect(status().isUnprocessableContent());
     }
 
     @Test
@@ -136,13 +166,16 @@ class AdminInsightsIT {
     }
 
     @Test
-    void collectedByMonthHasTwelveEndingAtMonth() throws Exception {
+    void trendFollowsThePeriod() throws Exception {
         payments();
-        adminView(q).andExpect(jsonPath("$.collectedByMonth.length()").value(12))
-                .andExpect(jsonPath("$.collectedByMonth[11].month").value(q.toString()))
-                .andExpect(jsonPath("$.collectedByMonth[11].amount").value(1500.00))
-                .andExpect(jsonPath("$.collectedByMonth[10].amount").value(300.00))
-                .andExpect(jsonPath("$.collectedByMonth[0].month").value(q.minusMonths(11).toString()));
+        adminView(q).andExpect(jsonPath("$.collectedTrend.length()").value(q.lengthOfMonth()))
+                .andExpect(jsonPath("$.collectedTrend[1].date").value(q.atDay(2).toString()))
+                .andExpect(jsonPath("$.collectedTrend[1].amount").value(1500.00));
+        caches.getCache("insights").invalidate();
+        mvc.perform(get("/api/insights/admin").param("period", "year").param("date", q.atDay(1).toString())
+                        .with(as(admin, Role.ADMIN)))
+                .andExpect(jsonPath("$.collectedTrend.length()").value(12))
+                .andExpect(jsonPath("$.collectedTrend[" + (q.getMonthValue() - 1) + "].amount").value(1500.00));
     }
 
     @Test
@@ -158,6 +191,33 @@ class AdminInsightsIT {
                 .andExpect(jsonPath("$.topProducts[0].margin").value(900.00))
                 .andExpect(jsonPath("$.topProducts[1].productId").value(small))
                 .andExpect(jsonPath("$.topProducts[1].margin").value(50.00));
+    }
+
+    @Test
+    void topListsReturnUpToTwenty() throws Exception {
+        long o = f.order(custA, repA, "FULFILLED", "2100.00", "0.00", null);
+        for (int i = 0; i < 21; i++) {
+            f.line(o, f.product("p" + i, "10.00"), "1", "100.00", "10.00");
+            long c = f.customer("c" + i, repA);
+            f.payment(f.order(c, repA, "FULFILLED", "500.00", "0.00", null), "VERIFIED", "100.00", "0.00", at(q, 30));
+        }
+        confirmedIn(o);
+        adminView(q).andExpect(jsonPath("$.topProducts.length()").value(20))
+                .andExpect(jsonPath("$.topCustomers.length()").value(20));
+    }
+
+    @Test
+    void topProductsSubtractReturnedLine() throws Exception {
+        long o = f.order(custA, repA, "FULFILLED", "3000.00", "0.00", null);
+        long small = f.product("small", "50.00");
+        long big = f.product("big", "1500.00");
+        f.line(o, small, "1", "100.00", "50.00");
+        long bigLine = f.line(o, big, "2", "2900.00", "1000.00");
+        confirmedIn(o);
+        f.refundLine(f.refund(o, "1450.00", at(q, 40)), bigLine, "1450.00");
+        adminView(q).andExpect(jsonPath("$.topProducts[0].productId").value(big))
+                .andExpect(jsonPath("$.topProducts[0].revenue").value(1450.00))
+                .andExpect(jsonPath("$.topProducts[1].revenue").value(100.00));
     }
 
     @Test

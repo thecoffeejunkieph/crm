@@ -159,6 +159,22 @@ class DealsIT {
     }
 
     @Test
+    void sortsByLinkedCustomerAndStageAndRejectsUnknownKey() throws Exception {
+        f.deal(bolt, other, "Zed", "DISCOVERY", BigDecimal.TEN, null);
+        f.deal(acme, rep, "Abe", "PROPOSAL", BigDecimal.ONE, null);
+        mvc.perform(get("/api/deals?q=" + f.tag + "&sort=customer,asc").with(asAdmin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].customerName").value(contains(f.tag + "Acme", f.tag + "Bolt")));
+        mvc.perform(get("/api/deals?q=" + f.tag + "&sort=customer,desc").with(asAdmin))
+                .andExpect(jsonPath("$.content[*].customerName").value(contains(f.tag + "Bolt", f.tag + "Acme")));
+        mvc.perform(get("/api/deals?q=" + f.tag + "&sort=stage,asc").with(asAdmin))
+                .andExpect(jsonPath("$.content[*].stage").value(contains("DISCOVERY", "PROPOSAL")));
+        mvc.perform(get("/api/deals?q=" + f.tag + "&sort=title,desc").with(asAdmin))
+                .andExpect(jsonPath("$.content[*].title").value(contains(f.tag + "Zed", f.tag + "Abe")));
+        mvc.perform(get("/api/deals?sort=nope,asc").with(asAdmin)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sort"));
+    }
+
+    @Test
     void warehouseForbidden() throws Exception {
         mvc.perform(get("/api/deals").with(as(wh, Role.WAREHOUSE))).andExpect(status().isForbidden());
     }

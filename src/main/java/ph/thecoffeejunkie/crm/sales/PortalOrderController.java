@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -57,6 +58,11 @@ class PortalOrderController {
         return portal.payments(id);
     }
 
+    @GetMapping("/orders/{id}/refunds")
+    List<PortalRefundResponse> refunds(@PathVariable long id) {
+        return portal.refunds(id);
+    }
+
     @PostMapping(value = "/orders/{id}/payments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     PortalPaymentResponse submitPayment(@PathVariable long id, @RequestHeader("Idempotency-Key") String key,
                                         @Valid @RequestPart("payment") PaymentRequest req,
@@ -69,9 +75,36 @@ class PortalOrderController {
         return portal.attach2307(id, file);
     }
 
+    @GetMapping("/products")
+    PageResponse<PortalProduct> products(@RequestParam(required = false) String q, PageQuery page) {
+        return portal.products(q, page);
+    }
+
+    @GetMapping("/orders/{id}/reorder")
+    List<PortalProduct> reorderLines(@PathVariable long id) {
+        return portal.reorderLines(id);
+    }
+
+    @PostMapping("/quote-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    PortalQuoteRequestResponse requestQuote(@RequestHeader("Idempotency-Key") String key,
+                                            @Valid @RequestBody PortalQuoteRequest req) {
+        return portal.requestQuote(req);
+    }
+
+    @GetMapping("/statement.pdf")
+    ResponseEntity<byte[]> statementPdf() {
+        return portal.statementPdf().inline();
+    }
+
     @GetMapping("/orders/{id}/quote.pdf")
     ResponseEntity<byte[]> quotePdf(@PathVariable long id) {
         return portal.quotePdf(id).inline();
+    }
+
+    @GetMapping("/orders/{orderId}/refunds/{id}/credit-memo.pdf")
+    ResponseEntity<byte[]> creditMemoPdf(@PathVariable long orderId, @PathVariable long id) {
+        return portal.creditMemoPdf(orderId, id).inline();
     }
 
     @GetMapping("/invoices/{id}.pdf")

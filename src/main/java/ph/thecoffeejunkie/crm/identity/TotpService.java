@@ -122,7 +122,7 @@ class TotpService {
 
     void disable(long userId, String code) {
         AppUser u = user(userId);
-        if (u.role == Role.ADMIN) {
+        if (u.has(Role.ADMIN)) {
             throw new DomainException(ErrorCode.FORBIDDEN, "Admins cannot turn off two-factor authentication.");
         }
         if (u.totpEnabledAt == null) {

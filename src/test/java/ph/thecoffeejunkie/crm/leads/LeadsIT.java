@@ -12,6 +12,7 @@ import ph.thecoffeejunkie.crm.IntegrationTest;
 import ph.thecoffeejunkie.crm.shared.Role;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -137,6 +138,22 @@ class LeadsIT {
                 .andExpect(jsonPath("$.qualified").value(0))
                 .andExpect(jsonPath("$.lost").value(1))
                 .andExpect(jsonPath("$.converted").value(0));
+    }
+
+    @Test
+    void sortsByLinkedRepAndStatusAndRejectsUnknownKey() throws Exception {
+        f.lead("Zed", rep, "NEW", "0917", null);
+        f.lead("Abe", other, "QUALIFIED", "0918", null);
+        mvc.perform(get("/api/leads?q=" + f.tag + "&sort=rep,asc").with(asAdmin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].contactName").value(contains(f.tag + "Abe", f.tag + "Zed")));
+        mvc.perform(get("/api/leads?q=" + f.tag + "&sort=rep,desc").with(asAdmin))
+                .andExpect(jsonPath("$.content[*].contactName").value(contains(f.tag + "Zed", f.tag + "Abe")));
+        mvc.perform(get("/api/leads?q=" + f.tag + "&sort=status,desc").with(asAdmin))
+                .andExpect(jsonPath("$.content[*].status").value(contains("QUALIFIED", "NEW")));
+        mvc.perform(get("/api/leads?q=" + f.tag + "&sort=name,asc").with(asAdmin))
+                .andExpect(jsonPath("$.content[*].contactName").value(contains(f.tag + "Abe", f.tag + "Zed")));
+        mvc.perform(get("/api/leads?sort=nope,asc").with(asAdmin)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sort"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.files;
 
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -257,6 +258,15 @@ public class StorageService {
         } catch (Exception e) {
             log.error("Failed to store object {}", key, e);
             throw new IllegalStateException("Failed to store file", e);
+        }
+    }
+
+    /** The object's bytes, for server-side use (mail attachments). Throws when it is missing or unreadable. */
+    public byte[] read(String key) {
+        try (var in = client.getObject(GetObjectArgs.builder().bucket(bucket).object(key).build())) {
+            return in.readAllBytes();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to read object " + key, e);
         }
     }
 

@@ -248,4 +248,17 @@ class PortalOrdersIT {
         mvc.perform(get("/api/portal/orders").with(me)).andExpect(jsonPath("$.totalElements").value(0));
         mvc.perform(get("/api/portal/orders/" + id).with(me)).andExpect(status().isNotFound());
     }
+
+    @Test
+    void sortsByTotalAndBalanceAndRejectsUnknownKey() throws Exception {
+        long small = quoted(customer, line(product, "1"));
+        long big = quoted(customer, line(product, "3"));
+        mvc.perform(get("/api/portal/orders").param("sort", "total,desc").with(me)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(big)).andExpect(jsonPath("$.content[1].id").value(small));
+        mvc.perform(get("/api/portal/orders").param("sort", "balance,asc").with(me)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(small));
+        mvc.perform(get("/api/portal/orders").param("sort", "status,asc").with(me)).andExpect(status().isOk());
+        mvc.perform(get("/api/portal/orders").param("sort", "customer,asc").with(me)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sort"));
+    }
 }

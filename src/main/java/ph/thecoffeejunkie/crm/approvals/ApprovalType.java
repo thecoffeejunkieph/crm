@@ -1,5 +1,5 @@
 package ph.thecoffeejunkie.crm.approvals;
 
 public enum ApprovalType {
-    DISCOUNT, BELOW_COST, CREDIT_LIMIT, STOCK_WRITE_OFF, INVOICE_VOID
+    DISCOUNT, BELOW_COST, CREDIT_LIMIT, STOCK_WRITE_OFF, INVOICE_VOID, REFUND, PO_OVER_CREDIT
 }

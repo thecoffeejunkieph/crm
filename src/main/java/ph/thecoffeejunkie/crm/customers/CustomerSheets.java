@@ -70,6 +70,6 @@ class CustomerSheets {
                 decimal("creditLimit", r.get("creditlimit")),
                 enumOf(PaymentTerms.class, "paymentTerms", r.getOrDefault("paymentterms", "DUE_ON_RECEIPT")),
                 null, r.get("notes"), null, enumOf(TaxTreatment.class, "taxTreatment", r.get("taxtreatment")),
-                r.get("socialmedia"));
+                r.get("socialmedia"), null);
     }
 }

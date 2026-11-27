@@ -49,3 +49,8 @@ tailwind/node_modules/
 .superpowers/
 
 logs/
+
+graphify-out/*
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/graph.html
+

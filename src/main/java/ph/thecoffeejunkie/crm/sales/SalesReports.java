@@ -13,6 +13,7 @@ import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.identity.Users;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
@@ -48,7 +49,8 @@ class SalesReports {
     @Transactional(readOnly = true)
     PageResponse<Missing2307Row> missing2307(Scope s, Long customerId, Long repId, LocalDate from, LocalDate to,
                                             PageQuery page) {
-        Pageable p = page.toPageable(Set.of("receivedOn"), Sort.by("receivedOn"));
+        Pageable p = page.toPageable(SORT.keySet(), Sort.by("receivedOn"));
+        String order = SortRequest.sqlOrderBy(page, SORT, "p.received_on, p.id", "p.id");
         MapSqlParameterSource params = new MapSqlParameterSource();
         String where = where(s, customerId, repId, from, to, params);
         if (where == null) {
@@ -56,7 +58,7 @@ class SalesReports {
         }
         long total = jdbc.queryForObject("select count(*) " + where, params, Long.class);
         params.addValue("limit", p.getPageSize()).addValue("offset", p.getOffset());
-        List<Raw> raw = jdbc.query(SELECT + where + ORDER + " limit :limit offset :offset", params, SalesReports::raw);
+        List<Raw> raw = jdbc.query(SELECT + where + order + " limit :limit offset :offset", params, SalesReports::raw);
         return PageResponse.of(new PageImpl<>(rows(raw), p, total));
     }
 
@@ -79,6 +81,11 @@ class SalesReports {
     private static final String SELECT = "select p.id, p.order_id, o.number, o.customer_id, o.rep_id, p.received_on, "
             + "p.withholding_amount ";
     private static final String ORDER = " order by p.received_on, p.id";
+    // Sort key -> fixed SQL fragment, keyed by the page's column keys.
+    private static final Map<String, String> SORT = Map.of("received", "p.received_on",
+            "customer", "(select c.display_name from customer c where c.id = o.customer_id)", "order", "o.number",
+            "rep", "(select u.first_name || ' ' || u.last_name from app_user u where u.id = o.rep_id)",
+            "withholding", "p.withholding_amount");
 
     /** null = the scope sees nothing. */
     private String where(Scope s, Long customerId, Long repId, LocalDate from, LocalDate to,

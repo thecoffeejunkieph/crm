@@ -59,7 +59,7 @@ class TransfersIT {
         admin = as(f.user("adm"), Role.ADMIN);
         srcUser = as(f.user("src"), Role.WAREHOUSE, src);
         dstUserId = f.user("dst");
-        jdbc.update("update app_user set role = 'WAREHOUSE' where id = ?", dstUserId);
+        jdbc.update("update user_role set role = 'WAREHOUSE' where user_id = ?", dstUserId);
         jdbc.update("insert into user_warehouse (user_id, warehouse_id) values (?, ?)", dstUserId, dst);
         dstUser = as(dstUserId, Role.WAREHOUSE, dst);
     }
@@ -276,5 +276,27 @@ class TransfersIT {
         assertThat(out.get(0).toWarehouseId()).isEqualTo(dst);
         assertThat(out.get(0).salesOrderId()).isEqualTo(o.orderId());
         assertThat(out.get(0).lines().get(0).qty()).isEqualByComparingTo("8");
+    }
+
+    @Test
+    void sortsByColumnsAndRejectsUnknownKey() throws Exception {
+        f.receive(p, src, "10");
+        long first = create("2", null);
+        long second = create("2", null);
+        act(first, "dispatch", null, srcUser).andExpect(status().isOk());
+        mvc.perform(get("/api/transfers").param("sort", "status,asc").with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + first + ")]").isNotEmpty());
+        String res = mvc.perform(get("/api/transfers").param("sort", "status,asc").param("size", "100").with(admin))
+                .andReturn().getResponse().getContentAsString();
+        java.util.List<Integer> ids = com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");
+        assertThat(ids.indexOf((int) second)).isLessThan(ids.indexOf((int) first)); // DRAFT before DISPATCHED
+        res = mvc.perform(get("/api/transfers").param("sort", "number,desc").param("size", "100").with(admin))
+                .andReturn().getResponse().getContentAsString();
+        ids = com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");
+        assertThat(ids.indexOf((int) second)).isLessThan(ids.indexOf((int) first));
+        mvc.perform(get("/api/transfers").param("sort", "route,asc").with(admin)).andExpect(status().isOk());
+        mvc.perform(get("/api/transfers").param("sort", "lines,desc").with(admin)).andExpect(status().isOk());
+        mvc.perform(get("/api/transfers").param("sort", "pdf,asc").with(admin)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sort"));
     }
 }

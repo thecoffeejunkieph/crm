@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
+import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 
 @RestController
@@ -38,8 +39,9 @@ class DealController {
                                     @RequestParam(required = false) Long customerId,
                                     @RequestParam(required = false) Long repId,
                                     @RequestParam(defaultValue = "1") @Min(1) int page,
-                                    @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return deals.list(actor.scope(), stage, q, customerId, repId, page, size);
+                                    @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+                                    @RequestParam(required = false) String sort) {
+        return deals.list(actor.scope(), stage, q, customerId, repId, new PageQuery(page, size, sort));
     }
 
     @GetMapping("/summary")
@@ -77,6 +79,12 @@ class DealController {
     org.springframework.http.ResponseEntity<DealRef> byOrder(@PathVariable long orderId) {
         return deals.byOrder(actor.scope(), orderId).map(org.springframework.http.ResponseEntity::ok)
                 .orElseGet(() -> org.springframework.http.ResponseEntity.noContent().build());
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void delete(@PathVariable long id) {
+        deals.delete(actor.scope(), id);
     }
 
     @PostMapping("/{id}/stage")

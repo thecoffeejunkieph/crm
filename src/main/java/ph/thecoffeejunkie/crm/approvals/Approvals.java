@@ -18,6 +18,7 @@ import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
@@ -34,6 +35,10 @@ import java.util.Set;
 public class Approvals {
 
     private static final String ENTITY = "APPROVAL";
+    private static final Set<String> SORTABLE = Set.of("id", "requestedAt", "decidedAt", "type", "status", "subjectType",
+            "subjectId");
+    private static final Map<String, SortRequest.SortJoin<ApprovalRequest>> SORT_JOINS = Map.of(
+            "user", new SortRequest.SortJoin<>("app_user", "requestedBy", "first_name || ' ' || last_name"));
 
     private final ApprovalRequestRepository repo;
     private final AuditLog audit;
@@ -170,6 +175,27 @@ public class Approvals {
     }
 
     /**
+     * For the owning module when it withdraws the subject itself (e.g. a refund cancelled by someone other than the
+     * requester): no requester check, and a request that is no longer PENDING is left alone.
+     */
+    @Transactional
+    public void cancelForSubject(long id) {
+        ApprovalRequest a = repo.findById(id).orElseThrow(Approvals::notFound);
+        if (a.status != ApprovalStatus.PENDING) {
+            return;
+        }
+        a.status = ApprovalStatus.CANCELLED;
+        repo.saveAndFlush(a);
+        audit.record(AuditAction.APPROVAL_CANCELLED, ENTITY, id, "approval cancelled (subject withdrawn)", null);
+    }
+
+    /** The note written when the request was decided; null if none or unknown. For owning modules reacting to {@link ApprovalDecided}. */
+    @Transactional(readOnly = true)
+    public String decisionNote(long id) {
+        return repo.findById(id).map(a -> a.decisionNote).orElse(null);
+    }
+
+    /**
      * Admins see everything (or just their own with mine=true); everyone else only their own. subjectType/subjectIds
      * narrow to one record's approvals (the order page, the stock page); null = any.
      */
@@ -183,8 +209,8 @@ public class Approvals {
                 (r, q, cb) -> subjectType == null ? null : cb.equal(r.get("subjectType"), subjectType),
                 (r, q, cb) -> subjectIds == null || subjectIds.isEmpty() ? null : r.get("subjectId").in(subjectIds),
                 (r, q, cb) -> own ? cb.equal(r.get("requestedBy"), scope.userId()) : null);
-        var found = repo.findAll(spec, page.toPageable(Set.of("id", "requestedAt"),
-                Sort.by(Sort.Direction.DESC, "id")));
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, Sort.by(Sort.Direction.DESC, "id"));
+        var found = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         List<Long> ids = new ArrayList<>();
         found.forEach(a -> {
             ids.add(a.requestedBy);

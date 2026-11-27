@@ -40,8 +40,8 @@ final class SalesFixture {
     }
 
     long user(String name, Role role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, ?, 'U', ?) returning id", Long.class, tag + name + "@sf.it", name, role.name());
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, ?, 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, tag + name + "@sf.it", name, role.name());
     }
 
     /** BUSINESS, NET_30, no credit limit, REGULAR. */
@@ -51,9 +51,10 @@ final class SalesFixture {
     }
 
     long contact(long customerId, String name, boolean portalEnabled) {
-        return jdbc.queryForObject("insert into customer_contact (customer_id, name, email, portal_enabled) "
-                + "values (?, ?, ?, ?) returning id", Long.class, customerId, name,
-                (tag + name + "@contact.ph").toLowerCase(), portalEnabled);
+        // receives_invoices mirrors portal access, as V28 set it for existing contacts
+        return jdbc.queryForObject("insert into customer_contact (customer_id, name, email, portal_enabled, "
+                + "receives_invoices) values (?, ?, ?, ?, ?) returning id", Long.class, customerId, name,
+                (tag + name + "@contact.ph").toLowerCase(), portalEnabled, portalEnabled);
     }
 
     String contactEmail(String name) {
@@ -97,7 +98,7 @@ final class SalesFixture {
     }
 
     static UsernamePasswordAuthenticationToken token(long id, Role role) {
-        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@sf.it", "Staff " + id, role,
+        return new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@sf.it", "Staff " + id, Set.of(role),
                 Set.of()), null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 
@@ -171,6 +172,7 @@ final class SalesFixture {
         String orders = "select o.id from sales_order o join customer c on c.id = o.customer_id where c.display_name like '"
                 + tag + "%'";
         String products = "select id from product where sku like '" + tag + "%'";
+        jdbc.update("delete from refund where order_id in (" + orders + ")");
         jdbc.update("delete from delivery_order where sales_order_id in (" + orders + ")");
         jdbc.update("delete from stock_transfer where sales_order_id in (" + orders + ")");
         jdbc.update("delete from stock_reservation where sales_order_id in (" + orders + ")");
@@ -187,6 +189,8 @@ final class SalesFixture {
         jdbc.update("delete from sales_order where customer_id in (select id from customer where display_name like ?)",
                 tag + "%");
         jdbc.update("delete from customer_contact where customer_id in (select id from customer where display_name like ?)",
+                tag + "%");
+        jdbc.update("delete from customer_address where customer_id in (select id from customer where display_name like ?)",
                 tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
         jdbc.update("delete from product where sku like ?", tag + "%");

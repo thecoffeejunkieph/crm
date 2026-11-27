@@ -134,6 +134,7 @@ class PaymentService {
                 "Rejected payment of " + p.amount().toPlainString() + ": " + p.rejectReason, null);
         notifications.toUser(OrderStockMapper.rep(o), NotificationType.PAYMENT_REJECTED, OrderService.ENTITY, o.id,
                 "Payment rejected for " + o.number, p.rejectReason);
+        events.publishEvent(new PaymentRejected(o.id, p.id));
         return toResponse(p);
     }
 
@@ -240,10 +241,6 @@ class PaymentService {
 
     boolean hasPending(SalesOrder o) {
         return repo.existsByOrderIdAndStatus(o.id, PaymentVerification.PENDING);
-    }
-
-    boolean hasVerified(SalesOrder o) {
-        return repo.existsByOrderIdAndStatus(o.id, PaymentVerification.VERIFIED);
     }
 
     Payment find(long paymentId) {

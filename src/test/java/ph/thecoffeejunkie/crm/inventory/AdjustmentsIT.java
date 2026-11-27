@@ -52,7 +52,7 @@ class AdjustmentsIT {
         p = f.product("P", "KG");
         jdbc.update("update product set cost = 100 where id = ?", p);
         adminId = f.user("adm");
-        jdbc.update("update app_user set role = 'ADMIN' where id = ?", adminId);
+        jdbc.update("update user_role set role = 'ADMIN' where user_id = ?", adminId);
         admin = as(adminId, Role.ADMIN);
         whId = f.user("wh");
         warehouse1 = as(whId, Role.WAREHOUSE, wh1);
@@ -60,9 +60,12 @@ class AdjustmentsIT {
 
     @AfterEach
     void cleanUp() {
-        List<Long> adjustments = jdbc.queryForList("select id from stock_adjustment where warehouse_id = ?",
-                Long.class, wh1);
-        jdbc.update("delete from stock_adjustment where warehouse_id = ?", wh1);
+        // the sort test also posts to a second warehouse: collect both before deleting
+        String second = "select id from warehouse where code like ?";
+        List<Long> adjustments = jdbc.queryForList("select id from stock_adjustment where warehouse_id = ? "
+                + "or warehouse_id in (" + second + ")", Long.class, wh1, f.tag + "%");
+        jdbc.update("delete from stock_adjustment where warehouse_id = ? or warehouse_id in (" + second + ")",
+                wh1, f.tag + "%");
         adjustments.forEach(id -> jdbc.update("delete from approval_request where subject_type = 'STOCK_ADJUSTMENT' "
                 + "and subject_id = ?", id));
         f.cleanUp();
@@ -272,5 +275,48 @@ class AdjustmentsIT {
         assertThat(f.onHand(p, wh1)).isEqualByComparingTo("8");
         assertThat(jdbc.queryForObject("select count(*) from stock_adjustment where warehouse_id = ? "
                 + "and status = 'POSTED'", Integer.class, wh1)).isEqualTo(2);
+    }
+
+    @Test
+    void sortsByLinkedWarehouseAndProductAndRejectsUnknownKey() throws Exception {
+        long wh2 = f.warehouse("B");
+        long q = f.product("Q", "KG");
+        jdbc.update("update warehouse set name = 'Zulu' where id = ?", wh1);
+        jdbc.update("update warehouse set name = 'Alpha' where id = ?", wh2);
+        jdbc.update("update product set name = 'Zebra' where id = ?", p);
+        jdbc.update("update product set name = 'Apple' where id = ?", q);
+        f.receive(p, wh1, "10");
+        f.receive(q, wh2, "10");
+        // row 1: Zulu warehouse + Zebra product, delta 1; row 2: Alpha warehouse + Apple product, delta 2
+        adjust("{\"warehouseId\":" + wh1 + ",\"productId\":" + p + ",\"mode\":\"DELTA\",\"delta\":1,\"reason\":\"r\"}", admin)
+                .andExpect(status().isCreated());
+        adjust("{\"warehouseId\":" + wh2 + ",\"productId\":" + q + ",\"mode\":\"DELTA\",\"delta\":2,\"reason\":\"r\"}", admin)
+                .andExpect(status().isCreated());
+        long id1 = jdbc.queryForObject("select id from stock_adjustment where warehouse_id = ?", Long.class, wh1);
+        long id2 = jdbc.queryForObject("select id from stock_adjustment where warehouse_id = ?", Long.class, wh2);
+        for (String key : new String[]{"warehouse", "product"}) {
+            assertThat(order(key + ",asc", id1, id2)).containsExactly(id2, id1);
+            assertThat(order(key + ",desc", id1, id2)).containsExactly(id1, id2);
+        }
+        assertThat(order("delta,desc", id1, id2)).containsExactly(id2, id1);
+        mvc.perform(get("/api/stock/adjustments").param("sort", "bogus,asc").with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
+
+    /** The given ids' relative order across all pages of a sort, ignoring any other rows. */
+    private List<Long> order(String sort, long... ids) throws Exception {
+        List<Long> found = new java.util.ArrayList<>();
+        for (int page = 1; found.size() < ids.length; page++) {
+            String body = mvc.perform(get("/api/stock/adjustments").param("sort", sort).param("size", "100")
+                    .param("page", String.valueOf(page)).with(admin)).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            List<Number> all = com.jayway.jsonpath.JsonPath.read(body, "$.content[*].id");
+            if (all.isEmpty()) {
+                break;
+            }
+            all.stream().map(Number::longValue).filter(i -> java.util.Arrays.stream(ids).anyMatch(x -> x == i))
+                    .forEach(found::add);
+        }
+        return found;
     }
 }

@@ -38,7 +38,7 @@ class WarehousesIT {
     }
 
     private static UsernamePasswordAuthenticationToken auth(Role role) {
-        var p = new StaffPrincipal(1L, "a@x.ph", "Ann Admin", role, Set.of());
+        var p = new StaffPrincipal(1L, "a@x.ph", "Ann Admin", Set.of(role), Set.of());
         return new UsernamePasswordAuthenticationToken(p, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
     }
 

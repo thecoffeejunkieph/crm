@@ -27,7 +27,7 @@ class AccessLogFilterIT {
     @Autowired AccessLogFilter filter;
 
     private static RequestPostProcessor admin() {
-        return authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(1, "a@x.it", "Admin", Role.ADMIN,
+        return authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(1, "a@x.it", "Admin", Set.of(Role.ADMIN),
                 Set.of()), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
     }
 
@@ -62,7 +62,7 @@ class AccessLogFilterIT {
     void securityRejectionsStillGetALine(CapturedOutput out) throws Exception {
         mvc.perform(get("/api/customers"));
         mvc.perform(get("/api/admin/users").with(authentication(new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(2, "s@x.it", "Rep", Role.SALES, Set.of()), null,
+                new StaffPrincipal(2, "s@x.it", "Rep", Set.of(Role.SALES), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_SALES"))))));
         assertThat(out.getOut()).containsPattern("WARN .*GET /api/customers → 401 in \\d+ms user=- -")
                 .containsPattern("WARN .*GET /api/admin/users → 403 in \\d+ms user=user:2 SALES");

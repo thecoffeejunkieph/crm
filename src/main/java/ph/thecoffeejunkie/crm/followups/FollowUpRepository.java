@@ -22,7 +22,7 @@ interface FollowUpRepository extends JpaRepository<FollowUp, Long>, JpaSpecifica
     int markDone(long id, Instant at, long by);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("update FollowUp f set f.doneAt = null, f.doneBy = null, f.updatedAt = :at, f.version = f.version + 1 "
+    @Query("update FollowUp f set f.doneAt = null, f.doneBy = null, f.closedReason = null, f.updatedAt = :at, f.version = f.version + 1 "
             + "where f.id = :id and f.doneAt is not null")
     int markOpen(long id, Instant at);
 }

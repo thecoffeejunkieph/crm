@@ -40,8 +40,8 @@ class CustomerScopingIT {
     }
 
     private long user(String name, String role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'A', 'U', ?) returning id", Long.class, tag + name + "@sc.it", role);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'A', 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, tag + name + "@sc.it", role);
     }
 
     private long customer(String name, Long repId) {
@@ -51,7 +51,7 @@ class CustomerScopingIT {
 
     private static UsernamePasswordAuthenticationToken as(long id, Role role) {
         return new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(id, "u" + id + "@sc.it", "A U", role, Set.of()), null,
+                new StaffPrincipal(id, "u" + id + "@sc.it", "A U", Set.of(role), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 

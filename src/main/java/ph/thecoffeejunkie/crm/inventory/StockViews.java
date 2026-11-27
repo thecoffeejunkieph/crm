@@ -13,6 +13,7 @@ import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
 import java.math.BigDecimal;
@@ -22,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Read side of stock. Plain SQL: the list joins product for sku, name and unit only (never cost), and the
@@ -33,6 +33,14 @@ import java.util.Set;
 class StockViews {
 
     private static final BigDecimal ZERO = new BigDecimal("0.000");
+    // Sort key -> fixed SQL fragment. Keys are the page's column keys; user input only selects an entry, never reaches the SQL.
+    private static final Map<String, String> LEVEL_SORT = Map.of("sku", "p.sku", "name", "p.name",
+            "onHand", "sl.on_hand", "reserved", "sl.reserved", "available", "(sl.on_hand - sl.reserved)",
+            "short", "coalesce(s.short_qty, 0)");
+    private static final Map<String, String> MOVEMENT_SORT = Map.of("createdAt", "m.created_at", "type", "m.type",
+            "qty", "m.qty", "ref", "coalesce(r.number, a.number, t.number, d.number, i.number)",
+            "by", "(select u.first_name || ' ' || u.last_name from app_user u where u.id = m.created_by)",
+            "reason", "m.reason");
 
     private final JdbcTemplate jdbc;
     private final InventoryPermissions perms;
@@ -50,7 +58,9 @@ class StockViews {
 
     PageResponse<StockLevelResponse> levels(Long warehouseId, String q, boolean lowOnly, PageQuery page) {
         perms.require(warehouseId, false);
-        Pageable pageable = page.toPageable(Set.of(), Sort.unsorted());
+        Pageable pageable = page.toPageable(LEVEL_SORT.keySet(), Sort.unsorted());
+        String order = SortRequest.sqlOrderBy(page, LEVEL_SORT, "p.name, p.sku, sl.warehouse_id",
+                "sl.product_id, sl.warehouse_id");
         String from = "from stock_level sl join product p on p.id = sl.product_id "
                 + "left join (select product_id, warehouse_id, sum(short_qty) short_qty from stock_reservation "
                 + "group by product_id, warehouse_id) s on s.product_id = sl.product_id "
@@ -74,7 +84,7 @@ class StockViews {
         List<StockLevelResponse> rows = jdbc.query("select sl.product_id, p.sku, p.name, p.unit, "
                 + "p.archived_at is not null archived, sl.warehouse_id, sl.on_hand, sl.reserved, "
                 + "sl.on_hand - sl.reserved available, coalesce(s.short_qty, 0)::numeric(12,3) short_qty " + from
-                + " order by p.name, p.sku, sl.warehouse_id limit ? offset ?",
+                + order + " limit ? offset ?",
                 (rs, i) -> new StockLevelResponse(rs.getLong("product_id"), rs.getString("sku"), rs.getString("name"),
                         ProductUnit.valueOf(rs.getString("unit")), rs.getBoolean("archived"),
                         rs.getLong("warehouse_id"), rs.getBigDecimal("on_hand"), rs.getBigDecimal("reserved"),
@@ -84,7 +94,8 @@ class StockViews {
 
     PageResponse<MovementResponse> movements(long productId, Long warehouseId, PageQuery page) {
         perms.require(warehouseId, false);
-        Pageable pageable = page.toPageable(Set.of(), Sort.unsorted());
+        Pageable pageable = page.toPageable(MOVEMENT_SORT.keySet(), Sort.unsorted());
+        String order = SortRequest.sqlOrderBy(page, MOVEMENT_SORT, "m.id desc", "m.id desc");
         String where = " where m.product_id = ?";
         List<Object> args = new ArrayList<>(List.of(productId));
         if (warehouseId != null) {
@@ -103,7 +114,7 @@ class StockViews {
                 + "left join stock_transfer t on m.ref_type = 'TRANSFER' and t.id = m.ref_id "
                 + "left join delivery_order d on m.ref_type = 'DELIVERY_ORDER' and d.id = m.ref_id "
                 + "left join invoice i on m.ref_type = 'INVOICE' and i.id = m.ref_id" + where
-                + " order by m.id desc limit ? offset ?",
+                + order + " limit ? offset ?",
                 (rs, i) -> new Object[]{rs.getLong("id"), rs.getString("type"), rs.getBigDecimal("qty"),
                         rs.getString("ref_type"), rs.getLong("ref_id"), rs.getString("ref_number"),
                         rs.getString("reason"), rs.getObject("created_by", Long.class),

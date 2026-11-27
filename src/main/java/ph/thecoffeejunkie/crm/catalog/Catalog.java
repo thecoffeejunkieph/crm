@@ -1,6 +1,7 @@
 package ph.thecoffeejunkie.crm.catalog;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import ph.thecoffeejunkie.crm.shared.CurrentActor;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Role;
 
@@ -24,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /** Public facade: other modules read products through {@link #info}; admins manage them via the controller. */
@@ -31,26 +34,40 @@ import java.util.Set;
 public class Catalog {
 
     private static final String ENTITY = "PRODUCT";
-    private static final Set<String> SORTABLE = Set.of("sku", "name");
+    private static final Set<String> SORTABLE = Set.of("sku", "name", "unit", "price", "taxClass");
+    private static final Set<String> SORTABLE_ADMIN = Set.of("sku", "name", "unit", "price", "taxClass", "cost");
+    private static final Map<String, SortRequest.SortJoin<Product>> SORT_JOINS = Map.of(
+            "category", new SortRequest.SortJoin<>("product_category", "categoryId", "name"));
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of("status",
+            new SortRequest.SortExpr("case when ? is null then 0 else 1 end", Integer.class, List.of("archivedAt")));
     private static final Sort DEFAULT_SORT = Sort.by("name");
 
     private final ProductRepository repo;
     private final AuditLog audit;
     private final CurrentActor actor;
+    private final ProductCategories categories;
+    private final JdbcTemplate jdbc;
 
-    Catalog(ProductRepository repo, AuditLog audit, CurrentActor actor) {
+    Catalog(ProductRepository repo, AuditLog audit, CurrentActor actor, ProductCategories categories,
+            JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+        this.categories = categories;
         this.repo = repo;
         this.audit = audit;
         this.actor = actor;
     }
 
     @Transactional(readOnly = true)
-    PageResponse<ProductResponse> list(String q, boolean includeArchived, PageQuery page) {
+    PageResponse<ProductResponse> list(String q, Long categoryId, boolean includeArchived, PageQuery page) {
         Specification<Product> spec = Specification.allOf(
-                (r, cq, cb) -> includeArchived ? null : cb.isNull(r.get("archivedAt")), matches(q));
+                (r, cq, cb) -> includeArchived ? null : cb.isNull(r.get("archivedAt")), matches(q),
+                (r, cq, cb) -> categoryId == null ? null : cb.equal(r.get("categoryId"), categoryId));
         boolean admin = isAdmin();
-        return PageResponse.of(repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT))
-                .map(p -> toResponse(p, admin)));
+        // cost is only in the JSON for ADMIN, so only ADMIN may order by it
+        var sort = SortRequest.<Product>of(page, admin ? SORTABLE_ADMIN : SORTABLE, SORT_JOINS, SORT_EXPRS, DEFAULT_SORT);
+        var found = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
+        Map<Long, String> names = categories.names(found.map(p -> p.categoryId).toList());
+        return PageResponse.of(found.map(p -> toResponse(p, admin, names.get(p.categoryId))));
     }
 
     @Transactional(readOnly = true)
@@ -60,6 +77,8 @@ public class Catalog {
 
     @Transactional
     ProductResponse create(ProductRequest req) {
+        categories.requireActive(req.categoryId());
+        validateReorder(req, null);
         Product p = new Product();
         apply(p, req);
         save(p);
@@ -82,11 +101,18 @@ public class Catalog {
                 .field("sku", p.sku, req.sku().trim())
                 .field("name", p.name, req.name().trim())
                 .field("description", p.description, req.description())
+                .field("categoryId", p.categoryId, req.categoryId())
                 .field("unit", p.unit, req.unit())
                 .field("price", money(p.price), money(req.price()))
                 .field("cost", money(p.cost), money(req.cost()))
                 .field("taxClass", p.taxClass, req.taxClass())
-                .field("reorderLevel", qty(p.reorderLevel), qty(req.reorderLevel()));
+                .field("reorderLevel", qty(p.reorderLevel), qty(req.reorderLevel()))
+                .field("reorderTarget", qty(p.reorderTarget), qty(req.reorderTarget()))
+                .field("preferredSupplierId", p.preferredSupplierId, req.preferredSupplierId());
+        if (!Objects.equals(p.categoryId, req.categoryId())) {
+            categories.requireActive(req.categoryId()); // an archived category may stay, but not be newly chosen
+        }
+        validateReorder(req, p.preferredSupplierId);
         apply(p, req);
         p.updatedAt = Instant.now();
         save(p);
@@ -112,6 +138,14 @@ public class Catalog {
         Map<Long, ProductInfo> out = new HashMap<>();
         repo.findAllById(new HashSet<>(ids)).forEach(p -> out.put(p.id, toInfo(p)));
         return out;
+    }
+
+    /** Active products by name, for the customer portal's picker. Carries cost: map it before it leaves sales. */
+    @Transactional(readOnly = true)
+    public PageResponse<ProductInfo> active(String q, PageQuery page) {
+        Specification<Product> spec = Specification.allOf((r, cq, cb) -> cb.isNull(r.get("archivedAt")), matches(q));
+        var sort = SortRequest.<Product>of(page, Set.of("sku", "name"), Map.of(), Map.of(), DEFAULT_SORT);
+        return PageResponse.of(repo.findAll(spec.and(sort.orderSpec()), sort.pageable()).map(Catalog::toInfo));
     }
 
     /** Products with a reorder level; the rest are absent. */
@@ -151,11 +185,31 @@ public class Catalog {
         p.sku = r.sku().trim();
         p.name = r.name().trim();
         p.description = r.description();
+        p.categoryId = r.categoryId();
         p.unit = r.unit();
         p.price = r.price();
         p.cost = r.cost();
         p.taxClass = r.taxClass();
         p.reorderLevel = r.reorderLevel();
+        p.reorderTarget = r.reorderTarget();
+        p.preferredSupplierId = r.preferredSupplierId();
+    }
+
+    /** Catalog may not depend on purchasing, so the supplier is checked in SQL. A supplier archived since stays. */
+    private void validateReorder(ProductRequest r, Long currentSupplier) {
+        if (r.reorderTarget() != null && r.reorderLevel() != null && r.reorderTarget().compareTo(r.reorderLevel()) < 0) {
+            throw invalid("reorderTarget", "must be at least the reorder level");
+        }
+        Long s = r.preferredSupplierId();
+        if (s != null && !s.equals(currentSupplier) && !Boolean.TRUE.equals(jdbc.queryForObject(
+                "select exists(select 1 from supplier where id = ? and archived_at is null)", Boolean.class, s))) {
+            throw invalid("preferredSupplierId", "supplier doesn't exist or is archived");
+        }
+    }
+
+    private static DomainException invalid(String field, String msg) {
+        return new DomainException(ErrorCode.VALIDATION_FAILED, msg,
+                Map.of("errors", List.of(Map.of("field", field, "message", msg))));
     }
 
     private static String qty(BigDecimal v) {
@@ -176,8 +230,12 @@ public class Catalog {
                 cb.like(cb.lower(r.get("name")), like, '\\'));
     }
 
-    private static ProductResponse toResponse(Product p, boolean withCost) {
+    private ProductResponse toResponse(Product p, boolean withCost) {
+        return toResponse(p, withCost, p.categoryId == null ? null : categories.names(List.of(p.categoryId)).get(p.categoryId));
+    }
+
+    private static ProductResponse toResponse(Product p, boolean withCost, String categoryName) {
         return new ProductResponse(p.id, p.sku, p.name, p.description, p.unit, p.price, withCost ? p.cost : null,
-                p.taxClass, p.reorderLevel, p.archivedAt, p.version);
+                p.taxClass, p.reorderLevel, p.reorderTarget, p.preferredSupplierId, p.categoryId, categoryName, p.archivedAt, p.version);
     }
 }

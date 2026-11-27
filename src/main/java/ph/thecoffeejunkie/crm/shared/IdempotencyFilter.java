@@ -32,11 +32,12 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     private static final List<String> DEFAULT_PATHS = List.of("/api/customers", "/api/customers/*/contacts",
             "/api/approvals", "/api/admin/users", "/api/warehouses", "/api/orders/*/invoice",
-            "/api/orders/*/invoice/reissue", "/api/orders/*/payments",
-            "/api/portal/orders/*/payments", "/api/stock/receipts",
+            "/api/orders/*/invoice/reissue", "/api/orders/*/payments", "/api/refunds/*/payout",
+            "/api/portal/orders/*/payments", "/api/portal/quote-requests", "/api/stock/receipts",
             "/api/stock/adjustments", "/api/transfers", "/api/orders/*/cover-shortage",
             "/api/follow-ups", "/api/attachments", "/api/leads", "/api/leads/*/convert",
-            "/api/lead-sources", "/api/deals", "/api/deals/*/orders");
+            "/api/lead-sources", "/api/deals", "/api/deals/*/orders", "/api/purchase-orders/*/receipts",
+            "/api/suppliers/*/payments");
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
     private static final String HEADER = "Idempotency-Key";
     private static final String IN_PROGRESS = "IN_PROGRESS";

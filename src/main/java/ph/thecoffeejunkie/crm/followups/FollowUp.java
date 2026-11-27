@@ -1,6 +1,8 @@
 package ph.thecoffeejunkie.crm.followups;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -26,7 +28,13 @@ class FollowUp {
     LocalDate dueDate;
     Instant doneAt;
     Long doneBy;
-    long createdBy;
+    /** Null for auto follow-ups. */
+    Long createdBy;
+    @Enumerated(EnumType.STRING)
+    FollowUpRule rule;
+    String autoKey;
+    String closedReason;
+    Instant overdueNotifiedAt;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();
     @Version

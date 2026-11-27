@@ -158,6 +158,13 @@ class FollowUpEditIT {
     }
 
     @Test
+    void reopenClearsClosedReason() throws Exception {
+        jdbc.update("update follow_up set done_at = now(), closed_reason = 'Quote X accepted' where id = ?", fu);
+        action(asAdmin, "reopen").andExpect(status().isOk()).andExpect(jsonPath("$.closedReason").isEmpty());
+        assertThat(jdbc.queryForObject("select closed_reason from follow_up where id = ?", String.class, fu)).isNull();
+    }
+
+    @Test
     void editOrderMustMatchCustomer() throws Exception {
         long elsewhere = f.order(f.customer("bolt", other));
         edit(asRep, "\"orderId\":" + elsewhere, version()).andExpect(status().isUnprocessableContent())

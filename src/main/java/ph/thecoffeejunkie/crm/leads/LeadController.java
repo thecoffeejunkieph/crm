@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
+import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 
 @RestController
@@ -40,8 +41,9 @@ class LeadController {
                                     @RequestParam(required = false) Long sourceId,
                                     @RequestParam(required = false) Long repId,
                                     @RequestParam(defaultValue = "1") @Min(1) int page,
-                                    @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return leads.list(actor.scope(), status, q, sourceId, repId, page, size);
+                                    @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+                                    @RequestParam(required = false) String sort) {
+        return leads.list(actor.scope(), status, q, sourceId, repId, new PageQuery(page, size, sort));
     }
 
     @GetMapping("/counts")

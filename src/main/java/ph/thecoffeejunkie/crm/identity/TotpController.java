@@ -100,7 +100,7 @@ class TotpController {
     /** Full authorities, rotated session id; returns the new id for ANDROID clients (they hold it as a token). */
     private static String upgrade(StaffPrincipal p, HttpServletRequest request, HttpServletResponse response) {
         Principals.establish(request, response, UsernamePasswordAuthenticationToken.authenticated(
-                p, null, List.of(new SimpleGrantedAuthority("ROLE_" + p.role()))));
+                p, null, Principals.authorities(p)));
         return HeaderOrCookieSessionIdResolver.ANDROID.equals(
                 request.getHeader(HeaderOrCookieSessionIdResolver.CLIENT_TYPE_HEADER))
                 ? request.getSession().getId() : null;

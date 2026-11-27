@@ -23,14 +23,55 @@ public enum SettingKey {
     COMPANY_ADDRESS("company.address", text(500)),
     INVOICE_FOOTER_TEXT("invoice.footerText", text(1000)),
     INVOICE_BANK_ACCOUNTS("invoice.bankAccounts", bankAccounts(10, 400_000)),
-    INVOICE_TERMS("invoice.terms", text(5000));
+    INVOICE_TERMS("invoice.terms", text(5000)),
+    /** Lets a rep pick, dispatch and deliver their own orders' delivery orders when no warehouse staff is around. */
+    FULFILMENT_SALES_CAN_DISPATCH("fulfilment.salesCanDispatch", bool(), false),
+    FOLLOW_UPS_AUTO_RESTOCK_ENABLED("followUps.auto.RESTOCK.enabled", bool(), true),
+    FOLLOW_UPS_AUTO_WIN_BACK_ENABLED("followUps.auto.WIN_BACK.enabled", bool(), true),
+    FOLLOW_UPS_AUTO_QUOTE_CHASE_ENABLED("followUps.auto.QUOTE_CHASE.enabled", bool(), true),
+    FOLLOW_UPS_AUTO_QUOTE_EXPIRING_ENABLED("followUps.auto.QUOTE_EXPIRING.enabled", bool(), true),
+    FOLLOW_UPS_AUTO_QUOTE_DECLINED_ENABLED("followUps.auto.QUOTE_DECLINED.enabled", bool(), true),
+    FOLLOW_UPS_AUTO_FIRST_ORDER_ENABLED("followUps.auto.FIRST_ORDER.enabled", bool(), true),
+    FOLLOW_UPS_AUTO_PAYMENT_OVERDUE_ENABLED("followUps.auto.PAYMENT_OVERDUE.enabled", bool(), true),
+    FOLLOW_UPS_AUTO_DEAL_STALLED_ENABLED("followUps.auto.DEAL_STALLED.enabled", bool(), true),
+    FOLLOW_UPS_RESTOCK_FALLBACK_DAYS("followUps.restock.fallbackDays", whole(1, 365), 15),
+    FOLLOW_UPS_RESTOCK_RHYTHM_PERCENT("followUps.restock.rhythmPercent", whole(10, 100), 80),
+    FOLLOW_UPS_RESTOCK_MIN_DAYS("followUps.restock.minDays", whole(1, 60), 3),
+    FOLLOW_UPS_WIN_BACK_DAYS("followUps.winBack.days", whole(7, 365), 60),
+    FOLLOW_UPS_QUOTE_CHASE_DAYS("followUps.quoteChase.days", whole(1, 60), 3),
+    FOLLOW_UPS_QUOTE_EXPIRING_DAYS_BEFORE("followUps.quoteExpiring.daysBefore", whole(0, 30), 2),
+    FOLLOW_UPS_FIRST_ORDER_DAYS("followUps.firstOrder.days", whole(0, 60), 3),
+    FOLLOW_UPS_DEAL_STALLED_DAYS("followUps.dealStalled.days", whole(1, 180), 14),
+    /** Must be an active ADMIN, but that is checked when the scan uses it, not at save. */
+    FOLLOW_UPS_FALLBACK_ADMIN_ID("followUps.fallbackAdminId", positiveIdOrNull(), null);
 
     private final String key;
     private final Validator validator;
+    private final boolean hasDefault;
+    private final Object defaultValue;
 
+    /** Seeded by a migration: a missing row is a bug. */
     SettingKey(String key, Validator validator) {
         this.key = key;
         this.validator = validator;
+        this.hasDefault = false;
+        this.defaultValue = null;
+    }
+
+    /** Needs no row: reads fall back to the default (null is a valid default). */
+    SettingKey(String key, Validator validator, Object defaultValue) {
+        this.key = key;
+        this.validator = validator;
+        this.hasDefault = true;
+        this.defaultValue = defaultValue;
+    }
+
+    boolean hasDefault() {
+        return hasDefault;
+    }
+
+    Object defaultValue() {
+        return defaultValue;
     }
 
     public String key() {
@@ -41,7 +82,7 @@ public enum SettingKey {
         return Stream.of(values()).filter(k -> k.key.equals(key)).findFirst();
     }
 
-    /** Returns the normalized value to store (BigDecimal or String); throws VALIDATION_FAILED otherwise. */
+    /** Returns the normalized value to store (BigDecimal, String, Boolean, Long or null); throws VALIDATION_FAILED otherwise. */
     Object validate(JsonNode node) {
         return validator.apply(this, node);
     }
@@ -60,6 +101,39 @@ public enum SettingKey {
                 throw invalid(k, "must be between " + min + " and " + (max == null ? "infinity" : max));
             }
             return v;
+        };
+    }
+
+    private static Validator whole(int min, int max) {
+        Validator range = number(new BigDecimal(min), new BigDecimal(max));
+        return (k, n) -> {
+            BigDecimal v = (BigDecimal) range.apply(k, n);
+            if (v.stripTrailingZeros().scale() > 0) {
+                throw invalid(k, "must be a whole number");
+            }
+            return v;
+        };
+    }
+
+    private static Validator bool() {
+        return (k, n) -> {
+            if (n == null || !n.isBoolean()) {
+                throw invalid(k, "must be true or false");
+            }
+            return n.booleanValue();
+        };
+    }
+
+    /** A user id, or null for "none". */
+    private static Validator positiveIdOrNull() {
+        return (k, n) -> {
+            if (n == null || n.isNull()) {
+                return null;
+            }
+            if (!n.isIntegralNumber() || n.longValue() < 1) {
+                throw invalid(k, "must be a positive whole number or null");
+            }
+            return n.longValue();
         };
     }
 

@@ -44,10 +44,12 @@ public class Inventory {
     private final Notifications notifications;
     private final Catalog catalog;
     private final Users users;
+    private final ReceiptService receipts;
 
     Inventory(StockLedger ledger, Allocator allocator, StockReservationRepository reservations,
               AdjustmentService adjustments, TransferService transfers, StockLevelRepository levels,
-              Notifications notifications, Catalog catalog, Users users) {
+              Notifications notifications, Catalog catalog, Users users, ReceiptService receipts) {
+        this.receipts = receipts;
         this.users = users;
         this.notifications = notifications;
         this.catalog = catalog;
@@ -57,6 +59,11 @@ public class Inventory {
         this.ledger = ledger;
         this.allocator = allocator;
         this.reservations = reservations;
+    }
+
+    /** A stock receipt linked to a purchase order; same warehouse check and allocation as a manual receipt. */
+    public ReceiptResponse receiveForPurchase(ReceiptRequest req, long purchaseOrderId) {
+        return receipts.receive(req, purchaseOrderId);
     }
 
     /** On hand minus reserved at one warehouse; a product with no stock row is 0. */
@@ -229,6 +236,26 @@ public class Inventory {
     public long postSystemAdjustment(long warehouseId, long productId, BigDecimal delta, AdjustmentSource source,
                                      String reason, String DELIVERY_ORDER, long refId) {
         return adjustments.postSystem(warehouseId, productId, delta, source, reason, DELIVERY_ORDER, refId);
+    }
+
+    /**
+     * A refund's goods come back: posts RETURN of +qty per line. Every level is locked (sorted) first, so the
+     * write-offs' document counter is only taken once all levels are held, as in {@link #shortPicks}.
+     * A restocked line is allocated to short orders as usual. A damaged line is not allocated, then written off with
+     * a RETURN_DAMAGED system adjustment of -qty: the net stock effect is nil, the ledger shows both steps, and since
+     * reserved never rose the write-off cannot take stock back from anyone, so no reservation moves and nobody is told.
+     */
+    public void receiveReturns(List<ReturnLine> lines, String refNumber, long refundId) {
+        lockAll(lines.stream().map(l -> new Key(l.productId(), l.warehouseId())));
+        lines.stream().sorted(Comparator.comparingLong(ReturnLine::productId)
+                .thenComparingLong(ReturnLine::warehouseId)).forEach(l -> {
+            ledger.post(MovementType.RETURN, l.productId(), l.warehouseId(), l.qty(), "REFUND", refundId,
+                    "Returned " + refNumber, null, !l.damaged());
+            if (l.damaged()) {
+                postSystemAdjustment(l.warehouseId(), l.productId(), l.qty().negate(), AdjustmentSource.RETURN_DAMAGED,
+                        "Returned damaged " + refNumber, "REFUND", refundId);
+            }
+        });
     }
 
     /** Movements and adjustments made for a delivery order carry this ref_type. */

@@ -58,6 +58,20 @@ class StorageServiceIT {
     }
 
     @Test
+    void readReturnsStoredBytes() {
+        byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 5, 6, 7};
+        String key = "test/" + java.util.UUID.randomUUID() + ".png";
+        storage.put(key, png, "image/png");
+        assertArrayEquals(png, storage.read(key));
+        storage.deleteQuietly(key);
+    }
+
+    @Test
+    void readMissingThrows() {
+        assertThrows(RuntimeException.class, () -> storage.read("test/none-" + java.util.UUID.randomUUID() + ".png"));
+    }
+
+    @Test
     void putThenDownloadUnderTheOriginalName() throws Exception {
         byte[] csv = "name,qty\nBeans,2\n".getBytes();
         String key = "attachments/customer/9/" + java.util.UUID.randomUUID() + ".csv";

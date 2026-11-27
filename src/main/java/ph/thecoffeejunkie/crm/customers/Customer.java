@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.customers;
 
+import ph.thecoffeejunkie.crm.shared.ShippingMethod;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -33,6 +34,8 @@ class Customer {
     PaymentTerms paymentTerms;
     @Enumerated(EnumType.STRING)
     TaxTreatment taxTreatment = TaxTreatment.REGULAR;
+    @Enumerated(EnumType.STRING)
+    ShippingMethod preferredShipping;
     Long assignedRepId;
     Long sourceId;
     Long convertedFromLeadId;

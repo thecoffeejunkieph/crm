@@ -26,8 +26,8 @@ class SalesSchemaIT {
 
     @BeforeEach
     void seedOrder() {
-        userId = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'S', 'R', 'SALES') returning id", Long.class, UUID.randomUUID() + "@schema.it");
+        userId = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'S', 'R') returning id) insert into user_role select id, 'SALES' from u returning user_id", Long.class, UUID.randomUUID() + "@schema.it");
         long customerId = jdbc.queryForObject(
                 "insert into customer (type, display_name) values ('BUSINESS', 'Acme') returning id", Long.class);
         jdbc.update("insert into warehouse (code, name, is_default) select ?, 'W', true "

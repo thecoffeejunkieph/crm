@@ -93,7 +93,7 @@ class DeliveryOrdersIT {
         q = f.product("Q", "PC");
         admin = as(f.user("adm"), Role.ADMIN);
         whUserId = f.user("wh");
-        jdbc.update("update app_user set role = 'WAREHOUSE' where id = ?", whUserId);
+        jdbc.update("update user_role set role = 'WAREHOUSE' where user_id = ?", whUserId);
         jdbc.update("insert into user_warehouse (user_id, warehouse_id) values (?, ?)", whUserId, wh);
         whUser = as(whUserId, Role.WAREHOUSE, wh);
         otherWhUser = as(f.user("ow"), Role.WAREHOUSE, otherWh);
@@ -124,7 +124,7 @@ class DeliveryOrdersIT {
 
     private long deliveryFor(OrderStock o, DeliveryMethod method) {
         return fulfilment.create(new DeliveryRequest(o.orderId(), o.orderNumber(), o.repUserId(), o.warehouseId(),
-                method, "Cafe Uno", "Makati", o.lines().stream().map(l -> new DeliveryRequest.DeliveryLine(
+                method, null, "Cafe Uno", "Makati", o.lines().stream().map(l -> new DeliveryRequest.DeliveryLine(
                         l.orderLineId(), l.productId(), "Beans", ProductUnit.KG, l.qty())).toList()));
     }
 
@@ -281,6 +281,16 @@ class DeliveryOrdersIT {
     }
 
     @Test
+    void shippingMethodEditableUntilDelivered() throws Exception {
+        long id = delivery("1");
+        act(id, "shipping-method", "{\"shippingMethod\":\"AP_CARGO\"}", whUser).andExpect(status().isOk())
+                .andExpect(jsonPath("$.shippingMethod").value("AP_CARGO"));
+        act(id, "shipping-method", "{\"shippingMethod\":\"AP_CARGO\"}", otherWhUser).andExpect(status().isNotFound());
+        jdbc.update("update delivery_order set status = 'DELIVERED' where id = ?", id);
+        act(id, "shipping-method", "{\"shippingMethod\":null}", whUser).andExpect(status().isUnprocessableContent());
+    }
+
+    @Test
     void dispatchNeedsFullPick() throws Exception {
         f.receive(p, wh, "10");
         f.receive(q, wh, "10");
@@ -430,6 +440,16 @@ class DeliveryOrdersIT {
     }
 
     @Test
+    void dispatchPublishesDeliveryDispatched() throws Exception {
+        long id = dispatched("4");
+        long orderId = jdbc.queryForObject("select sales_order_id from delivery_order where id = ?", Long.class, id);
+        assertThat(events.stream(DeliveryDispatched.class)).singleElement().satisfies(e -> {
+            assertThat(e.deliveryOrderId()).isEqualTo(id);
+            assertThat(e.salesOrderId()).isEqualTo(orderId);
+        });
+    }
+
+    @Test
     void deliverPublishesOrderDelivered() throws Exception {
         long id = dispatched("4");
         long orderId = jdbc.queryForObject("select sales_order_id from delivery_order where id = ?", Long.class, id);
@@ -439,7 +459,10 @@ class DeliveryOrdersIT {
                 .andExpect(jsonPath("$.proofUrls.length()").value(2))
                 .andExpect(jsonPath("$.proofUrls[1]").value(startsWith("/api/v1/files/delivery-orders/" + id + "/proof/")));
         assertThat(events.stream(OrderDelivered.class)).singleElement()
-                .satisfies(e -> assertThat(e.orderId()).isEqualTo(orderId));
+                .satisfies(e -> {
+                    assertThat(e.orderId()).isEqualTo(orderId);
+                    assertThat(e.deliveryOrderId()).isEqualTo(id);
+                });
         assertThat(storedProofs(id)).isEqualTo(2);
         assertThat(fulfilment.forOrder(orderId)).hasValueSatisfying(s -> {
             assertThat(s.proofUrls()).hasSize(2);
@@ -450,6 +473,47 @@ class DeliveryOrdersIT {
         // a second tap is refused
         deliver(id, PNG, "Juan").andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
+    @Test
+    void mailViewCarriesLinesAndPhotos() throws Exception {
+        long id = dispatched("4");
+        deliverAll(id, "Juan", PNG, PNG).andExpect(status().isOk());
+        String number = jdbc.queryForObject("select number from delivery_order where id = ?", String.class, id);
+        assertThat(fulfilment.mailView(id)).hasValueSatisfying(v -> {
+            assertThat(v.number()).isEqualTo(number);
+            assertThat(v.receiverName()).isEqualTo("Juan");
+            assertThat(v.method()).isEqualTo(DeliveryMethod.DELIVERY);
+            assertThat(v.deliveredAt()).isNotNull();
+            assertThat(v.lines()).singleElement().satisfies(l -> assertThat(l.qty()).isEqualByComparingTo("4"));
+            assertThat(v.photos()).extracting(a -> a.filename())
+                    .containsExactly(number + "-proof-1.png", number + "-proof-2.png");
+            assertThat(v.photos()).allSatisfy(a -> {
+                assertThat(a.bytes()).isEqualTo(PNG);
+                assertThat(a.contentType()).isEqualTo("image/png");
+            });
+        });
+        assertThat(fulfilment.mailView(-1)).isEmpty();
+    }
+
+    @Test
+    void mailViewAttachesPhotosOnlyWithinBudget() throws Exception {
+        long id = dispatched("4");
+        deliverAll(id, "Juan", PNG, PNG, PNG).andExpect(status().isOk());
+        assertThat(fulfilment.mailView(id, PNG.length * 2L)).hasValueSatisfying(v -> {
+            assertThat(v.photos()).hasSize(2);
+            assertThat(v.photosLeftOut()).isEqualTo(1);
+        });
+        assertThat(fulfilment.mailView(id)).hasValueSatisfying(v -> assertThat(v.photosLeftOut()).isZero());
+    }
+
+    @Test
+    void mailViewSkipsUnreadablePhoto() throws Exception {
+        long id = dispatched("4");
+        deliverAll(id, "Juan", PNG).andExpect(status().isOk());
+        jdbc.update("update delivery_order set proof_keys = array_append(proof_keys, 'delivery-orders/0/proof/missing.png') "
+                + "where id = ?", id);
+        assertThat(fulfilment.mailView(id)).hasValueSatisfying(v -> assertThat(v.photos()).hasSize(1));
     }
 
     @Test
@@ -540,5 +604,49 @@ class DeliveryOrdersIT {
         pick(mine, sales, "2").andExpect(status().isForbidden());
         mvc.perform(get("/api/delivery-orders").param("status", "PICKING").with(admin)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[?(@.id == " + theirs + ")]").isNotEmpty());
+    }
+
+    @Test
+    void salesActsOnOwnDeliveriesOnlyWhenAllowed() throws Exception {
+        f.receive(p, wh, "10");
+        long mine = delivery("2");
+        long theirs = deliveryFor(reserved(rep2, Instant.now(), l(p, "2")), DeliveryMethod.DELIVERY);
+        mvc.perform(get("/api/delivery-orders/" + mine).with(sales)).andExpect(jsonPath("$.canAct").value(false));
+        jdbc.update("insert into app_setting (key, value) values ('fulfilment.salesCanDispatch', 'true')");
+        try {
+            mvc.perform(get("/api/delivery-orders/" + mine).with(sales)).andExpect(jsonPath("$.canAct").value(true));
+            pick(mine, sales, "2").andExpect(status().isOk());
+            mvc.perform(post("/api/delivery-orders/" + mine + "/dispatch").with(csrf(mvc)).with(sales))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DISPATCHED"));
+            pick(theirs, sales, "2").andExpect(status().isNotFound());
+        } finally {
+            jdbc.update("delete from app_setting where key = 'fulfilment.salesCanDispatch'");
+        }
+    }
+
+    private List<Integer> deliveryIds(String sort) throws Exception {
+        String res = mvc.perform(get("/api/delivery-orders").param("sort", sort).param("size", "100").with(admin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(res, "$.content[*].id");
+    }
+
+    @Test
+    void sortsByCustomerAndStatusAndRejectsUnknownKey() throws Exception {
+        long first = delivery("1");
+        long second = delivery("1");
+        jdbc.update("update delivery_order set customer_name = 'Zed' where id = ?", first);
+        jdbc.update("update delivery_order set customer_name = 'Amy' where id = ?", second);
+        List<Integer> asc = deliveryIds("customer,asc");
+        assertThat(asc.indexOf((int) second)).isLessThan(asc.indexOf((int) first));
+        List<Integer> desc = deliveryIds("customer,desc");
+        assertThat(desc.indexOf((int) first)).isLessThan(desc.indexOf((int) second));
+        jdbc.update("update delivery_order_line set picked_qty = qty where delivery_order_id = ?", second);
+        List<Integer> byProgress = deliveryIds("progress,desc");
+        assertThat(byProgress.indexOf((int) second)).isLessThan(byProgress.indexOf((int) first));
+        for (String key : new String[]{"number", "created", "moved", "receiver", "status"}) {
+            deliveryIds(key + ",asc");
+        }
+        mvc.perform(get("/api/delivery-orders").param("sort", "proof,asc").with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
     }
 }

@@ -183,7 +183,7 @@ class ReservationsIT {
         f.reorderLevel(p, "5");
         f.receive(p, wh, "10");
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(admin, "a@if.it", "A", Role.ADMIN, Set.of()), null,
+                new StaffPrincipal(admin, "a@if.it", "A", Set.of(Role.ADMIN), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
         try {
             inventory.reserve(f.order(rep, wh, t0, l(p, "6")));

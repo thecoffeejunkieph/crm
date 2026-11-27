@@ -1,5 +1,6 @@
 package ph.thecoffeejunkie.crm.customers;
 
+import ph.thecoffeejunkie.crm.shared.ShippingMethod;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -12,7 +13,8 @@ public record CustomerRequest(@NotNull CustomerType type, @NotBlank String displ
                               String tin, String address, String phone, @Email String email,
                               @PositiveOrZero BigDecimal creditLimit, @NotNull PaymentTerms paymentTerms,
                               Long sourceId, String notes, Long version,
-                              TaxTreatment taxTreatment, @Size(max = 1000) String socialMedia) {
+                              TaxTreatment taxTreatment, @Size(max = 1000) String socialMedia,
+                              ShippingMethod preferredShipping) {
 
     // Trim before @Email runs, so padded input is accepted and stored normalised.
     public CustomerRequest {

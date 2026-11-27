@@ -1,7 +1,6 @@
 package ph.thecoffeejunkie.crm.leads;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -15,7 +14,9 @@ import ph.thecoffeejunkie.crm.customers.LeadSources;
 import ph.thecoffeejunkie.crm.identity.Users;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
@@ -23,11 +24,23 @@ import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 
 /** Leads (spec 2026-11-05): a rep works their own; an admin sees and assigns everyone's. */
 @Service
 class LeadService {
+
+    private static final Set<String> SORTABLE = Set.of("contactName", "company", "createdAt", "updatedAt");
+    // Frontend column keys: name and updated are aliases; status sorts by pipeline order, not alphabetically.
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "name", SortRequest.alias("contactName", String.class),
+            "updated", SortRequest.alias("updatedAt", java.time.Instant.class),
+            "status", new SortRequest.SortExpr("case ? when 'NEW' then 0 when 'CONTACTED' then 1 when 'QUALIFIED' then 2 "
+                    + "when 'LOST' then 3 else 4 end", Integer.class, List.of("status")));
+    private static final Map<String, SortRequest.SortJoin<Lead>> SORT_JOINS = Map.of(
+            "source", new SortRequest.SortJoin<>("lead_source", "sourceId", "name"),
+            "rep", new SortRequest.SortJoin<>("app_user", "assignedRepId", "first_name || ' ' || last_name"));
 
     static final String ENTITY = "LEAD";
 
@@ -140,7 +153,7 @@ class LeadService {
             CustomerRequest r = req.customer();
             CustomerRequest withSource = r.sourceId() != null ? r : new CustomerRequest(r.type(), r.displayName(),
                     r.businessName(), r.tin(), r.address(), r.phone(), r.email(), r.creditLimit(), r.paymentTerms(),
-                    l.sourceId, r.notes(), r.version(), r.taxTreatment(), r.socialMedia());
+                    l.sourceId, r.notes(), r.version(), r.taxTreatment(), r.socialMedia(), r.preferredShipping());
             l.customerId = customers.createForLead(s, withSource, l.assignedRepId, l.id, l.sourceId);
             mode = "NEW";
         } else {
@@ -184,15 +197,15 @@ class LeadService {
     }
 
     @Transactional(readOnly = true)
-    PageResponse<LeadResponse> list(Scope s, LeadStatus status, String q, Long sourceId, Long repId, int page, int size) {
+    PageResponse<LeadResponse> list(Scope s, LeadStatus status, String q, Long sourceId, Long repId, PageQuery page) {
         Specification<Lead> byStatus = status != null ? LeadScopes.eq("status", status)
                 : (r, cq, cb) -> r.get("status").in(LeadStatus.OPEN);
         Specification<Lead> spec = LeadScopes.visibleTo(s).and(LeadScopes.matches(q))
                 .and(LeadScopes.eq("sourceId", sourceId))
                 .and(LeadScopes.eq("assignedRepId", s.isAdmin() ? repId : null))
                 .and(byStatus);
-        Page<Lead> rows = repo.findAll(spec, PageRequest.of(page - 1, size,
-                Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"))));
+        var sort = SortRequest.<Lead>of(page, SORTABLE, SORT_JOINS, SORT_EXPRS, Sort.by(Sort.Order.desc("updatedAt")));
+        Page<Lead> rows = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         return new PageResponse<>(rows.getNumber() + 1, rows.getSize(), rows.getTotalPages(), rows.getTotalElements(),
                 toResponses(rows.getContent()));
     }

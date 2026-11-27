@@ -36,7 +36,7 @@ class BootstrapAdminIT {
         emptyUsers();
         bootstrap.bootstrap("first@boot.it");
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "select email, role, password_hash, invite_email_status, first_name, last_name from app_user");
+                "select email, (select string_agg(role, ',') from user_role where user_id = app_user.id) as role, password_hash, invite_email_status, first_name, last_name from app_user");
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0)).containsEntry("email", "first@boot.it").containsEntry("role", "ADMIN")
                 .containsEntry("password_hash", null).containsEntry("invite_email_status", "PENDING")
@@ -48,8 +48,8 @@ class BootstrapAdminIT {
     @Test
     void nonEmptyTableCreatesNothing() {
         emptyUsers();
-        jdbc.update("insert into app_user (email, first_name, last_name, role) values "
-                + "('existing@boot.it', 'E', 'X', 'SALES')");
+        jdbc.update("with u as (insert into app_user (email, first_name, last_name) values "
+                + "('existing@boot.it', 'E', 'X') returning id) insert into user_role select id, 'SALES' from u");
         bootstrap.bootstrap("second@boot.it");
         assertThat(jdbc.queryForList("select email from app_user", String.class)).containsExactly("existing@boot.it");
     }
@@ -84,10 +84,10 @@ class BootstrapAdminIT {
     @Test
     void noRecoveryOnceAnotherAdminHasPassword() {
         emptyUsers();
-        jdbc.update("insert into app_user (email, first_name, last_name, role, password_hash) values "
-                + "('live@boot.it', 'L', 'A', 'ADMIN', 'x')");
-        jdbc.update("insert into app_user (email, first_name, last_name, role) values "
-                + "('pending@boot.it', 'P', 'A', 'ADMIN')");
+        jdbc.update("with u as (insert into app_user (email, first_name, last_name, password_hash) values "
+                + "('live@boot.it', 'L', 'A', 'x') returning id) insert into user_role select id, 'ADMIN' from u");
+        jdbc.update("with u as (insert into app_user (email, first_name, last_name) values "
+                + "('pending@boot.it', 'P', 'A') returning id) insert into user_role select id, 'ADMIN' from u");
         long id = jdbc.queryForObject("select id from app_user where email = 'pending@boot.it'", Long.class);
         String token = tokens.issue(TokenPurpose.INVITE, "USER", id, java.time.Duration.ofHours(1), null);
 

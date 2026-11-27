@@ -15,7 +15,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -96,14 +98,33 @@ class DealLinkIT {
     }
 
     @Test
-    void rejectsOrderOnAnotherDealConfirmedOrUnknown() throws Exception {
+    void rejectsOrderOnAnotherDealCancelledOrUnknown() throws Exception {
         long elsewhere = f.order(acme, "QUOTED");
         long second = f.deal(acme, rep, "Other", "DISCOVERY", null, null);
         f.link(second, elsewhere);
         link(deal, elsewhere).andExpect(jsonPath("$.code").value("DEAL_ORDER_MISMATCH"));
-        link(deal, f.order(acme, "CONFIRMED")).andExpect(jsonPath("$.code").value("DEAL_ORDER_MISMATCH"));
+        link(deal, f.order(acme, "CANCELLED")).andExpect(jsonPath("$.code").value("DEAL_ORDER_MISMATCH"));
         link(deal, 999_999_999L).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("DEAL_ORDER_MISMATCH"));
+    }
+
+    @Test
+    void linkingAPaidOrderWinsTheDeal() throws Exception {
+        long paid = f.order(acme, "FULFILLED");
+        link(deal, paid).andExpect(status().isOk())
+                .andExpect(jsonPath("$.stage").value("WON"))
+                .andExpect(jsonPath("$.wonOrderId").value(paid));
+        assertThat(f.audits("DEAL_WON", deal)).isEqualTo(1);
+    }
+
+    @Test
+    void deleteRemovesTheDealAndItsLinks() throws Exception {
+        long o = f.order(acme, "QUOTED");
+        f.link(deal, o);
+        mvc.perform(delete("/api/deals/" + deal).with(csrf(mvc)).with(asRep)).andExpect(status().isNoContent());
+        assertThat(links(o)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from deal where id = ?", Integer.class, deal)).isZero();
+        mvc.perform(delete("/api/deals/" + deal).with(csrf(mvc)).with(asRep)).andExpect(status().isNotFound());
     }
 
     @Test

@@ -4,13 +4,15 @@ import ph.thecoffeejunkie.crm.shared.Role;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
-public record UserResponse(long id, String email, String firstName, String lastName, String phone, Role role,
+public record UserResponse(long id, String email, String firstName, String lastName, String phone, SortedSet<Role> roles,
                            List<Long> warehouseIds, boolean totpEnabled, boolean invitePending,
                            String inviteEmailStatus, Instant archivedAt, long version) {
 
     static UserResponse of(AppUser u) {
-        return new UserResponse(u.id, u.email, u.firstName, u.lastName, u.phone, u.role,
+        return new UserResponse(u.id, u.email, u.firstName, u.lastName, u.phone, new TreeSet<>(u.roles),
                 u.warehouseIds.stream().sorted().toList(), u.totpEnabledAt != null,
                 u.passwordHash == null && u.archivedAt == null, u.inviteEmailStatus, u.archivedAt, u.version);
     }

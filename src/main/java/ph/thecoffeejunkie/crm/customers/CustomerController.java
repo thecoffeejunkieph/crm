@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ph.thecoffeejunkie.crm.audit.AuditEventResponse;
 import ph.thecoffeejunkie.crm.shared.CurrentActor;
+import ph.thecoffeejunkie.crm.shared.DomainException;
+import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Sheets;
@@ -31,8 +33,10 @@ class CustomerController {
     private final Customers customers;
     private final CurrentActor actor;
     private final CustomerSheets sheets;
+    private final CustomerAddresses addresses;
 
-    CustomerController(Customers customers, CurrentActor actor, CustomerSheets sheets) {
+    CustomerController(Customers customers, CurrentActor actor, CustomerSheets sheets, CustomerAddresses addresses) {
+        this.addresses = addresses;
         this.customers = customers;
         this.actor = actor;
         this.sheets = sheets;
@@ -115,5 +119,14 @@ class CustomerController {
     @PreAuthorize("@customerPermissions.canRead()")
     PageResponse<AuditEventResponse> history(@PathVariable long id, PageQuery page) {
         return customers.history(actor.scope(), id, page);
+    }
+
+    /** Read-only for staff: the customer keeps them from the portal. */
+    @GetMapping("/{id}/addresses")
+    @PreAuthorize("@customerPermissions.canRead()")
+    List<AddressResponse> addresses(@PathVariable long id) {
+        customers.salesProfileVisible(actor.scope(), id)
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+        return addresses.list(id);
     }
 }

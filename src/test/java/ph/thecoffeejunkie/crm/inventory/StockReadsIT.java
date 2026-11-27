@@ -166,4 +166,45 @@ class StockReadsIT {
         String created = receive("1");
         assertThat(created).doesNotContainIgnoringCase("cost");
     }
+
+    private java.util.List<Integer> productIds(String url, String sort) throws Exception {
+        String res = mvc.perform(get(url).param("warehouseId", "" + wh1).param("q", f.tag).param("sort", sort).with(admin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(res, "$.content[*].productId");
+    }
+
+    @Test
+    void stockLevelsSortByColumnsAndRejectUnknownKey() throws Exception {
+        long q = f.product("Q", "PC");
+        f.receive(p, wh1, "3");
+        f.receive(q, wh1, "9");
+        assertThat(productIds("/api/stock", "onHand,desc")).containsExactly((int) q, (int) p);
+        assertThat(productIds("/api/stock", "onHand,asc")).containsExactly((int) p, (int) q);
+        assertThat(productIds("/api/stock", "name,desc")).containsExactly((int) q, (int) p);
+        assertThat(productIds("/api/stock", "sku,asc")).containsExactly((int) p, (int) q);
+        assertThat(productIds("/api/stock", "available,desc")).containsExactly((int) q, (int) p);
+        assertThat(productIds("/api/stock", "reserved,asc")).hasSize(2);
+        assertThat(productIds("/api/stock", "short,asc")).hasSize(2);
+        mvc.perform(get("/api/stock").param("warehouseId", "" + wh1).param("sort", "adjust,asc").with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+        mvc.perform(get("/api/stock").param("warehouseId", "" + wh1).param("sort", "name;drop table product,asc").with(admin))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void movementsSortByColumnsAndRejectUnknownKey() throws Exception {
+        receive("2");
+        receive("3");
+        String url = "/api/stock/" + p + "/movements";
+        mvc.perform(get(url).param("warehouseId", "" + wh1).param("sort", "qty,asc").with(admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].qty").value(2.0));
+        mvc.perform(get(url).param("warehouseId", "" + wh1).param("sort", "ref,desc").with(admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].qty").value(3.0));
+        for (String key : new String[]{"createdAt", "type", "by", "reason"}) {
+            mvc.perform(get(url).param("warehouseId", "" + wh1).param("sort", key + ",desc").with(admin))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(2));
+        }
+        mvc.perform(get(url).param("warehouseId", "" + wh1).param("sort", "refType,asc").with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
 }

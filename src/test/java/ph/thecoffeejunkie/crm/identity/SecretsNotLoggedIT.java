@@ -70,7 +70,7 @@ class SecretsNotLoggedIT {
         u.passwordHash = new BCryptPasswordEncoder().encode(PW);
         u.firstName = "Ana";
         u.lastName = "Cruz";
-        u.role = Role.SALES;
+        u.roles = java.util.EnumSet.of(Role.SALES);
         users.save(u);
 
         json("/api/auth/login", "{\"email\":\"ana@secrets.it\",\"password\":\"" + WRONG_PW + "\"}");

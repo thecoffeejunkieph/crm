@@ -37,9 +37,11 @@ class FollowUpController {
                                         @RequestParam(required = false) Long customerId,
                                         @RequestParam(required = false) Long orderId,
                                         @RequestParam(required = false) Long assigneeId,
+                                        @RequestParam(required = false) String source,
                                         @RequestParam(defaultValue = "1") @Min(1) int page,
                                         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return followUps.list(actor.scope(), FollowUpDay.Bucket.parse(bucket), customerId, orderId, assigneeId, page, size);
+        return followUps.list(actor.scope(), FollowUpDay.Bucket.parse(bucket), customerId, orderId, assigneeId,
+                FollowUpDay.Source.parse(source), page, size);
     }
 
     @GetMapping("/counts")

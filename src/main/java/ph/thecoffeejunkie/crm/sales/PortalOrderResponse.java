@@ -14,5 +14,5 @@ record PortalOrderResponse(long id, String number, OrderStatus status, PaymentSt
                            BigDecimal settled, BigDecimal balance, InvoiceSummary activeInvoice,
                            Instant customerAcceptedAt, long version, PortalDeliveryStatus deliveryStatus,
                            Instant deliveredAt, BigDecimal discountAmount, BigDecimal withholdingPct,
-                           BigDecimal withholdingAmount, BigDecimal netPayable) {
+                           BigDecimal withholdingAmount, BigDecimal netPayable, BigDecimal refundedAmount, RefundBadge refundBadge) {
 }

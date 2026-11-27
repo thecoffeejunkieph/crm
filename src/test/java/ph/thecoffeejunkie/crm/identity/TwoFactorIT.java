@@ -67,7 +67,7 @@ class TwoFactorIT {
         u.passwordHash = BCRYPT.encode(PW);
         u.firstName = "Tina";
         u.lastName = "Otp";
-        u.role = role;
+        u.roles = java.util.EnumSet.of(role);
         return users.save(u);
     }
 

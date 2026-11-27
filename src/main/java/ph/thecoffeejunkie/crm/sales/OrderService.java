@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.sales;
 
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
+import org.hibernate.query.criteria.HibernateCriteriaBuilder;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.context.ApplicationEventPublisher;
@@ -18,6 +19,7 @@ import ph.thecoffeejunkie.crm.catalog.ProductInfo;
 import ph.thecoffeejunkie.crm.catalog.TaxClass;
 import ph.thecoffeejunkie.crm.customers.CustomerSalesProfile;
 import ph.thecoffeejunkie.crm.customers.CustomerType;
+import ph.thecoffeejunkie.crm.customers.CustomerAddresses;
 import ph.thecoffeejunkie.crm.customers.Customers;
 import ph.thecoffeejunkie.crm.customers.TaxTreatment;
 import ph.thecoffeejunkie.crm.fulfilment.DeliveryRequest;
@@ -35,9 +37,11 @@ import ph.thecoffeejunkie.crm.shared.PdfFile;
 import ph.thecoffeejunkie.crm.shared.Like;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.Scope;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
 import java.math.BigDecimal;
@@ -59,6 +63,7 @@ import static ph.thecoffeejunkie.crm.sales.OrderAction.ACCEPT;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.COVER_SHORTAGE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.DECLINE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.ISSUE_INVOICE;
+import static ph.thecoffeejunkie.crm.sales.OrderAction.REFUND;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.REISSUE_INVOICE;
 import static ph.thecoffeejunkie.crm.sales.OrderAction.RESEND_QUOTE;
 
@@ -67,13 +72,27 @@ import static ph.thecoffeejunkie.crm.sales.OrderAction.RESEND_QUOTE;
 class OrderService {
 
     static final String ENTITY = "ORDER";
-    private static final Set<String> SORTABLE = Set.of("number", "updatedAt", "total");
-    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "updatedAt");
+    private static final Set<String> SORTABLE = Set.of("number", "total", "updatedAt", "createdAt", "dueDate");
+    // Mirrors Balances.status: null (last) until billable, then UNPAID, PARTIAL, OVERDUE, PAID.
+    private static final SortRequest.SortExpr PAYMENT_SORT = new SortRequest.SortExpr(
+            "case when ? not in ('CONFIRMED','RELEASED','FULFILLED') then null when ? - ? <= 0 then 3 "
+                    + "when ? is not null and ? < (now() at time zone 'Asia/Manila')::date then 2 when ? = 0 then 0 else 1 end",
+            Integer.class, List.of("status", "total", "settledAmount", "dueDate", "dueDate", "settledAmount"));
+    static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "payment", PAYMENT_SORT,
+            "balance", new SortRequest.SortExpr("? - ?", BigDecimal.class, List.of("total", "settledAmount")),
+            "status", new SortRequest.SortExpr("case ? when 'DRAFT' then 0 when 'QUOTED' then 1 when 'CONFIRMED' then 2 "
+                    + "when 'RELEASED' then 3 when 'FULFILLED' then 4 else 5 end", Integer.class, List.of("status")));
+    private static final Map<String, SortRequest.SortJoin<SalesOrder>> SORT_JOINS = Map.of(
+            "customer", new SortRequest.SortJoin<>("customer", "customerId", "display_name"),
+            "rep", new SortRequest.SortJoin<>("app_user", "repId", "first_name || ' ' || last_name"));
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "number");
     private static final Set<OrderStatus> BILLABLE =
             EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.RELEASED, OrderStatus.FULFILLED);
 
     private final SalesOrderRepository repo;
     private final Customers customers;
+    private final CustomerAddresses addresses;
     private final Catalog catalog;
     private final Users users;
     private final Settings settings;
@@ -93,13 +112,19 @@ class OrderService {
     private final Warehouses warehouses;
     private final ApplicationEventPublisher events;
     private final Notifications notifications;
+    private final RefundRepository refunds;
+    private final SalesPermissions permissions;
 
     OrderService(SalesOrderRepository repo, Customers customers, Catalog catalog, Users users, Settings settings,
                  AuditLog audit, Clock clock, QuoteDocument quotes, SalesMailer mailer, ApprovalChecks checks,
                  Approvals approvals, InvoiceRepository invoices, OrderAccess access, InvoiceService invoiceService,
                  PaymentService payments, OrderRevisionRepository revisions, Inventory inventory,
                  Fulfilment fulfilment, Warehouses warehouses, ApplicationEventPublisher events,
-                 Notifications notifications) {
+                 Notifications notifications, RefundRepository refunds, SalesPermissions permissions,
+                 CustomerAddresses addresses) {
+        this.addresses = addresses;
+        this.refunds = refunds;
+        this.permissions = permissions;
         this.notifications = notifications;
         this.events = events;
         this.inventory = inventory;
@@ -131,24 +156,61 @@ class OrderService {
                 (r, q, cb) -> f.status() == null || f.status().isEmpty() ? null : r.get("status").in(f.status()),
                 (r, q, cb) -> f.customerId() == null ? null : cb.equal(r.get("customerId"), f.customerId()),
                 (r, q, cb) -> f.repId() == null ? null : cb.equal(r.get("repId"), f.repId()),
-                (r, q, cb) -> f.q() == null || f.q().isBlank() ? null
-                        : cb.like(cb.lower(r.get("number")), Like.contains(f.q()), '\\'),
+                (r, q, cb) -> {
+                    if (f.q() == null || f.q().isBlank()) {
+                        return null;
+                    }
+                    String pattern = Like.contains(f.q());
+                    // customer is a plain id here (no association): uncorrelated subquery, evaluated once
+                    Expression<Boolean> nameMatch = ((HibernateCriteriaBuilder) cb).sql(
+                            "? in (select id from customer where lower(display_name) like ? escape '\\')", Boolean.class,
+                            r.get("customerId"), ((HibernateCriteriaBuilder) cb).value(pattern));
+                    return cb.or(cb.like(cb.lower(r.get("number")), pattern, '\\'), cb.isTrue(nameMatch));
+                },
                 (r, q, cb) -> !f.awaitingConfirmation() ? null : cb.and(
                         cb.equal(r.get("status"), OrderStatus.QUOTED), cb.isNotNull(r.get("customerAcceptedAt"))),
                 paymentStatus(f.paymentStatus(), today));
-        var found = repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT));
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, SORT_EXPRS, DEFAULT_SORT);
+        var found = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         Map<Long, String> customerNames = customers.displayNames(
                 found.getContent().stream().map(o -> o.customerId).toList());
         Map<Long, String> repNames = users.displayNames(
                 found.getContent().stream().map(o -> o.repId).filter(Objects::nonNull).toList());
+        Map<Long, BigDecimal> cash = new HashMap<>();
+        List<Long> ids = found.getContent().stream().map(o -> o.id).toList();
+        if (!ids.isEmpty()) {
+            refunds.cashCollected(ids).forEach(row -> cash.put(((Number) row[0]).longValue(), (BigDecimal) row[1]));
+        }
         return PageResponse.of(found.map(o -> new OrderSummary(o.id, o.number, o.customerId,
                 customerNames.get(o.customerId), o.status, paymentStatus(o, today), o.total, o.balance(),
-                o.repId == null ? null : repNames.get(o.repId), o.updatedAt)));
+                o.repId == null ? null : repNames.get(o.repId), o.updatedAt, o.refundedAmount,
+                RefundBadge.of(o.refundedAmount, cash.getOrDefault(o.id, BigDecimal.ZERO)))));
     }
 
     @Transactional(readOnly = true)
     OrderResponse get(Scope s, long id) {
         return toResponse(access.findVisible(id, s), s);
+    }
+
+    /**
+     * Admin credits a rep to an order that has none (its customer had no rep), so its net sales count toward that
+     * rep's target from then on. A credited order is never re-credited (spec 2026-11-05).
+     */
+    @Transactional
+    OrderResponse assignRep(Scope s, long id, Long repId) {
+        SalesOrder o = access.findVisibleForUpdate(id, s);
+        if (o.repId != null) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "This order is already credited to a rep.");
+        }
+        if (repId == null || !users.isActiveWithRole(repId, Role.SALES)) {
+            throw invalid("repId", "Choose an active sales user.");
+        }
+        o.repId = repId;
+        o.updatedAt = Instant.now();
+        repo.saveAndFlush(o);
+        audit.record(AuditAction.ASSIGNMENT_CHANGED, ENTITY, id, "Credited order " + o.number + " to a rep",
+                AuditChanges.diff().field("repId", null, repId));
+        return toResponse(o, s);
     }
 
     @Transactional
@@ -158,13 +220,28 @@ class OrderService {
         }
         CustomerSalesProfile c = customers.salesProfileVisible(s, req.customerId())
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+        return toResponse(createDraft(c, s.userId(), req), s);
+    }
+
+    /** A customer's portal request: a DRAFT at catalog prices for staff to price and send (spec 2026-11-22). */
+    @Transactional
+    SalesOrder requestFromPortal(long customerId, long createdBy, List<LineRequest> lines, String notes,
+                                 Long addressId) {
+        String shipTo = addressId == null ? null : addresses.address(customerId, addressId);
+        SalesOrder o = createDraft(customers.salesProfile(customerId), createdBy, new OrderRequest(customerId, null,
+                null, notes, null, lines, null, null, null, null, null, null, null));
+        o.shipTo = shipTo;
+        return o;
+    }
+
+    private SalesOrder createDraft(CustomerSalesProfile c, long createdBy, OrderRequest req) {
         if (c.archived()) {
             throw invalid("customerId", "This customer is archived.");
         }
         SalesOrder o = new SalesOrder();
         o.customerId = c.id();
         o.repId = c.assignedRepId();
-        o.createdBy = s.userId();
+        o.createdBy = createdBy;
         o.number = "SO-%02d-%05d".formatted(SalesTime.today(clock).getYear() % 100, repo.nextNumber());
         o.shipFromWarehouseId = warehouses.defaultId();
         o.withholdingPct = c.type() == CustomerType.BUSINESS
@@ -174,7 +251,7 @@ class OrderService {
         applyLines(o, req.lines(), c, Set.of());
         repo.saveAndFlush(o);
         audit.record(AuditAction.CREATED, ENTITY, o.id, "Created order " + o.number, null);
-        return toResponse(o, s);
+        return o;
     }
 
     @Transactional
@@ -198,6 +275,7 @@ class OrderService {
         if (o.status == OrderStatus.QUOTED) {
             changes.field("status", o.status, OrderStatus.DRAFT);
             o.status = OrderStatus.DRAFT;
+            events.publishEvent(new QuoteClosed(o.id, "revised"));
         }
         o.customerAcceptedAt = null;
         o.updatedAt = Instant.now();
@@ -260,6 +338,7 @@ class OrderService {
         revisions.save(r);
         changes.field("revision", o.revision, o.revision + 1);
         o.revision += 1;
+        events.publishEvent(new QuoteClosed(o.id, "revised"));
         if (released) {
             changes.field("status", o.status, OrderStatus.CONFIRMED);
             o.status = OrderStatus.CONFIRMED;
@@ -337,6 +416,9 @@ class OrderService {
         repo.saveAndFlush(o);
         audit.record(AuditAction.QUOTE_SENT, ENTITY, id, "Sent quote " + o.number + ", valid until " + o.quoteValidUntil,
                 AuditChanges.diff().field("status", before, o.status));
+        if (before == OrderStatus.QUOTED) { // the old send's chase and expiry reminders are stale
+            events.publishEvent(new QuoteClosed(id, "resent"));
+        }
         List<String> to = customers.portalContactEmails(o.customerId);
         if (!to.isEmpty()) {
             mailer.quoteAfterCommit(to, o.number, o.quoteValidUntil, quotes.render(o));
@@ -355,6 +437,7 @@ class OrderService {
         List<String> to = customers.portalContactEmails(o.customerId);
         if (!to.isEmpty()) {
             audit.record(AuditAction.QUOTE_SENT, ENTITY, id, "Resent quote " + o.number, null);
+            events.publishEvent(new QuoteClosed(id, "resent")); // only when audited: that is what keys the next reminders
             mailer.quoteAfterCommit(to, o.number, o.quoteValidUntil, quotes.render(o));
         }
         return new ResendResponse(to);
@@ -413,7 +496,8 @@ class OrderService {
         o.releasedAt = Instant.now();
         save(o, o.releasedAt);
         fulfilment.create(new DeliveryRequest(o.id, o.number, OrderStockMapper.rep(o), o.shipFromWarehouseId,
-                o.deliveryMethod, c.displayName(), c.address(), o.lines.stream().map(l ->
+                o.deliveryMethod, c.preferredShipping(), c.displayName(), o.shipTo != null ? o.shipTo
+                        : addresses.defaultAddress(o.customerId).orElse(c.address()), o.lines.stream().map(l ->
                         new DeliveryRequest.DeliveryLine(l.id, l.productId, l.description, l.unit, l.qty)).toList()));
         audit.record(AuditAction.RELEASED, ENTITY, id, "Released order " + o.number, null);
         notifications.toUser(OrderStockMapper.rep(o), NotificationType.ORDER_RELEASED, ENTITY, id,
@@ -460,7 +544,8 @@ class OrderService {
     }
 
     /**
-     * Refunds happen outside the system, so verified payments block it. A PICKING delivery order is cancelled (after
+     * Collected cash must be refunded first (Refund on this order): refused while any is left to refund or a refund
+     * is still asked for or approved but unpaid. A PICKING delivery order is cancelled (after
      * dispatch: INVALID_STATE) and the reservations freed, before an active invoice is voided (not reissued).
      */
     @Transactional
@@ -471,9 +556,10 @@ class OrderService {
         String reason = req.reason().trim();
         fulfilment.lockForOrder(id); // delivery order before sales order, as deliver does; scope is checked next
         SalesOrder o = transition(s, id, req, OrderAction.CANCEL);
-        if (payments.hasVerified(o)) {
+        BigDecimal open = refunds.openAmount(o.id);
+        if (open.signum() > 0 || RefundService.refundable(refunds.cashCollected(o.id), o, open).signum() > 0) {
             throw new DomainException(ErrorCode.HAS_PAYMENTS,
-                    "This order has verified payments. Refund them outside the system first.");
+                    "Refund the collected payments first (use Refund on this order).");
         }
         fulfilment.cancelForOrder(o.id);
         inventory.release(o.id);
@@ -488,6 +574,7 @@ class OrderService {
         o.cancelledAt = Instant.now();
         o.cancelReason = reason;
         save(o, o.cancelledAt);
+        events.publishEvent(new QuoteClosed(o.id, "cancelled"));
         audit.record(AuditAction.CANCELLED, ENTITY, id, "Cancelled order " + o.number + ": " + reason, null);
         return toResponse(o, s);
     }
@@ -520,8 +607,11 @@ class OrderService {
     }
 
     private void markConfirmed(SalesOrder o) {
+        boolean wasQuoted = o.status == OrderStatus.QUOTED;
         // Credit is the customer's rep at confirm; never changed afterwards (spec 2026-11-05).
-        o.repId = customers.salesProfile(o.customerId).assignedRepId();
+        // An admin-credited rep (customer had none) is kept when the customer still has none.
+        Long customerRep = customers.salesProfile(o.customerId).assignedRepId();
+        o.repId = customerRep != null ? customerRep : o.repId;
         snapshotCosts(o);
         o.status = OrderStatus.CONFIRMED;
         o.confirmedAt = Instant.now();
@@ -529,6 +619,9 @@ class OrderService {
         repo.saveAndFlush(o);
         // Every confirm path (staff, portal acceptance, approvals decided) passes here; a revision does not.
         events.publishEvent(new OrderConfirmed(o.id, o.customerId));
+        if (wasQuoted) { // portal acceptance already published "accepted"; a repeat closes nothing twice
+            events.publishEvent(new QuoteClosed(o.id, o.customerAcceptedAt != null ? "accepted" : "confirmed"));
+        }
     }
 
     /** Fills unit cost on lines that have none yet: at confirm, and for lines a revision adds. */
@@ -576,16 +669,27 @@ class OrderService {
         String repName = o.repId == null ? null : users.displayNames(List.of(o.repId)).get(o.repId);
         InvoiceSummary invoice = invoices.findByOrderIdAndStatus(o.id, InvoiceStatus.ISSUED)
                 .map(Invoice::toSummary).orElse(null);
+        BigDecimal cash = refunds.cashCollected(o.id);
         BigDecimal withholding = Balances.suggestedWithholding(o.totals(), o.withholdingPct, payments.withheld(o), o.balance());
-        return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), o.repId, repName, o.status,
+        return new OrderResponse(o.id, o.number, o.customerId, c.displayName(), c.type(), c.taxTreatment(), o.repId, repName, o.status,
                 paymentStatus(o, today), o.revision, o.paymentTerms, o.quoteValidUntil, quoteExpired(o, today),
                 o.shippingFee, o.notes, o.terms, lines, TotalsResponse.of(o.totals()), o.settledAmount, o.balance(),
                 withholding, invoice, o.quotedAt, o.customerAcceptedAt, o.confirmedAt, o.releasedAt, o.fulfilledAt,
-                o.cancelledAt, o.cancelReason, allowedActions(o, invoice != null, totalShort.signum() > 0, today),
+                o.cancelledAt, o.cancelReason,
+                refundable(o, cash, allowedActions(o, invoice != null, totalShort.signum() > 0, today)),
                 OrderFingerprint.of(o), o.updatedAt, o.version, o.shipFromWarehouseId,
                 warehouses.name(o.shipFromWarehouseId), o.deliveryMethod, totalShort,
                 fulfilment.forOrder(o.id).orElse(null), o.discountType, o.discountValue, o.discountAmount, o.withholdingPct,
-                o.withholdingAmount(), o.total.subtract(o.withholdingAmount()));
+                o.withholdingAmount(), o.total.subtract(o.withholdingAmount()), o.refundedAmount,
+                RefundBadge.of(o.refundedAmount, cash), o.shipTo);
+    }
+
+    /** REFUND is offered to writers while money can still go back (same figure RefundService enforces). */
+    private Set<OrderAction> refundable(SalesOrder o, BigDecimal cash, Set<OrderAction> actions) {
+        if (permissions.canWrite() && RefundService.refundable(cash, o, refunds.openAmount(o.id)).signum() > 0) {
+            actions.add(REFUND);
+        }
+        return actions;
     }
 
     static Set<OrderAction> allowedActions(SalesOrder o, boolean hasInvoice, boolean isShort, LocalDate today) {

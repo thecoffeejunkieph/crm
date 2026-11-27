@@ -50,7 +50,7 @@ public final class InventoryFixture {
     public static RequestPostProcessor as(long userId, Role role, Long... warehouseIds) {
         return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
                 .authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(userId,
-                        "u" + userId + "@if.it", "Staff " + userId, role, Set.of(warehouseIds)), null,
+                        "u" + userId + "@if.it", "Staff " + userId, Set.of(role), Set.of(warehouseIds)), null,
                         java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
     }
 
@@ -63,19 +63,19 @@ public final class InventoryFixture {
     }
 
     public long user(String name) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, ?, 'U', 'SALES') returning id", Long.class, tag + name + "@if.it", name);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, ?, 'U') returning id) insert into user_role select id, 'SALES' from u returning user_id", Long.class, tag + name + "@if.it", name);
     }
 
     public long admin(String name) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, ?, 'U', 'ADMIN') returning id", Long.class, tag + name + "@if.it", name);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, ?, 'U') returning id) insert into user_role select id, 'ADMIN' from u returning user_id", Long.class, tag + name + "@if.it", name);
     }
 
     /** A WAREHOUSE user assigned to the warehouse; withRole lets a test give an admin a membership too. */
     public long warehouseUser(String name, long warehouseId) {
-        long id = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, ?, 'U', 'WAREHOUSE') returning id", Long.class, tag + name + "@if.it", name);
+        long id = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, ?, 'U') returning id) insert into user_role select id, 'WAREHOUSE' from u returning user_id", Long.class, tag + name + "@if.it", name);
         member(id, warehouseId);
         return id;
     }

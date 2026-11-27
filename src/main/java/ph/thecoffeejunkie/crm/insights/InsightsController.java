@@ -17,8 +17,10 @@ class InsightsController {
     private final InsightsService insights;
     private final CurrentActor actor;
     private final Clock clock;
+    private final TodayQueries today;
 
-    InsightsController(InsightsService insights, CurrentActor actor, Clock clock) {
+    InsightsController(InsightsService insights, CurrentActor actor, Clock clock, TodayQueries today) {
+        this.today = today;
         this.insights = insights;
         this.actor = actor;
         this.clock = clock;
@@ -33,8 +35,20 @@ class InsightsController {
 
     @GetMapping("/api/insights/admin")
     @PreAuthorize("hasRole('ADMIN')")
-    AdminInsights admin(@RequestParam(required = false) String month) {
-        return insights.admin(InsightsMonth.parse(month, clock));
+    AdminInsights admin(@RequestParam(required = false) String month, @RequestParam(required = false) String period,
+                        @RequestParam(required = false) String date) {
+        if (date == null && month != null) {
+            date = InsightsMonth.parse(month, clock).atDay(1).toString();
+        }
+        return insights.admin(Period.parse(period, date, clock));
+    }
+
+    /** What is waiting on the caller right now. Live, not cached. */
+    @GetMapping("/api/insights/today")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SALES')")
+    TodayQueue today() {
+        Scope s = actor.scope();
+        return today.forUser(s.userId(), s.role() == Role.ADMIN, InsightsMonth.today(clock));
     }
 
     /** Scoped to the caller's warehouses; ADMIN sees all. Ignores month: it is today's work. */

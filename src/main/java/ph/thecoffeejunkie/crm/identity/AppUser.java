@@ -35,8 +35,6 @@ class AppUser {
     String phone;
     /** Object key of the profile image in storage. */
     String avatarKey;
-    @Enumerated(EnumType.STRING)
-    Role role;
     String totpSecretEnc;
     Instant totpEnabledAt;
     Long totpLastStep;
@@ -53,6 +51,16 @@ class AppUser {
     @CollectionTable(name = "user_warehouse", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "warehouse_id")
     Set<Long> warehouseIds = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_role", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "role")
+    @Enumerated(EnumType.STRING)
+    Set<Role> roles = new HashSet<>();
+
+    boolean has(Role r) {
+        return roles.contains(r);
+    }
 
     String displayName() {
         return firstName + " " + lastName;

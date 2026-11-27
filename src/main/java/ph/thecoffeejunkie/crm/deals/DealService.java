@@ -1,7 +1,7 @@
 package ph.thecoffeejunkie.crm.deals;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -17,7 +17,9 @@ import ph.thecoffeejunkie.crm.sales.OrderStatus;
 import ph.thecoffeejunkie.crm.sales.Orders;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
+import ph.thecoffeejunkie.crm.shared.PageQuery;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.Scope;
 
 import java.math.BigDecimal;
@@ -26,6 +28,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 
 /** Deals (spec 2026-11-06): a rep works deals on their own customers; an admin sees all. */
@@ -33,7 +36,16 @@ import java.util.Objects;
 class DealService {
 
     static final String ENTITY = "DEAL";
-    private static final Sort SORT = Sort.by(Sort.Order.asc("expectedClose").nullsLast(), Sort.Order.asc("id"));
+    private static final Sort SORT = Sort.by(Sort.Order.asc("expectedClose").nullsLast());
+    private static final Set<String> SORTABLE = Set.of("title", "value", "createdAt", "updatedAt");
+    // Frontend column keys: close is expectedClose; stage sorts by pipeline order, not alphabetically.
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of(
+            "close", SortRequest.alias("expectedClose", java.time.LocalDate.class),
+            "stage", new SortRequest.SortExpr("case ? when 'DISCOVERY' then 0 when 'PROPOSAL' then 1 when 'NEGOTIATION' then 2 "
+                    + "when 'WON' then 3 else 4 end", Integer.class, List.of("stage")));
+    private static final Map<String, SortRequest.SortJoin<Deal>> SORT_JOINS = Map.of(
+            "customer", new SortRequest.SortJoin<>("customer", "customerId", "display_name"),
+            "rep", new SortRequest.SortJoin<>("app_user", "repId", "first_name || ' ' || last_name"));
 
     private final DealRepository repo;
     private final DealOrderRepository links;
@@ -41,15 +53,17 @@ class DealService {
     private final Customers customers;
     private final Users users;
     private final AuditLog audit;
+    private final ApplicationEventPublisher events;
 
     DealService(DealRepository repo, DealOrderRepository links, Orders orders, Customers customers, Users users,
-                AuditLog audit) {
+                AuditLog audit, ApplicationEventPublisher events) {
         this.repo = repo;
         this.links = links;
         this.orders = orders;
         this.customers = customers;
         this.users = users;
         this.audit = audit;
+        this.events = events;
     }
 
     @Transactional
@@ -123,6 +137,7 @@ class DealService {
             touch(d);
             audit.record(AuditAction.DEAL_STAGE_CHANGED, ENTITY, id, "Deal \"" + d.title + "\" is now " + d.stage,
                     changes);
+            events.publishEvent(new DealStageChanged(id, d.stage));
         }
         return toResponse(d);
     }
@@ -164,6 +179,7 @@ class DealService {
         touch(d);
         audit.record(AuditAction.DEAL_WON, ENTITY, d.id, "Won deal \"" + d.title + "\"",
                 AuditChanges.diff().field("wonOrderId", null, orderId));
+        events.publishEvent(new DealStageChanged(d.id, DealStage.WON));
     }
 
     void touch(Deal d) {
@@ -177,14 +193,14 @@ class DealService {
     }
 
     @Transactional(readOnly = true)
-    PageResponse<DealResponse> list(Scope s, DealStage stage, String q, Long customerId, Long repId, int page,
-                                    int size) {
+    PageResponse<DealResponse> list(Scope s, DealStage stage, String q, Long customerId, Long repId, PageQuery page) {
         Specification<Deal> spec = DealScopes.visibleTo(s)
                 .and(DealScopes.matches(q, customers.idsNamed(s, q)))
                 .and(DealScopes.eq("customerId", customerId))
                 .and(DealScopes.eq("repId", s.isAdmin() ? repId : null))
                 .and(stage != null ? DealScopes.eq("stage", stage) : DealScopes.stageIn(DealStage.OPEN));
-        Page<Deal> rows = repo.findAll(spec, PageRequest.of(page - 1, size, SORT));
+        var sort = SortRequest.<Deal>of(page, SORTABLE, SORT_JOINS, SORT_EXPRS, SORT);
+        Page<Deal> rows = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         return new PageResponse<>(rows.getNumber() + 1, rows.getSize(), rows.getTotalPages(), rows.getTotalElements(),
                 toResponses(rows.getContent()));
     }
@@ -246,8 +262,9 @@ class DealService {
     }
 
     /**
-     * Links a DRAFT/QUOTED order of the deal's customer that is on no other deal. Anything else, including an
-     * order that does not exist, is the same 422 so order ids and numbers cannot be probed through a deal.
+     * Links a non-cancelled order of the deal's customer that is on no other deal. A confirmed one (the rep forgot to
+     * link it before it was paid) wins the deal at once. Anything else, including an order that does not exist, is
+     * the same 422 so order ids and numbers cannot be probed through a deal.
      */
     @Transactional
     DealResponse link(Scope s, long id, long orderId) {
@@ -262,7 +279,7 @@ class DealService {
         }
         OrderBrief o = orders.brief(orderId).orElse(null);
         if (existing.isPresent() || o == null || o.customerId() != d.customerId
-                || (o.status() != OrderStatus.DRAFT && o.status() != OrderStatus.QUOTED)) {
+                || o.status() == OrderStatus.CANCELLED) {
             throw mismatch();
         }
         DealOrder l = new DealOrder();
@@ -276,7 +293,22 @@ class DealService {
         }
         audit.record(AuditAction.DEAL_ORDER_LINKED, ENTITY, d.id, "Linked order " + o.number() + " to deal \""
                 + d.title + "\"", null);
+        if (o.confirmedAt() != null) {
+            markWon(d, orderId);
+        }
         return toResponse(d);
+    }
+
+    /** Hard delete, links first. Any stage: a deal entered by mistake has no history worth keeping. */
+    @Transactional
+    void delete(Scope s, long id) {
+        Deal d = findVisible(s, id);
+        links.deleteAll(links.findByDealIdOrderByLinkedAtAscOrderIdAsc(d.id));
+        links.flush();
+        repo.delete(d);
+        repo.flush();
+        audit.record(AuditAction.DEAL_DELETED, ENTITY, id, "Deleted deal \"" + d.title + "\"", null);
+        events.publishEvent(new DealDeleted(id));
     }
 
     @Transactional
@@ -303,7 +335,7 @@ class DealService {
 
     private static DomainException mismatch() {
         return new DomainException(ErrorCode.DEAL_ORDER_MISMATCH,
-                "Only a draft or quoted order of this customer that is on no other deal can be linked.");
+                "Only an order of this customer that is not cancelled and is on no other deal can be linked.");
     }
 
     DealResponse toResponse(Deal d) {

@@ -41,8 +41,8 @@ class InsightsFixture {
     }
 
     long user(String name, Role role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, ?, 'U', ?) returning id", Long.class, tag + name + "@if.it", tag + name, role.name());
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, ?, 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, tag + name + "@if.it", tag + name, role.name());
     }
 
     static RequestPostProcessor as(long id, Role role) {
@@ -51,7 +51,7 @@ class InsightsFixture {
 
     static RequestPostProcessor as(long id, Role role, Set<Long> warehouseIds) {
         return authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "u" + id + "@if.it",
-                "Staff " + id, role, warehouseIds), null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
+                "Staff " + id, Set.of(role), warehouseIds), null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
     }
 
     MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder b, String body) {
@@ -63,9 +63,38 @@ class InsightsFixture {
                 + "values ('BUSINESS', ?, '111-222-333', 'Makati', 'NET_30', ?) returning id", Long.class, tag + name, repId);
     }
 
+    /** A customer with a source, optionally converted from {@code leadId}, created at {@code createdAt}. */
+    long customer(String name, Long sourceId, Long leadId, Instant createdAt) {
+        return jdbc.queryForObject("insert into customer (type, display_name, tin, address, payment_terms, source_id, "
+                + "converted_from_lead_id, created_at) values ('BUSINESS', ?, '111-222-333', 'Makati', 'NET_30', ?, ?, ?) "
+                + "returning id", Long.class, tag + name, sourceId, leadId, Timestamp.from(createdAt));
+    }
+
+    long source(String name) {
+        return jdbc.queryForObject("insert into lead_source (name) values (?) returning id", Long.class, tag + name);
+    }
+
+    long lead(String name, long sourceId, Instant createdAt) {
+        return jdbc.queryForObject("insert into lead (contact_name, email, source_id, created_by, created_at) "
+                + "values (?, 'lead@if.it', ?, ?, ?) returning id", Long.class, tag + name, sourceId, creator(),
+                Timestamp.from(createdAt));
+    }
+
     long product(String name, String cost) {
         return jdbc.queryForObject("insert into product (sku, name, unit, price, cost, tax_class) "
                 + "values (?, ?, 'PC', 100, ?::numeric, 'VATABLE') returning id", Long.class, tag + name, tag + name, cost);
+    }
+
+    long category(String name) {
+        return jdbc.queryForObject("insert into product_category (name) values (?) returning id", Long.class, tag + name);
+    }
+
+    void archiveCategory(long id) {
+        jdbc.update("update product_category set archived_at = now() where id = ?", id);
+    }
+
+    void categorize(long productId, long categoryId) {
+        jdbc.update("update product set category_id = ? where id = ?", categoryId, productId);
     }
 
     long warehouse(String code) {
@@ -121,6 +150,18 @@ class InsightsFixture {
                 receivedOn, creator(), verifiedAt == null ? null : Timestamp.from(verifiedAt));
     }
 
+    /** A PAID refund paid at {@code paidAt}, written straight into the table. */
+    long refund(long orderId, String amount, Instant paidAt) {
+        return jdbc.queryForObject("insert into refund (order_id, kind, amount, reason, status, paid_at, requested_by) "
+                + "values (?, 'MONEY_ONLY', ?::numeric, 'test', 'PAID', ?, ?) returning id", Long.class, orderId, amount,
+                Timestamp.from(paidAt), creator());
+    }
+
+    void refundLine(long refundId, long orderLineId, String amount) {
+        jdbc.update("insert into refund_line (refund_id, order_line_id, warehouse_id, qty, disposition, amount) "
+                + "values (?, ?, ?, 1, 'RESTOCK', ?::numeric)", refundId, orderLineId, anyWarehouse(), amount);
+    }
+
     long delivery(long orderId, long warehouseId, String status, Instant deliveredAt) {
         return jdbc.queryForObject("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, "
                 + "delivered_at, customer_name, order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', ?, ?, ?, "
@@ -155,14 +196,22 @@ class InsightsFixture {
         jdbc.update("delete from delivery_order where sales_order_id in (" + orders + ") or customer_name like ?", tag + "%");
         jdbc.update("delete from stock_transfer where number like ?", tag + "%");
         jdbc.update("delete from stock_adjustment where number like ?", tag + "%");
+        jdbc.update("delete from refund where order_id in (" + orders + ")");
         jdbc.update("delete from payment where order_id in (" + orders + ")");
         jdbc.update("update invoice set replaced_by_id = null where order_id in (" + orders + ")");
         jdbc.update("delete from invoice where order_id in (" + orders + ")");
         jdbc.update("delete from order_line where order_id in (" + orders + ")");
         jdbc.update("delete from sales_order where customer_id in (select id from customer where display_name like ?)",
                 tag + "%");
+        String sources = "select id from lead_source where name like '" + tag + "%'";
+        jdbc.update("delete from ad_spend where source_id in (" + sources + ")");
+        jdbc.update("update customer set converted_from_lead_id = null where display_name like ?", tag + "%");
+        jdbc.update("delete from lead where contact_name like ?", tag + "%");
         jdbc.update("delete from customer where display_name like ?", tag + "%");
+        jdbc.update("delete from lead_source where name like ?", tag + "%");
+        jdbc.update("delete from sales_category_target where rep_id in (" + users + ") or updated_by in (" + users + ")");
         jdbc.update("delete from product where sku like ?", tag + "%");
+        jdbc.update("delete from product_category where name like ?", tag + "%");
         jdbc.update("delete from user_warehouse where warehouse_id in (select id from warehouse where code like ?)",
                 tag + "%");
         jdbc.update("delete from warehouse where code like ?", tag + "%");

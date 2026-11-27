@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<p>Hello,</p>
+<p>Your order <b th:text="${orderNumber}">SO-00000</b> from <span th:text="${company}">The Coffee Junkie</span> is
+  out for delivery (delivery order <span th:text="${number}">DO-00000</span>).</p>
+<p th:if="${shipTo != ''}">Delivering to: <span th:text="${shipTo}">address</span></p>
+<table cellpadding="4" style="border-collapse:collapse">
+  <tr><th align="left">Item</th><th align="right">Qty</th><th align="left">Unit</th></tr>
+  <tr th:each="l : ${lines}">
+    <td th:text="${l.description}">Item</td>
+    <td align="right" th:text="${l.qty.stripTrailingZeros().toPlainString()}">1</td>
+    <td th:text="${l.unit}">PC</td>
+  </tr>
+</table>
+<p>Track it in the <a th:href="${link}" href="#">customer portal</a>.</p>
+</body>
+</html>

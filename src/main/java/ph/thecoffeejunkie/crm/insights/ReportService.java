@@ -55,7 +55,7 @@ class ReportService {
                     .map(n -> row(n.id(), n.name(), n.sum(), collected)).toList();
             case PRODUCT -> products(r, f, admin);
         };
-        return new SalesReport(r.from(), r.to(), by, new SalesReport.Total(collected, total.payments()), rows);
+        return new SalesReport(r.from(), r.to(), by, new SalesReport.Total(collected, money(queries.refunds(r, f)), total.payments()), rows);
     }
 
     private List<ReportRow> months(ReportRange r, RepFilter f) {
@@ -100,7 +100,7 @@ class ReportService {
                     withCost ? p.linesWithoutCost() : null));
         }
         BigDecimal shipping = money(queries.shipping(r, f));
-        if (shipping.signum() > 0) {
+        if (shipping.signum() != 0) {
             rows.add(new ReportRow(null, null, SHIPPING, shipping, null, null, null, null, null));
         }
         rows.sort(Comparator.comparing(ReportRow::collected).reversed());

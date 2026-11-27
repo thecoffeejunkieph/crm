@@ -68,7 +68,7 @@ class PasswordResetIT {
         u.passwordHash = password == null ? null : BCRYPT.encode(password);
         u.firstName = "Ana";
         u.lastName = "Cruz";
-        u.role = Role.SALES;
+        u.roles = java.util.EnumSet.of(Role.SALES);
         return users.save(u);
     }
 

@@ -30,8 +30,8 @@ class InventorySchemaIT {
 
     @BeforeEach
     void seed() {
-        userId = jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'S', 'R', 'SALES') returning id", Long.class, UUID.randomUUID() + "@inv.it");
+        userId = jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'S', 'R') returning id) insert into user_role select id, 'SALES' from u returning user_id", Long.class, UUID.randomUUID() + "@inv.it");
         productId = jdbc.queryForObject("insert into product (sku, name, unit, price, tax_class) "
                 + "values (?, 'P', 'PC', 1, 'VATABLE') returning id", Long.class, UUID.randomUUID().toString());
         warehouseId = warehouse(false);

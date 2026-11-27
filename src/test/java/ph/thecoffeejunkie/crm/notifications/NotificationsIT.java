@@ -179,8 +179,9 @@ class NotificationsIT {
     }
 
     private long user(String email, boolean archived) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role, archived_at) "
-                + "values (?, 'N', 'U', 'SALES', " + (archived ? "now()" : "null") + ") returning id", Long.class, email);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name, archived_at) "
+                + "values (?, 'N', 'U', " + (archived ? "now()" : "null") + ") returning id) "
+                + "insert into user_role select id, 'SALES' from u returning user_id", Long.class, email);
     }
 
     private static RequestPostProcessor as(long userId) {
@@ -189,7 +190,7 @@ class NotificationsIT {
 
     private static UsernamePasswordAuthenticationToken token(long userId) {
         return (new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(userId, "u" + userId + "@notif.it", "N U", Role.SALES, Set.of()), null,
+                new StaffPrincipal(userId, "u" + userId + "@notif.it", "N U", Set.of(Role.SALES), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_SALES"))));
     }
 }

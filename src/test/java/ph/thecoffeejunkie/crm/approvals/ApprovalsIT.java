@@ -341,17 +341,33 @@ class ApprovalsIT {
     }
 
     private long user(String email, String role) {
-        return jdbc.queryForObject("insert into app_user (email, first_name, last_name, role) "
-                + "values (?, 'A', 'U', ?) returning id", Long.class, email, role);
+        return jdbc.queryForObject("with u as (insert into app_user (email, first_name, last_name) "
+                + "values (?, 'A', 'U') returning id) insert into user_role select id, ? from u returning user_id", Long.class, email, role);
     }
 
     private static UsernamePasswordAuthenticationToken token(long userId, Role role) {
         return new UsernamePasswordAuthenticationToken(
-                new StaffPrincipal(userId, "u" + userId + "@apr.it", "A U", role, Set.of()), null,
+                new StaffPrincipal(userId, "u" + userId + "@apr.it", "A U", Set.of(role), Set.of()), null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 
     private static RequestPostProcessor as(long userId, Role role) {
         return authentication(token(userId, role));
+    }
+
+    @Test
+    void sortsByStatusAndSubjectAndRejectsUnknownKey() throws Exception {
+        long first = requestVia(sales, 7, 1);
+        requestVia(otherSales, 8, 1);
+        decide(first, true).andExpect(status().isOk());
+        var asAdmin = as(admin, Role.ADMIN);
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).param("sort", "status,asc").with(asAdmin))
+                .andExpect(jsonPath("$.content[0].subjectId").value(7)).andExpect(jsonPath("$.content[1].subjectId").value(8));
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).param("sort", "subjectId,desc").with(asAdmin))
+                .andExpect(jsonPath("$.content[0].subjectId").value(8));
+        mvc.perform(get("/api/approvals").param("subjectType", SUBJECT).param("sort", "user,asc").with(asAdmin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2));
+        mvc.perform(get("/api/approvals").param("sort", "requestedValue,asc").with(asAdmin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
     }
 }

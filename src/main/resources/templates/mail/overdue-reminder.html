@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<p>Hello,</p>
+<p>This is a friendly reminder that the following orders are past due:</p>
+<table cellpadding="4">
+  <tr><th align="left">Order</th><th align="left">Due</th><th align="right">Balance</th><th align="right">Days late</th></tr>
+  <tr th:each="i : ${items}">
+    <td th:text="${i.number}">SO-00000</td>
+    <td th:text="${i.dueDate}">2026-01-01</td>
+    <td align="right" th:text="${i.balance}">0.00</td>
+    <td align="right" th:text="${i.days}">1</td>
+  </tr>
+</table>
+<p>Total overdue: <b th:text="${total}">0.00</b>. Your statement of account is attached.</p>
+<p>Already paid? Upload your proof of payment in the <a th:href="${link}" href="#">customer portal</a> and we'll match it.</p>
+</body>
+</html>

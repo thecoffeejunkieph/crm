@@ -25,6 +25,6 @@ public class CatalogPermissions {
     }
 
     private boolean is(Role... roles) {
-        return actor.staff().map(StaffPrincipal::role).map(r -> Set.of(roles).contains(r)).orElse(false);
+        return actor.staff().map(s -> Set.of(roles).stream().anyMatch(s::has)).orElse(false);
     }
 }

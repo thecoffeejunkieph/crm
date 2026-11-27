@@ -82,21 +82,21 @@ class LoginService {
         }
         var principal = Principals.staffOf(u, u.warehouseIds);
         String next;
-        String authority;
+        List<SimpleGrantedAuthority> authorities;
         if (u.totpEnabledAt != null && !trusted) {
             next = "TOTP";
-            authority = "PRE_2FA";
-        } else if (u.totpEnabledAt == null && u.role == Role.ADMIN) {
+            authorities = List.of(new SimpleGrantedAuthority("PRE_2FA"));
+        } else if (u.totpEnabledAt == null && u.has(Role.ADMIN)) {
             next = "ENROL_TOTP";
-            authority = "ENROL_2FA";
+            authorities = List.of(new SimpleGrantedAuthority("ENROL_2FA"));
         } else {
             next = "DONE";
-            authority = "ROLE_" + u.role;
+            authorities = Principals.authorities(principal);
             audit.recordFor("USER", u.id, u.displayName(), AuditAction.LOGIN_SUCCEEDED, "USER", u.id,
                     trusted ? "Logged in on a remembered device" : "Logged in");
         }
         return new Outcome(next, UsernamePasswordAuthenticationToken.authenticated(
-                principal, null, List.of(new SimpleGrantedAuthority(authority))));
+                principal, null, authorities));
     }
 
     private void recordFailure(AppUser u, String email, LoginThrottle.Result result) {

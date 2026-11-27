@@ -20,6 +20,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Renders templates/pdf/{template}.html with the compiled Tailwind CSS inlined, then prints it with headless Chromium.
@@ -52,11 +53,24 @@ public class PdfRenderer {
     }
 
     public byte[] render(String template, Map<String, Object> vars) {
+        return inBrowser(html(template, vars),
+                page -> page.pdf(new Page.PdfOptions().setPreferCSSPageSize(true).setPrintBackground(true)));
+    }
+
+    /** The same document as a full-page PNG at A4 width (794 CSS px), as tall as the content. */
+    public byte[] renderPng(String template, Map<String, Object> vars) {
+        return inBrowser(html(template, vars), page -> {
+            page.setViewportSize(794, 1123);
+            return page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
+        });
+    }
+
+    private String html(String template, Map<String, Object> vars) {
         var ctx = new Context();
         ctx.setVariables(vars);
         ctx.setVariable("logo", logo);
         // th:text escapes values, so the only </head> is the template's own.
-        return print(templates.process(template, ctx).replace("</head>", "<style>" + tailwind + "</style></head>"));
+        return templates.process(template, ctx).replace("</head>", "<style>" + tailwind + "</style></head>");
     }
 
     /** Template variables from key/value pairs; null values become "" so templates need no null checks. */
@@ -71,7 +85,7 @@ public class PdfRenderer {
     }
 
     // ponytail: one browser behind one lock (Playwright objects are single-threaded); pool browsers if PDFs start queueing.
-    private synchronized byte[] print(String html) {
+    private synchronized byte[] inBrowser(String html, Function<Page, byte[]> output) {
         if (browser == null || !browser.isConnected()) {
             launch();
         }
@@ -80,7 +94,7 @@ public class PdfRenderer {
              Page page = context.newPage()) {
             page.route("**/*", route -> route.abort());
             page.setContent(html);
-            return page.pdf(new Page.PdfOptions().setPreferCSSPageSize(true).setPrintBackground(true));
+            return output.apply(page);
         }
     }
 

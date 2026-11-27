@@ -35,7 +35,7 @@ class LogLevelIT {
 
     private static RequestPostProcessor as(Role role) {
         long id = jdbcUserId;
-        return authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "a@x.it", "Staff", role,
+        return authentication(new UsernamePasswordAuthenticationToken(new StaffPrincipal(id, "a@x.it", "Staff", Set.of(role),
                 Set.of()), null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
     }
 

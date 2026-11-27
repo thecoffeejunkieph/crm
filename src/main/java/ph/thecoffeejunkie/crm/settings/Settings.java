@@ -16,6 +16,8 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 
 /** Public facade: other modules read thresholds here; admins change them through the controller. */
 @Service
@@ -43,6 +45,22 @@ public class Settings {
         return raw(key).toString();
     }
 
+    @Transactional(readOnly = true)
+    public boolean bool(SettingKey key) {
+        return (Boolean) raw(key);
+    }
+
+    @Transactional(readOnly = true)
+    public int integer(SettingKey key) {
+        return ((Number) raw(key)).intValue();
+    }
+
+    @Transactional(readOnly = true)
+    public Long longOrNull(SettingKey key) {
+        Object v = raw(key);
+        return v == null ? null : ((Number) v).longValue();
+    }
+
     /** The invoice's bank accounts: bankName, accountName, accountNumber and qr (a data URI, or ""). */
     @SuppressWarnings("unchecked")
     @Transactional(readOnly = true)
@@ -66,14 +84,23 @@ public class Settings {
         Map<SettingKey, Object> valid = new LinkedHashMap<>();
         values.forEach((k, v) -> valid.put(k, k.validate(v)));
         valid.forEach((k, v) -> {
-            AppSetting row = repo.findById(k.key()).orElseThrow();
-            Object old = row.value;
+            AppSetting row = repo.findById(k.key()).orElse(null);
+            Object old = row != null ? row.value : raw(k);
             if (same(old, v)) {
                 return;
             }
-            row.value = v;
-            row.updatedAt = Instant.now();
-            row.updatedBy = actor.staff().map(StaffPrincipal::userId).orElse(null);
+            if (v == null) { // jsonb value is NOT NULL, so "none" is the absence of a row
+                repo.delete(row);
+            } else {
+                if (row == null) {
+                    row = new AppSetting();
+                    row.key = k.key();
+                }
+                row.value = v;
+                row.updatedAt = Instant.now();
+                row.updatedBy = actor.staff().map(StaffPrincipal::userId).orElse(null);
+                repo.save(row);
+            }
             audit.record(AuditAction.SETTING_CHANGED, "SETTING", null, "Setting " + k.key() + " changed",
                     AuditChanges.diff().field(k.key(), withoutImages(old), withoutImages(v)));
         });
@@ -94,11 +121,16 @@ public class Settings {
 
     // jsonb numbers come back as Integer/Double/BigDecimal, so compare numerically.
     private static boolean same(Object old, Object v) {
-        return old instanceof Number n && v instanceof BigDecimal b
-                ? new BigDecimal(n.toString()).compareTo(b) == 0 : v.equals(old);
+        return old instanceof Number n && v instanceof Number m
+                ? new BigDecimal(n.toString()).compareTo(new BigDecimal(m.toString())) == 0 : Objects.equals(v, old);
     }
 
     private Object raw(SettingKey key) {
-        return repo.findById(key.key()).orElseThrow().value;
+        return repo.findById(key.key()).map(r -> r.value).orElseGet(() -> {
+            if (!key.hasDefault()) {
+                throw new NoSuchElementException(key.key());
+            }
+            return key.defaultValue();
+        });
     }
 }

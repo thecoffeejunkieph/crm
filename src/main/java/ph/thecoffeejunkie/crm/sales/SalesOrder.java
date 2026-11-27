@@ -54,6 +54,8 @@ class SalesOrder {
     BigDecimal zeroRatedSales = new BigDecimal("0.00");
     BigDecimal total = new BigDecimal("0.00");
     BigDecimal settledAmount = new BigDecimal("0.00");
+    /** Money paid back out through PAID refunds; settledAmount keeps what was collected. */
+    BigDecimal refundedAmount = new BigDecimal("0.00");
     LocalDate dueDate;
     Instant quotedAt;
     Instant customerAcceptedAt;
@@ -65,6 +67,8 @@ class SalesOrder {
     Long shipFromWarehouseId;
     @Enumerated(EnumType.STRING)
     DeliveryMethod deliveryMethod = DeliveryMethod.DELIVERY;
+    /** Snapshot of the chosen delivery address; null = the customer's default at release. */
+    String shipTo;
     Long createdBy;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();

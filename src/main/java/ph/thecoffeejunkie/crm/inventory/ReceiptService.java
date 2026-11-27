@@ -2,6 +2,7 @@ package ph.thecoffeejunkie.crm.inventory;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ph.thecoffeejunkie.crm.audit.AuditAction;
@@ -14,6 +15,7 @@ import ph.thecoffeejunkie.crm.shared.DocumentCounters;
 import ph.thecoffeejunkie.crm.shared.DomainException;
 import ph.thecoffeejunkie.crm.shared.ErrorCode;
 import ph.thecoffeejunkie.crm.shared.PageQuery;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.warehouses.Warehouses;
 
@@ -31,6 +33,9 @@ class ReceiptService {
 
     static final String ENTITY = "STOCK_RECEIPT";
     private static final Sort NEWEST = Sort.by(Sort.Direction.DESC, "id");
+    private static final Set<String> SORTABLE = Set.of("number", "supplierName", "reference", "receivedOn", "createdAt");
+    private static final Map<String, SortRequest.SortJoin<StockReceipt>> SORT_JOINS = Map.of(
+            "warehouse", new SortRequest.SortJoin<>("warehouse", "warehouseId", "name"));
 
     private final StockReceiptRepository receipts;
     private final StockLedger ledger;
@@ -57,6 +62,11 @@ class ReceiptService {
     }
 
     ReceiptResponse receive(ReceiptRequest req) {
+        return receive(req, null);
+    }
+
+    /** purchaseOrderId links the receipt to a PO (the purchasing module keeps received_qty in step). */
+    ReceiptResponse receive(ReceiptRequest req, Long purchaseOrderId) {
         perms.require(req.warehouseId(), true);
         warehouses.get(req.warehouseId()); // 404 for an unknown or archived warehouse
         Map<Long, ProductInfo> products = catalog.info(req.lines().stream().map(ReceiptRequest.ReceiptLineRequest::productId).toList());
@@ -75,6 +85,7 @@ class ReceiptService {
         r.reference = req.reference();
         r.receivedOn = req.receivedOn();
         r.notes = req.notes();
+        r.purchaseOrderId = purchaseOrderId;
         r.createdBy = actor.scope().userId();
         for (ReceiptRequest.ReceiptLineRequest l : req.lines()) {
             StockReceiptLine line = new StockReceiptLine();
@@ -94,9 +105,10 @@ class ReceiptService {
     @Transactional(readOnly = true)
     PageResponse<ReceiptResponse> list(Long warehouseId, PageQuery page) {
         perms.require(warehouseId, true);
-        var pageable = page.toPageable(Set.of(), NEWEST);
-        Page<StockReceipt> p = warehouseId == null ? receipts.findAll(pageable)
-                : receipts.findByWarehouseId(warehouseId, pageable);
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, NEWEST);
+        Specification<StockReceipt> inWarehouse = (r, q, cb) -> warehouseId == null ? null
+                : cb.equal(r.get("warehouseId"), warehouseId);
+        Page<StockReceipt> p = receipts.findAll(inWarehouse.and(sort.orderSpec()), sort.pageable());
         return new PageResponse<>(p.getNumber() + 1, p.getSize(), p.getTotalPages(), p.getTotalElements(),
                 toResponses(p.getContent()));
     }

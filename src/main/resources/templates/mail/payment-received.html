@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<p>Hello,</p>
+<p>We received your payment of <b th:text="${amount}">0.00</b> (<span th:text="${method}">BANK_TRANSFER</span>,
+  <span th:text="${receivedOn}">2026-01-01</span>) for order <b th:text="${number}">SO-00000</b>. Thank you.</p>
+<p>Balance remaining on this order: <b th:text="${balance}">0.00</b>.</p>
+<p>See your payments in the <a th:href="${link}" href="#">customer portal</a>.</p>
+</body>
+</html>

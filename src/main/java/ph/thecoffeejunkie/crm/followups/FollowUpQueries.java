@@ -49,6 +49,25 @@ class FollowUpQueries {
                 (rs, n) -> new Due(rs.getLong("assignee_id"), rs.getLong("due_today"), rs.getLong("overdue")));
     }
 
+    record Overdue(long id, long assigneeId, long customerId, String title, LocalDate dueDate, String customerName) {
+    }
+
+    /** Open follow-ups past due that nobody was told about yet. */
+    List<Overdue> unnotifiedOverdue(LocalDate today) {
+        return jdbc.query("select f.id, f.assignee_id, f.customer_id, f.title, f.due_date, c.display_name "
+                + "from follow_up f join customer c on c.id = f.customer_id "
+                + "where f.done_at is null and f.due_date < :today and f.overdue_notified_at is null order by f.id",
+                Map.of("today", today), (rs, n) -> new Overdue(rs.getLong("id"), rs.getLong("assignee_id"),
+                        rs.getLong("customer_id"), rs.getString("title"), rs.getObject("due_date", LocalDate.class),
+                        rs.getString("display_name")));
+    }
+
+    void markOverdueNotified(Collection<Long> ids) {
+        if (!ids.isEmpty()) {
+            jdbc.update("update follow_up set overdue_notified_at = now() where id in (:ids)", Map.of("ids", ids));
+        }
+    }
+
     /** {@code assigneeId} null = everyone (ADMIN); customer and order filters are optional. */
     FollowUpCounts counts(Long assigneeId, Long customerId, Long orderId, LocalDate today) {
         MapSqlParameterSource p = new MapSqlParameterSource("today", today).addValue("a", assigneeId)

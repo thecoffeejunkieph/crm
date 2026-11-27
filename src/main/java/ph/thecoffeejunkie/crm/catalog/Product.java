@@ -22,6 +22,7 @@ class Product {
     String sku;
     String name;
     String description;
+    Long categoryId;
     @Enumerated(EnumType.STRING)
     ProductUnit unit;
     BigDecimal price;
@@ -29,6 +30,8 @@ class Product {
     @Enumerated(EnumType.STRING)
     TaxClass taxClass;
     BigDecimal reorderLevel;
+    BigDecimal reorderTarget;
+    Long preferredSupplierId;
     Instant archivedAt;
     Instant createdAt = Instant.now();
     Instant updatedAt = Instant.now();

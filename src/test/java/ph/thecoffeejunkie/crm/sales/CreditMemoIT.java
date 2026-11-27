@@ -1,0 +1,171 @@
+package ph.thecoffeejunkie.crm.sales;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import ph.thecoffeejunkie.crm.IntegrationTest;
+import ph.thecoffeejunkie.crm.shared.Role;
+
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static ph.thecoffeejunkie.crm.CsrfSupport.csrf;
+import static ph.thecoffeejunkie.crm.sales.SalesFixture.as;
+import static ph.thecoffeejunkie.crm.sales.SalesFixture.asContact;
+import static ph.thecoffeejunkie.crm.sales.SalesFixture.line;
+
+@IntegrationTest
+class CreditMemoIT {
+
+    @Autowired MockMvc mvc;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired CacheManager caches;
+    @Autowired org.springframework.core.env.Environment env;
+
+    SalesFixture f;
+    long rep;
+    long customer;
+    long product;
+    long order; // 10 x 112.00 = 1120.00, fully collected, invoiced
+    String invoiceNo;
+    RequestPostProcessor asAdmin;
+
+    @BeforeEach
+    void seed() throws Exception {
+        InvoicesIT.companySettings(jdbc, caches, "The Coffee Junkie Inc.", "123-456-789-000", "Makati City");
+        f = new SalesFixture(jdbc, mvc);
+        rep = f.user("rep", Role.SALES);
+        asAdmin = as(f.user("boss", Role.ADMIN), Role.ADMIN);
+        customer = f.customer("acme", rep);
+        product = f.product("A", "112.00", null, "VATABLE");
+        order = f.createdOrder(as(rep, Role.SALES), customer, line(product, "10"));
+        f.setStatus(order, "CONFIRMED");
+        collect(order);
+        mvc.perform(f.json(post("/api/orders/" + order + "/invoice"), "{\"version\":" + f.version(order) + "}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
+        invoiceNo = jdbc.queryForObject("select number from invoice where order_id = ?", String.class, order);
+    }
+
+    @AfterEach
+    void cleanUp() {
+        jdbc.update("delete from stock_adjustment where product_id = ?", product);
+        new JdbcTemplate(new DriverManagerDataSource(env.getProperty("spring.datasource.url"),
+                env.getProperty("spring.flyway.user"), env.getProperty("spring.flyway.password")))
+                .update("delete from stock_movement where product_id = ?", product);
+        f.cleanUp();
+        InvoicesIT.companySettings(jdbc, caches, "", "", "");
+    }
+
+    /** Settles the order in full by one VERIFIED cash payment. */
+    private void collect(long orderId) {
+        jdbc.update("insert into payment (order_id, status, method, cash_amount, received_on, submitted_by_type, "
+                + "submitted_by_id) select id, 'VERIFIED', 'CASH', total, current_date, 'USER', ? from sales_order "
+                + "where id = ?", rep, orderId);
+        jdbc.update("update sales_order set settled_amount = total where id = ?", orderId);
+    }
+
+    private long approved(String amount) throws Exception {
+        return SalesFixture.id(mvc.perform(f.json(post("/api/orders/" + order + "/refunds"),
+                        "{\"kind\":\"MONEY_ONLY\",\"amount\":" + amount + ",\"reason\":\"Damaged in transit\"}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isCreated()));
+    }
+
+    private long paid(String amount) throws Exception {
+        long id = approved(amount);
+        long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, id);
+        String json = "{\"method\":\"CASH\",\"paidOn\":\"" + java.time.LocalDate.now() + "\",\"version\":" + version + "}";
+        mvc.perform(multipart("/api/refunds/" + id + "/payout")
+                .file(new MockMultipartFile("payout", "", "application/json", json.getBytes()))
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(asAdmin))
+                .andExpect(status().isOk());
+        return id;
+    }
+
+    @Test
+    void creditMemoShowsNumbersAndTotal() throws Exception {
+        long id = paid("112.00");
+        byte[] pdf = mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        String cm = jdbc.queryForObject("select credit_memo_no from refund where id = ?", String.class, id);
+        assertThat(PdfText.of(pdf)).contains("CREDIT MEMO", cm, invoiceNo, "PHP 112.00", "VATable Sales", "PHP 100.00",
+                "PHP 12.00", "Damaged in transit", "123-456-789-000");
+    }
+
+    @Test
+    void goodsReturnMemoTotalEqualsRefundAmount() throws Exception {
+        // A 100.00 whole-order discount makes netTotal/qty non-terminating (10 lines' worth over 3 units).
+        long o2 = SalesFixture.id(mvc.perform(f.json(post("/api/orders"), "{\"customerId\":" + customer
+                + ",\"discountType\":\"AMOUNT\",\"discountValue\":100,\"lines\":[" + line(product, "3") + "]}")
+                .with(asAdmin)).andExpect(status().isOk()));
+        f.setStatus(o2, "CONFIRMED");
+        collect(o2);
+        mvc.perform(f.json(post("/api/orders/" + o2 + "/invoice"), "{\"version\":" + f.version(o2) + "}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
+        long wh = f.defaultWarehouse();
+        long ol = jdbc.queryForObject("select id from order_line where order_id = ?", Long.class, o2);
+        long d = jdbc.queryForObject("insert into delivery_order (number, sales_order_id, warehouse_id, method, status, "
+                + "dispatched_at, customer_name, order_number, rep_user_id) values (?, ?, ?, 'DELIVERY', 'DISPATCHED', "
+                + "now(), 'c', 'n', ?) returning id", Long.class, f.tag + "DOX", o2, wh, rep);
+        jdbc.update("insert into delivery_order_line (delivery_order_id, order_line_id, product_id, qty, picked_qty, "
+                + "description, unit) values (?, ?, ?, 3, 3, 'd', 'PC')", d, ol, product);
+        f.setStatus(o2, "RELEASED");
+        long id = SalesFixture.id(mvc.perform(f.json(post("/api/orders/" + o2 + "/refunds"),
+                        "{\"kind\":\"GOODS_RETURN\",\"reason\":\"Wrong item\",\"lines\":[{\"orderLineId\":" + ol
+                        + ",\"warehouseId\":" + wh + ",\"qty\":1,\"disposition\":\"RESTOCK\"}]}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isCreated()));
+        long version = jdbc.queryForObject("select version from refund where id = ?", Long.class, id);
+        String json = "{\"method\":\"CASH\",\"paidOn\":\"" + java.time.LocalDate.now() + "\",\"version\":" + version + "}";
+        mvc.perform(multipart("/api/refunds/" + id + "/payout")
+                .file(new MockMultipartFile("payout", "", "application/json", json.getBytes()))
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(csrf(mvc)).with(asAdmin))
+                .andExpect(status().isOk());
+        java.math.BigDecimal amount = jdbc.queryForObject("select amount from refund where id = ?",
+                java.math.BigDecimal.class, id);
+        String cm = jdbc.queryForObject("select credit_memo_no from refund where id = ?", String.class, id);
+        String text = PdfText.of(mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        assertThat(text).contains(cm, "Product A", "PHP " + String.format("%,.2f", amount));
+    }
+
+    @Test
+    void portalContactCanDownloadOwnOnly() throws Exception {
+        long id = paid("112.00");
+        String url = "/api/portal/orders/" + order + "/refunds/" + id + "/credit-memo.pdf";
+        mvc.perform(get(url).with(asContact(f.contact(customer, "cee", true), customer))).andExpect(status().isOk());
+        long other = f.customer("other", rep);
+        mvc.perform(get(url).with(asContact(f.contact(other, "oth", true), other))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void unpaidRefundHasNoMemo() throws Exception {
+        long id = approved("112.00");
+        mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/portal/orders/" + order + "/refunds/" + id + "/credit-memo.pdf")
+                .with(asContact(f.contact(customer, "cee", true), customer))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void memoKeepsOriginalInvoiceAfterReissue() throws Exception {
+        long id = paid("112.00");
+        mvc.perform(f.json(post("/api/orders/" + order + "/invoice/reissue"),
+                        "{\"version\":" + f.version(order) + ",\"reason\":\"Wrong TIN\"}")
+                .header("Idempotency-Key", UUID.randomUUID().toString()).with(asAdmin)).andExpect(status().isOk());
+        String reissued = jdbc.queryForObject("select number from invoice where order_id = ? and status = 'ISSUED'",
+                String.class, order);
+        assertThat(reissued).isNotEqualTo(invoiceNo);
+        String text = PdfText.of(mvc.perform(get("/api/refunds/" + id + "/credit-memo.pdf").with(asAdmin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        assertThat(text).contains(invoiceNo).doesNotContain(reissued);
+    }
+}

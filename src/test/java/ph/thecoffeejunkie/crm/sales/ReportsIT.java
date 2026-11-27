@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -128,12 +129,83 @@ class ReportsIT {
         mvc.perform(get("/api/customers/" + customer + "/account").with(asRep)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(1120.00))
                 .andExpect(jsonPath("$.creditLimit").value(5000.00))
-                .andExpect(jsonPath("$.hasOverdue").value(true));
+                .andExpect(jsonPath("$.hasOverdue").value(true))
+                .andExpect(jsonPath("$.lifetimeValue").value(0.00));
+        payment(order, "VERIFIED", "12.00", null);
+        payment(order, "PENDING", "0.00", null); // not collected yet
+        mvc.perform(get("/api/customers/" + customer + "/account").with(asRep))
+                .andExpect(jsonPath("$.lifetimeValue").value(112.00));
         long other = f.user("oth", Role.SALES);
         mvc.perform(get("/api/customers/" + customer + "/account").with(as(other, Role.SALES)))
                 .andExpect(status().isNotFound());
         jdbc.update("update customer set credit_limit = null where id = ?", customer);
         mvc.perform(get("/api/customers/" + customer + "/account").with(asRep)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.creditLimit").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    private List<Integer> paymentIds(String url, String sort) throws Exception {
+        String res = mvc.perform(get(url).param("sort", sort).with(asRep)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(res, "$.content[*].paymentId");
+    }
+
+    @Test
+    void missing2307SortsByLinkedCustomerAndRejectsUnknownKey() throws Exception {
+        long zulu = f.customer("Zulu", rep);
+        long alpha = f.customer("Alpha", rep);
+        long p1 = payment(confirmedOrder(zulu), "VERIFIED", "9.00", null);
+        long p2 = payment(confirmedOrder(alpha), "VERIFIED", "1.00", null);
+        String url = "/api/reports/missing-2307";
+        assertThat(paymentIds(url, "customer,asc")).containsExactly((int) p2, (int) p1);
+        assertThat(paymentIds(url, "customer,desc")).containsExactly((int) p1, (int) p2);
+        assertThat(paymentIds(url, "withholding,desc")).containsExactly((int) p1, (int) p2);
+        assertThat(paymentIds(url, "rep,asc")).hasSize(2);
+        assertThat(paymentIds(url, "order,asc")).hasSize(2);
+        assertThat(paymentIds(url, "received,desc")).hasSize(2);
+        mvc.perform(get(url).param("sort", "paymentId; drop table payment,asc").with(asRep))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
+
+    @Test
+    void customerInvoicesSortByLinkedOrderAndRejectUnknownKey() throws Exception {
+        long second = confirmedOrder(customer);
+        String insert = "insert into invoice (number, order_id, order_revision, status, issued_at, due_date, customer_snapshot, "
+                + "lines_snapshot, vatable_sales, vat, vat_exempt_sales, zero_rated_sales, shipping_fee, total, issued_by) "
+                + "values (?, ?, 0, 'ISSUED', now(), current_date, '{}', '[]', 0, 0, 0, 0, 0, ?, ?)";
+        jdbc.update(insert, "SI-" + f.tag + "-B", order, 500, rep);
+        jdbc.update(insert, "SI-" + f.tag + "-A", second, 900, rep);
+        String url = "/api/customers/" + customer + "/invoices";
+        String byNumber = mvc.perform(get(url).param("sort", "number,asc").with(asRep)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat((List<String>) com.jayway.jsonpath.JsonPath.read(byNumber, "$.content[*].number"))
+                .containsExactly("SI-" + f.tag + "-A", "SI-" + f.tag + "-B");
+        String byOrder = mvc.perform(get(url).param("sort", "order,desc").with(asRep)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat((List<String>) com.jayway.jsonpath.JsonPath.read(byOrder, "$.content[*].orderNumber"))
+                .isSortedAccordingTo(java.util.Comparator.reverseOrder());
+        mvc.perform(get(url).param("sort", "total,desc").with(asRep)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].total").value(900));
+        mvc.perform(get(url).param("sort", "pdf,asc").with(asRep)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sort"));
+    }
+
+    @Test
+    void customerInvoicesSortByWhatTheStatusColumnShows() throws Exception {
+        long paidOrder = confirmedOrder(customer);
+        long voidOrder = confirmedOrder(customer);
+        jdbc.update("update sales_order set settled_amount = total where id = ?", paidOrder);
+        String insert = "insert into invoice (number, order_id, order_revision, status, issued_at, due_date, customer_snapshot, "
+                + "lines_snapshot, vatable_sales, vat, vat_exempt_sales, zero_rated_sales, shipping_fee, total, issued_by) "
+                + "values (?, ?, 0, ?, now(), current_date, '{}', '[]', 0, 0, 0, 0, 0, 100, ?)";
+        jdbc.update(insert, "SI-" + f.tag + "-PAID", paidOrder, "ISSUED", rep);
+        jdbc.update(insert, "SI-" + f.tag + "-UNPAID", order, "ISSUED", rep);
+        jdbc.update(insert, "SI-" + f.tag + "-VOID", voidOrder, "VOID", rep);
+        String url = "/api/customers/" + customer + "/invoices";
+        for (String[] c : new String[][]{{"asc", "UNPAID", "PAID", "VOID"}, {"desc", "VOID", "PAID", "UNPAID"}}) {
+            String body = mvc.perform(get(url).param("sort", "status," + c[0]).with(asRep)).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat((List<String>) com.jayway.jsonpath.JsonPath.read(body, "$.content[*].number"))
+                    .containsExactly("SI-" + f.tag + "-" + c[1], "SI-" + f.tag + "-" + c[2], "SI-" + f.tag + "-" + c[3]);
+        }
     }
 }

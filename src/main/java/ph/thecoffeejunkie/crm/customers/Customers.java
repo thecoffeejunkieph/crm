@@ -24,6 +24,7 @@ import ph.thecoffeejunkie.crm.shared.PageResponse;
 import ph.thecoffeejunkie.crm.shared.PhoneKey;
 import ph.thecoffeejunkie.crm.shared.Role;
 import ph.thecoffeejunkie.crm.shared.Scope;
+import ph.thecoffeejunkie.crm.shared.SortRequest;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -40,7 +41,12 @@ import java.util.Set;
 public class Customers {
 
     private static final String ENTITY = "CUSTOMER";
-    private static final Set<String> SORTABLE = Set.of("displayName", "createdAt");
+    private static final Set<String> SORTABLE = Set.of("displayName", "type", "phone", "email", "createdAt");
+    /** Active (not archived) first on asc. */
+    private static final Map<String, SortRequest.SortExpr> SORT_EXPRS = Map.of("status",
+            new SortRequest.SortExpr("case when ? is null then 0 else 1 end", Integer.class, List.of("archivedAt")));
+    private static final Map<String, SortRequest.SortJoin<Customer>> SORT_JOINS = Map.of(
+            "rep", new SortRequest.SortJoin<>("app_user", "assignedRepId", "first_name || ' ' || last_name"));
     private static final Sort DEFAULT_SORT = Sort.by("displayName");
 
     private final CustomerRepository repo;
@@ -69,7 +75,8 @@ public class Customers {
     PageResponse<CustomerSummary> list(Scope s, String q, boolean includeArchived, PageQuery page) {
         Specification<Customer> spec = Specification.allOf(CustomerScopes.visibleTo(s, includeArchived),
                 CustomerScopes.matches(q));
-        var result = repo.findAll(spec, page.toPageable(SORTABLE, DEFAULT_SORT));
+        var sort = SortRequest.of(page, SORTABLE, SORT_JOINS, SORT_EXPRS, DEFAULT_SORT);
+        var result = repo.findAll(spec.and(sort.orderSpec()), sort.pageable());
         Map<Long, String> reps = repNames(result.getContent().stream().map(c -> c.assignedRepId).toList());
         return PageResponse.of(result.map(c -> new CustomerSummary(c.id, c.displayName, c.type, c.phone, c.email,
                 c.assignedRepId == null ? null : reps.get(c.assignedRepId), c.archivedAt)));
@@ -84,7 +91,7 @@ public class Customers {
     CustomerResponse create(Scope s, CustomerRequest req) {
         Customer c = new Customer();
         boolean sales = s.role() == Role.SALES;
-        c.assignedRepId = sales ? s.userId() : null;
+        c.assignedRepId = s.has(Role.SALES) ? s.userId() : null; // an admin who is also a rep owns what they create
         c.creditLimit = sales ? null : req.creditLimit();
         leadSources.requireActive(req.sourceId());
         apply(c, req);
@@ -116,7 +123,8 @@ public class Customers {
                 .field("taxTreatment", c.taxTreatment, req.taxTreatment())
                 .field("sourceId", c.sourceId, req.sourceId())
                 .field("notes", c.notes, req.notes())
-                .field("socialMedia", c.socialMedia, req.socialMedia());
+                .field("socialMedia", c.socialMedia, req.socialMedia())
+                .field("preferredShipping", c.preferredShipping, req.preferredShipping());
         apply(c, req);
         c.updatedAt = Instant.now();
         repo.saveAndFlush(c);
@@ -160,28 +168,89 @@ public class Customers {
 
     @Transactional
     ContactResponse addContact(Scope s, long customerId, ContactRequest req) {
-        Customer c = findVisible(customerId, s, false);
-        CustomerContact k = new CustomerContact();
-        k.customerId = customerId;
-        String email = normalise(req.email());
-        requireEmailFree(email, null);
-        fill(k, req, email);
-        saveContact(k);
-        audit.record(AuditAction.CREATED, ENTITY, customerId,
-                "Added contact " + k.name + " to " + c.displayName, null);
-        return toResponse(k);
+        return addContact(findVisible(customerId, s, false), req);
     }
 
     @Transactional
     ContactResponse updateContact(Scope s, long customerId, long contactId, ContactRequest req) {
-        Customer c = findVisible(customerId, s, false);
+        return updateContact(findVisible(customerId, s, false), contactId, req);
+    }
+
+    @Transactional
+    void archiveContact(Scope s, long customerId, long contactId) {
+        archiveContact(findVisible(customerId, s, false), contactId);
+    }
+
+    // --- portal: the signed-in contact manages their own company's contacts ---
+
+    @Transactional(readOnly = true)
+    List<ContactResponse> portalContacts(ContactPrincipal me) {
+        return contacts.findByCustomerIdAndArchivedAtIsNullOrderById(me.customerId()).stream()
+                .map(Customers::toResponse).toList();
+    }
+
+    @Transactional
+    ContactResponse portalAddContact(ContactPrincipal me, ContactRequest req) {
+        return addContact(portalCustomer(me), req);
+    }
+
+    /** Not your own email or portal access: that would sign you out for good. */
+    @Transactional
+    ContactResponse portalUpdateContact(ContactPrincipal me, long contactId, ContactRequest req) {
+        if (contactId == me.contactId()) {
+            if (!req.portalEnabled()) {
+                throw invalid("portalEnabled", "You can't turn off your own portal access.");
+            }
+            if (!normalise(req.email()).equals(contact(me.customerId(), contactId).email)) {
+                throw invalid("email", "Ask a colleague or your rep to change your own email.");
+            }
+        }
+        return updateContact(portalCustomer(me), contactId, req);
+    }
+
+    @Transactional
+    void portalArchiveContact(ContactPrincipal me, long contactId) {
+        if (contactId == me.contactId()) {
+            throw new DomainException(ErrorCode.INVALID_STATE, "You can't remove yourself.");
+        }
+        archiveContact(portalCustomer(me), contactId);
+    }
+
+    /** Billing mails (invoice sent, overdue reminder): active contacts who receive invoices, portal access or not. */
+    @Transactional(readOnly = true)
+    public List<String> billingContactEmails(long customerId) {
+        return contacts.findByCustomerIdAndArchivedAtIsNullOrderById(customerId).stream()
+                .filter(k -> k.receivesInvoices).map(k -> k.email).toList();
+    }
+
+    private Customer portalCustomer(ContactPrincipal me) {
+        return repo.findById(me.customerId()).filter(c -> c.archivedAt == null)
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Customer not found"));
+    }
+
+    private ContactResponse addContact(Customer c, ContactRequest req) {
+        CustomerContact k = new CustomerContact();
+        k.customerId = c.id;
+        String email = normalise(req.email());
+        requireEmailFree(email, null);
+        fill(k, req, email);
+        saveContact(k);
+        audit.record(AuditAction.CREATED, ENTITY, c.id,
+                "Added contact " + k.name + " to " + c.displayName, null);
+        return toResponse(k);
+    }
+
+    private ContactResponse updateContact(Customer c, long contactId, ContactRequest req) {
+        long customerId = c.id;
         CustomerContact k = contact(customerId, contactId);
         requireVersion(k.version, req.version());
         String email = normalise(req.email());
         requireEmailFree(email, contactId);
         AuditChanges changes = AuditChanges.diff().field("contact.name", k.name, req.name().trim())
                 .field("contact.email", k.email, email).field("contact.phone", k.phone, req.phone())
-                .field("contact.portalEnabled", k.portalEnabled, req.portalEnabled());
+                .field("contact.portalEnabled", k.portalEnabled, req.portalEnabled())
+                .field("contact.receivesInvoices", k.receivesInvoices,
+                        req.receivesInvoices() == null ? k.receivesInvoices : req.receivesInvoices());
         // A live portal principal carries the old email, so email change or portal disable ends its sessions.
         boolean portalRevoked = (k.portalEnabled && !req.portalEnabled()) || !k.email.equals(email);
         fill(k, req, email);
@@ -195,9 +264,8 @@ public class Customers {
         return toResponse(k);
     }
 
-    @Transactional
-    void archiveContact(Scope s, long customerId, long contactId) {
-        Customer c = findVisible(customerId, s, false);
+    private void archiveContact(Customer c, long contactId) {
+        long customerId = c.id;
         CustomerContact k = contact(customerId, contactId);
         k.archivedAt = Instant.now();
         k.updatedAt = k.archivedAt;
@@ -357,7 +425,7 @@ public class Customers {
 
     private static CustomerSalesProfile toSalesProfile(Customer c) {
         return new CustomerSalesProfile(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.creditLimit,
-                c.paymentTerms, c.taxTreatment, c.assignedRepId, c.archivedAt != null, c.email);
+                c.paymentTerms, c.taxTreatment, c.assignedRepId, c.archivedAt != null, c.email, c.preferredShipping);
     }
 
     private Customer findVisible(long id, Scope s, boolean includeArchived) {
@@ -423,6 +491,7 @@ public class Customers {
         c.sourceId = r.sourceId();
         c.notes = r.notes();
         c.socialMedia = r.socialMedia();
+        c.preferredShipping = r.preferredShipping();
         if (c.id != null) {
             c.creditLimit = r.creditLimit();
         }
@@ -433,6 +502,9 @@ public class Customers {
         k.email = email;
         k.phone = r.phone();
         k.portalEnabled = r.portalEnabled();
+        if (r.receivesInvoices() != null) {
+            k.receivesInvoices = r.receivesInvoices();
+        }
     }
 
     private static String normaliseOrNull(String email) {
@@ -457,11 +529,11 @@ public class Customers {
                 .map(Customers::toResponse).toList();
         String rep = c.assignedRepId == null ? null : repNames(List.of(c.assignedRepId)).get(c.assignedRepId);
         return new CustomerResponse(c.id, c.type, c.displayName, c.businessName, c.tin, c.address, c.phone, c.email,
-                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.sourceId, leadSources.name(c.sourceId), c.notes, c.socialMedia, c.convertedFromLeadId, cs, c.archivedAt, c.version);
+                c.creditLimit, c.paymentTerms, c.taxTreatment, c.assignedRepId, rep, c.sourceId, leadSources.name(c.sourceId), c.notes, c.socialMedia, c.convertedFromLeadId, cs, c.preferredShipping, c.archivedAt, c.version);
     }
 
     private static ContactResponse toResponse(CustomerContact k) {
-        return new ContactResponse(k.id, k.name, k.email, k.phone, k.portalEnabled, k.version);
+        return new ContactResponse(k.id, k.name, k.email, k.phone, k.portalEnabled, k.version, k.receivesInvoices);
     }
 
     /** After commit: a portal login between an in-transaction revoke and the commit would otherwise survive it. */
