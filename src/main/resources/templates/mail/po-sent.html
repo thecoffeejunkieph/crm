@@ -1,8 +1,13 @@
+<!--/* Generated from tailwind/mail/po-sent.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: email(|Purchase order ${number} from ${company} is attached.|, ~{::content})}">
 <body>
-<p>Hello <span th:text="${supplier}">Supplier</span>,</p>
-<p>Please find attached purchase order <b th:text="${number}">PO-00000</b> from
-  <span th:text="${company}">The Coffee Junkie</span>.</p>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Purchase order')}"></p>
+  <h1 th:replace="~{parts :: title(|Purchase order ${number}|)}"></h1>
+  <p style="margin-top: 16px; margin-bottom: 0">Hello <span th:text="${supplier}">Supplier</span>,</p>
+  <p style="margin-top: 12px; margin-bottom: 0">Please find attached purchase order <b th:text="${number}" style="font-weight: 600; white-space: nowrap; color: #0d2245">PO-00000</b>
+    from <span th:text="${company}">The Coffee Junkie</span>.</p>
+</div>
 </body>
 </html>

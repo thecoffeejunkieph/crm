@@ -1,9 +1,22 @@
+<!--/* Generated from tailwind/mail/order-confirmed.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: email(|Order ${number} is confirmed. Total PHP ${total}.|, ~{::content})}">
 <body>
-<p>Hello,</p>
-<p>Your order <b th:text="${number}">SO-00000</b> with <span th:text="${company}">The Coffee Junkie</span> is
-  confirmed. Order total: <b th:text="${total}">0.00</b>.</p>
-<p>You can follow it, pay and download your documents in the <a th:href="${link}" href="#">customer portal</a>.</p>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Order confirmed')}"></p>
+  <h1 th:replace="~{parts :: title(|Order ${number} is confirmed|)}"></h1>
+  <p style="margin-top: 16px; margin-bottom: 0">Hello,</p>
+  <p style="margin-top: 12px; margin-bottom: 0">Thank you for your order with <span th:text="${company}">The Coffee Junkie</span>. You can
+    follow it, pay and download your documents in the customer portal.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 24px; width: 100%; border-collapse: separate; border-radius: 6px; background-color: #f6f7f9" width="100%">
+    <tr><td style="padding-left: 20px; padding-right: 20px; padding-top: 16px; padding-bottom: 16px">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 22px" width="100%">
+        <tr><td style="padding-top: 4px; padding-bottom: 4px; color: #667286">Order</td><td align="right" th:text="${number}" style="padding-top: 4px; padding-bottom: 4px; text-align: right; font-weight: 600; color: #0d2245">SO-00000</td></tr>
+        <tr><td style="padding-top: 4px; padding-bottom: 4px; color: #667286">Order total</td><td align="right" th:text="|PHP ${total}|" style="padding-top: 4px; padding-bottom: 4px; text-align: right; font-weight: 600; color: #0d2245">PHP 0.00</td></tr>
+      </table>
+    </td></tr>
+  </table>
+  <table th:replace="~{parts :: button(${link}, 'View your order')}"></table>
+</div>
 </body>
 </html>

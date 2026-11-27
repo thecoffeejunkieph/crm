@@ -1,8 +1,13 @@
+<!--/* Generated from tailwind/mail/invoice-sent.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: email(|Invoice ${number} is attached.|, ~{::content})}">
 <body>
-<p>Hello,</p>
-<p>Thank you for your purchase from <span th:text="${company}">The Coffee Junkie</span>. Your invoice
-  <b th:text="${number}">SI-00000</b> is attached.</p>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Invoice')}"></p>
+  <h1 th:replace="~{parts :: title(|Invoice ${number}|)}"></h1>
+  <p style="margin-top: 16px; margin-bottom: 0">Hello,</p>
+  <p style="margin-top: 12px; margin-bottom: 0">Thank you for your purchase from <span th:text="${company}">The Coffee Junkie</span>. Your
+    invoice <b th:text="${number}" style="font-weight: 600; white-space: nowrap; color: #0d2245">SI-00000</b> is attached as a PDF.</p>
+</div>
 </body>
 </html>

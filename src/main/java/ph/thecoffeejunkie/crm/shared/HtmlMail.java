@@ -30,14 +30,18 @@ public class HtmlMail {
     private final String from;
     private final String company;
     private final boolean logLinks;
+    private final String logo;
 
     HtmlMail(JavaMailSender sender, @Value("${spring.mail.username:${app.company.email}}") String from,
              @Value("${app.company.name}") String company,
-             @Value("${app.mail.log-links:false}") boolean logLinks) {
+             @Value("${app.mail.log-links:false}") boolean logLinks,
+             @Value("${app.base-url:http://localhost:8080}") String baseUrl) {
         this.sender = sender;
         this.from = from;
         this.company = company;
         this.logLinks = logLinks;
+        // Served from static/ outside /api, so it needs no session; mail clients fetch it from the public API host.
+        this.logo = baseUrl + "/tcj-logo-email.png";
         var resolver = new ClassLoaderTemplateResolver();
         resolver.setPrefix("templates/mail/");
         resolver.setSuffix(".html");
@@ -53,6 +57,15 @@ public class HtmlMail {
     public record Attachment(String filename, String contentType, byte[] bytes) {
     }
 
+    /** The templates are generated from tailwind/mail/ (npm run build there); edit those, not templates/mail/. */
+    String render(String template, Map<String, Object> vars) {
+        var ctx = new Context();
+        ctx.setVariables(vars);
+        ctx.setVariable("company", company);
+        ctx.setVariable("logo", logo);
+        return templates.process(template, ctx);
+    }
+
     /** {@code vars} are template variables; {@code company} is always added. */
     public void send(String to, String subject, String template, Map<String, Object> vars) {
         send(to, subject, template, vars, List.of());
@@ -61,13 +74,10 @@ public class HtmlMail {
     /** Multipart only when there are attachments. */
     public void send(String to, String subject, String template, Map<String, Object> vars,
                      List<Attachment> attachments) {
-        var ctx = new Context();
-        ctx.setVariables(vars);
-        ctx.setVariable("company", company);
         if (logLinks) {
             log.info("DEV {} mail for {}: {}", template, to, vars.get("link"));
         }
-        String html = templates.process(template, ctx);
+        String html = render(template, vars);
         try {
             MimeMessage message = sender.createMimeMessage();
             var helper = new MimeMessageHelper(message, !attachments.isEmpty(), StandardCharsets.UTF_8.name());

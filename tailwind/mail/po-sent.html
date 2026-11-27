@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: email(|Purchase order ${number} from ${company} is attached.|, ~{::content})}">
+<body>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Purchase order')}"></p>
+  <h1 th:replace="~{parts :: title(|Purchase order ${number}|)}"></h1>
+  <p class="mt-4 mb-0">Hello <span th:text="${supplier}">Supplier</span>,</p>
+  <p class="mt-3 mb-0">Please find attached purchase order <b class="font-semibold whitespace-nowrap text-ink" th:text="${number}">PO-00000</b>
+    from <span th:text="${company}">The Coffee Junkie</span>.</p>
+</div>
+</body>
+</html>

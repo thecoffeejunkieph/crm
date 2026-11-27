@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: email(|Set your password to start using ${company}.|, ~{::content})}">
+<body>
+<div th:fragment="content">
+  <p th:replace="~{parts :: eyebrow('Invitation')}"></p>
+  <h1 th:replace="~{parts :: title(|Welcome to ${company}|)}"></h1>
+  <p class="mt-4 mb-0">Hi <span th:text="${name}">there</span>,</p>
+  <p class="mt-3 mb-0">You have been invited to <span th:text="${company}">The Coffee Junkie</span>. Set your
+    password to get started.</p>
+  <table th:replace="~{parts :: button(${link}, 'Accept invitation')}"></table>
+  <p class="mt-7 mb-0 text-sm text-muted">This link works once and expires in 24 hours.</p>
+</div>
+</body>
+</html>

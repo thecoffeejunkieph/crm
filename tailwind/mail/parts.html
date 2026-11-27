@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Table-wrapped so Outlook keeps the navy fill and rounded corners degrade to square. -->
+<table th:fragment="button(href, label)" role="presentation" class="mt-7 border-separate" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="rounded-md bg-ink" align="center">
+      <a th:href="${href}" href="#" target="_blank"
+         class="inline-block rounded-md border border-ink px-6 py-3 text-sm font-semibold text-white no-underline"
+         th:text="${label}">Label</a>
+    </td>
+  </tr>
+</table>
+
+<p th:fragment="eyebrow(text)" class="m-0 text-xs font-semibold uppercase tracking-wide text-muted" th:text="${text}">Eyebrow</p>
+
+<h1 th:fragment="title(text)" class="mt-2 mb-0 text-2xl font-bold tracking-[-0.01em] text-ink" th:text="${text}">Title</h1>
+
+</body>
+</html>

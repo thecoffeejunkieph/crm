@@ -1,10 +1,13 @@
 {
   "private": true,
   "scripts": {
-    "build": "tailwindcss -i pdf.css -o ../src/main/resources/templates/pdf/tailwind.css --minify"
+    "build": "npm run build:pdf && npm run build:mail",
+    "build:pdf": "tailwindcss -i pdf.css -o ../src/main/resources/templates/pdf/tailwind.css --minify",
+    "build:mail": "tailwindcss -i mail.css -o build/mail.css --minify && node mail.mjs"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.1.18",
+    "juice": "11.1.1",
     "tailwindcss": "4.1.18"
   }
 }

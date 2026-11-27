@@ -1,0 +1,39 @@
+<!--/* Generated from tailwind/mail/layout.html by `npm run build` in tailwind/. Edit that file, not this one. */-->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:fragment="email(preheader, content)" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <title th:text="${company}">The Coffee Junkie</title>
+</head>
+<body style="background-color: #eef0f4; padding: 0; font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+<div th:text="${preheader}" style="display: none; max-height: 0; overflow: hidden; font-size: 1px; line-height: 1px; color: #eef0f4; opacity: 0">Preview text</div>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; background-color: #eef0f4; font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" width="100%">
+  <tr>
+    <td align="center" style="padding-left: 12px; padding-right: 12px; padding-top: 40px; padding-bottom: 40px">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; max-width: 600px; border-collapse: collapse" width="100%">
+        <tr>
+          <td style="border-top-left-radius: 10px; border-top-right-radius: 10px; border-style: solid; border-width: 1px; border-bottom-style: solid; border-bottom-width: 0; border-color: #dde2ea; background-color: #fff; padding-left: 32px; padding-right: 32px; padding-top: 28px; padding-bottom: 24px">
+            <!-- Alt text is styled for clients that block images until the reader allows them. -->
+            <img th:src="${logo}" src="tcj-logo-email.png" th:alt="${company}" alt="The Coffee Junkie" width="160" height="61" style="display: block; height: 61px; width: 160px; border-style: solid; border-width: 0; font-size: 17px; line-height: 26px; font-weight: 700; color: #0d2245">
+          </td>
+        </tr>
+        <tr>
+          <td style="border-bottom-right-radius: 10px; border-bottom-left-radius: 10px; border-style: solid; border-width: 1px; border-top-style: solid; border-top-width: 0; border-color: #dde2ea; background-color: #fff; padding-left: 32px; padding-right: 32px; padding-top: 0; padding-bottom: 36px; font-size: 15px; line-height: 24px; color: #3d4a5f">
+            <div style="margin-bottom: 32px; height: 1px; background-color: #dde2ea; font-size: 1px; line-height: 1px">&nbsp;</div>
+            <div th:replace="${content}">Content</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-left: 32px; padding-right: 32px; padding-top: 24px; text-align: center; font-size: 12px; line-height: 18px; color: #667286">
+            Sent by <span th:text="${company}">The Coffee Junkie</span>. Questions? Just reply to this email.
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
